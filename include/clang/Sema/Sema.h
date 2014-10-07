@@ -1563,6 +1563,8 @@ public:
                                   CorrectionCandidateCallback *CCC = nullptr);
 
   Decl *ActOnDeclarator(Scope *S, Declarator &D);
+  void ActOnIntercessionDeclarator(Expr *expr, SourceLocation kwLoc,
+                                   SourceLocation loc);
 
   NamedDecl *HandleDeclarator(Scope *S, Declarator &D,
                               MultiTemplateParamsArg TemplateParameterLists);

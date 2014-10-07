@@ -4807,7 +4807,7 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
 
     if (Tok.is(tok::kw___variable_decl)) {
       llvm::errs() << "Hello __variable_decl\n";
-      ConsumeToken();
+      SourceLocation kwLoc = ConsumeToken();
       BalancedDelimiterTracker Parens(*this, tok::l_paren);
       // TODO check
       // TODO why we need to consume, shouldn't the constructor do this?
@@ -4817,20 +4817,21 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
         SourceLocation identifierStrLoc;
         identifierStrLoc = Tok.getLocation();
         ExprResult exprResult = ParseStringLiteralExpression(false);
-        //if (exprResult.isInvalid()) {
-          //return ExprError();
+        // if (exprResult.isInvalid()) {
+        // return ExprError();
         //}
         Expr *expr = exprResult.get();
         StringLiteral *stringLiteral = dyn_cast<StringLiteral>(expr);
-        //if (!stringLiteral) {
-          //return ExprError();
+        // if (!stringLiteral) {
+        // return ExprError();
         //}
         identifierStr = stringLiteral->getString();
-        llvm::errs() << "string literal: " << identifierStr
-                     << "\n";
+        llvm::errs() << "string literal: " << identifierStr << "\n";
         llvm::errs() << "source location of string literal: ";
         identifierStrLoc.dump(this->Diags.getSourceManager());
         llvm::errs() << "\n";
+        Actions.ActOnIntercessionDeclarator(stringLiteral, kwLoc,
+                                            identifierStrLoc);
       }
     } else if (Tok.is(tok::identifier) || Tok.is(tok::kw_operator) ||
                Tok.is(tok::annot_template_id) || Tok.is(tok::tilde)) {
