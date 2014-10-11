@@ -136,6 +136,9 @@ def FunctionParmPackExpr : DStmt<Expr>;
 def MaterializeTemporaryExpr : DStmt<Expr>;
 def LambdaExpr : DStmt<Expr>;
 
+// Intercession Expressions.
+def IntercessionExpr : DStmt<Expr>;
+
 // Obj-C Expressions.
 def ObjCStringLiteral : DStmt<Expr>;
 def ObjCBoxedExpr : DStmt<Expr>;

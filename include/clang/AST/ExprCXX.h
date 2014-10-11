@@ -2145,6 +2145,31 @@ public:
 
 };
 
+class IntercessionExpr : public Expr {
+  IntercessionExpr(Expr *expr, SourceLocation kwLoc, SourceLocation subLoc,
+                   SourceLocation rparen);
+
+  Expr *subExpr;
+  // location of the keyword
+  SourceLocation kwLoc;
+  // start location of the subexpression
+  SourceLocation subLoc;
+  SourceLocation rparen;
+
+public:
+  static IntercessionExpr *Create(ASTContext &C, Expr *expr,
+                                  SourceLocation kwLoc, SourceLocation loc);
+
+  // These functions must be implemented to fullfill clang's concepts
+  child_range children() {
+    // TODO check!
+    Stmt **begin = reinterpret_cast<Stmt **>(&this->subExpr);
+    return child_range(begin, begin + 1);
+  }
+  SourceLocation getLocStart() const { return kwLoc; }
+  SourceLocation getLocEnd() const { return rparen; }
+};
+
 /// \brief An Embarcadero array type trait, as used in the implementation of
 /// __array_rank and __array_extent.
 ///

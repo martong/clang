@@ -1536,3 +1536,18 @@ TypeTraitExpr *TypeTraitExpr::CreateDeserialized(const ASTContext &C,
 }
 
 void ArrayTypeTraitExpr::anchor() { }
+
+//IntercessionExpr::IntercessionExpr(Expr *expr, SourceLocation kwLoc, SourceLocation subLoc,
+//                   SourceLocation rparen) : 
+  //Expr()
+//{}
+
+IntercessionExpr *IntercessionExpr::Create(ASTContext &C, Expr *expr,
+                                           SourceLocation kwLoc,
+                                           SourceLocation loc) {
+  //unsigned size = sizeof(IntercessionExpr);
+  //void *mem = C.Allocate(size);
+  //return new (mem) IntercessionExpr(expr, kwLoc, loc);
+  return nullptr;
+}
+

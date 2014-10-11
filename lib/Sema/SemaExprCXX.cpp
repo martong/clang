@@ -3743,7 +3743,12 @@ ExprResult Sema::ActOnTypeTrait(TypeTrait Kind, SourceLocation KWLoc,
 }
 
 void Sema::ActOnIntercessionDeclarator(Expr *expr, SourceLocation kwLoc,
-                                       SourceLocation loc) {}
+                                       SourceLocation loc) {
+  BuildIntercession(expr, kwLoc, loc);
+}
+
+void Sema::BuildIntercession(Expr *expr, SourceLocation kwLoc,
+                                 SourceLocation loc) {}
 
 static bool EvaluateBinaryTypeTrait(Sema &Self, TypeTrait BTT, QualType LhsT,
                                     QualType RhsT, SourceLocation KeyLoc) {

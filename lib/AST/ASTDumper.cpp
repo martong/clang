@@ -1,4 +1,4 @@
-//===--- ASTDumper.cpp - Dumping implementation for ASTs ------------------===//
+ //===--- ASTDumper.cpp - Dumping implementation for ASTs ------------------===//
 //
 //                     The LLVM Compiler Infrastructure
 //
