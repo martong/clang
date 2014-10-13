@@ -1883,6 +1883,10 @@ void StmtPrinter::VisitCXXConstructExpr(CXXConstructExpr *E) {
     OS << " }";
 }
 
+void StmtPrinter::VisitIntercessionExpr(clang::IntercessionExpr* E) {
+  PrintExpr(E->getSubExpr());
+}
+
 void StmtPrinter::VisitCXXStdInitializerListExpr(CXXStdInitializerListExpr *E) {
   PrintExpr(E->getSubExpr());
 }

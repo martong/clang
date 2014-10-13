@@ -1963,6 +1963,9 @@ DEF_TRAVERSE_STMT(CXXDependentScopeMemberExpr, {
   }
 })
 
+// TODO
+DEF_TRAVERSE_STMT(IntercessionExpr, {})
+
 DEF_TRAVERSE_STMT(DeclRefExpr, {
   TRY_TO(TraverseNestedNameSpecifierLoc(S->getQualifierLoc()));
   TRY_TO(TraverseDeclarationNameInfo(S->getNameInfo()));

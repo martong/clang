@@ -6145,6 +6145,13 @@ TreeTransform<Derived>::TransformObjCForCollectionStmt(
 }
 
 template <typename Derived>
+ExprResult
+TreeTransform<Derived>::TransformIntercessionExpr(clang::IntercessionExpr *E) {
+  // TODO
+  return ExprError();
+}
+
+template <typename Derived>
 StmtResult TreeTransform<Derived>::TransformCXXCatchStmt(CXXCatchStmt *S) {
   // Transform the exception declaration, if any.
   VarDecl *Var = nullptr;

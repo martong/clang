@@ -182,6 +182,11 @@ void StmtProfiler::VisitMSAsmStmt(const MSAsmStmt *S) {
   VisitStmt(S);
 }
 
+void StmtProfiler::VisitIntercessionExpr(clang::IntercessionExpr const* E) {
+  // TODO
+  VisitExpr(E);
+}
+
 void StmtProfiler::VisitCXXCatchStmt(const CXXCatchStmt *S) {
   VisitStmt(S);
   VisitType(S->getCaughtType());

@@ -2168,6 +2168,8 @@ public:
   }
   SourceLocation getLocStart() const { return kwLoc; }
   SourceLocation getLocEnd() const { return rparen; }
+
+  Expr *getSubExpr() { return static_cast<Expr*>(subExpr); }
 };
 
 /// \brief An Embarcadero array type trait, as used in the implementation of

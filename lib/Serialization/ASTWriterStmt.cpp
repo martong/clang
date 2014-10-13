@@ -1091,6 +1091,10 @@ void ASTStmtWriter::VisitObjCBoolLiteralExpr(ObjCBoolLiteralExpr *E) {
 // C++ Expressions and Statements.
 //===----------------------------------------------------------------------===//
 
+void ASTStmtWriter::VisitIntercessionExpr(clang::IntercessionExpr* S) {
+  // TODO
+}
+
 void ASTStmtWriter::VisitCXXCatchStmt(CXXCatchStmt *S) {
   VisitStmt(S);
   Writer.AddSourceLocation(S->getCatchLoc(), Record);

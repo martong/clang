@@ -597,6 +597,11 @@ void ASTStmtReader::VisitCallExpr(CallExpr *E) {
     E->setArg(I, Reader.ReadSubExpr());
 }
 
+void ASTStmtReader::VisitIntercessionExpr(clang::IntercessionExpr* E) {
+  // TODO
+  VisitExpr(E);
+}
+
 void ASTStmtReader::VisitCXXMemberCallExpr(CXXMemberCallExpr *E) {
   VisitCallExpr(E);
 }
