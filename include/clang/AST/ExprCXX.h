@@ -2158,7 +2158,8 @@ class IntercessionExpr : public Expr {
 
 public:
   static IntercessionExpr *Create(ASTContext &C, Expr *expr,
-                                  SourceLocation kwLoc, SourceLocation loc);
+                                  SourceLocation kwLoc, SourceLocation subLoc,
+                                  SourceLocation rparen);
 
   // These functions must be implemented to fullfill clang's concepts
   child_range children() {
