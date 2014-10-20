@@ -3742,13 +3742,17 @@ ExprResult Sema::ActOnTypeTrait(TypeTrait Kind, SourceLocation KWLoc,
   return BuildTypeTrait(Kind, KWLoc, ConvertedArgs, RParenLoc);
 }
 
-void Sema::ActOnIntercessionDeclarator(Expr *expr, SourceLocation kwLoc,
-                                       SourceLocation loc) {
-  BuildIntercession(expr, kwLoc, loc);
+ExprResult Sema::ActOnIntercessionDeclarator(Expr *expr, SourceLocation kwLoc,
+                                             SourceLocation subLoc,
+                                             SourceLocation rparen) {
+  return BuildIntercession(expr, kwLoc, subLoc, rparen);
 }
 
-void Sema::BuildIntercession(Expr *expr, SourceLocation kwLoc,
-                                 SourceLocation loc) {}
+ExprResult Sema::BuildIntercession(Expr *expr, SourceLocation kwLoc,
+                                   SourceLocation subLoc,
+                                   SourceLocation rparen) {
+  return IntercessionExpr::Create(Context, expr, kwLoc, subLoc, rparen);
+}
 
 static bool EvaluateBinaryTypeTrait(Sema &Self, TypeTrait BTT, QualType LhsT,
                                     QualType RhsT, SourceLocation KeyLoc) {

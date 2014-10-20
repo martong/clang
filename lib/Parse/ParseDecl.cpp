@@ -4830,8 +4830,9 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
         llvm::errs() << "source location of string literal: ";
         identifierStrLoc.dump(this->Diags.getSourceManager());
         llvm::errs() << "\n";
-        Actions.ActOnIntercessionDeclarator(stringLiteral, kwLoc,
-                                            identifierStrLoc);
+        auto IE = Actions.ActOnIntercessionDeclarator(
+            stringLiteral, kwLoc, identifierStrLoc, Tok.getLocation());
+        (void)IE;
       }
     } else if (Tok.is(tok::identifier) || Tok.is(tok::kw_operator) ||
                Tok.is(tok::annot_template_id) || Tok.is(tok::tilde)) {
