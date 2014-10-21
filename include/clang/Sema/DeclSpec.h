@@ -1565,6 +1565,8 @@ private:
   /// \brief The asm label, if specified.
   Expr *AsmLabel;
 
+  Expr* intercession;
+
   /// InlineParams - This is a local array used for the first function decl
   /// chunk to avoid going to the heap for the common case when we have one
   /// function chunk in the declarator.
@@ -1586,13 +1588,12 @@ private:
 
 public:
   Declarator(const DeclSpec &ds, TheContext C)
-    : DS(ds), Range(ds.getSourceRange()), Context(C),
-      InvalidType(DS.getTypeSpecType() == DeclSpec::TST_error),
-      GroupingParens(false), FunctionDefinition(FDK_Declaration), 
-      Redeclaration(false),
-      Attrs(ds.getAttributePool().getFactory()), AsmLabel(nullptr),
-      InlineParamsUsed(false), Extension(false) {
-  }
+      : DS(ds), Range(ds.getSourceRange()), Context(C),
+        InvalidType(DS.getTypeSpecType() == DeclSpec::TST_error),
+        GroupingParens(false), FunctionDefinition(FDK_Declaration),
+        Redeclaration(false), Attrs(ds.getAttributePool().getFactory()),
+        AsmLabel(nullptr), intercession(nullptr), InlineParamsUsed(false),
+        Extension(false) {}
 
   ~Declarator() {
     clear();
@@ -1827,13 +1828,13 @@ public:
 
   /// isPastIdentifier - Return true if we have parsed beyond the point where
   /// the
-  bool isPastIdentifier() const { return Name.isValid(); }
+  bool isPastIdentifier() const { return Name.isValid() || intercession; }
 
   /// hasName - Whether this declarator has a name, which might be an
   /// identifier (accessible via getIdentifier()) or some kind of
   /// special C++ name (constructor, destructor, etc.).
   bool hasName() const { 
-    return Name.getKind() != UnqualifiedId::IK_Identifier || Name.Identifier;
+    return Name.getKind() != UnqualifiedId::IK_Identifier || Name.Identifier || intercession;
   }
 
   IdentifierInfo *getIdentifier() const { 
@@ -2065,6 +2066,9 @@ public:
 
   void setAsmLabel(Expr *E) { AsmLabel = E; }
   Expr *getAsmLabel() const { return AsmLabel; }
+
+  void setIntercession(Expr *E) { intercession = E; }
+  Expr *getIntercession() const { return intercession; }
 
   void setExtension(bool Val = true) { Extension = Val; }
   bool getExtension() const { return Extension; }

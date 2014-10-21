@@ -4805,6 +4805,8 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
       // the l_paren token.
     }
 
+    // TODO put this into
+    // ExprResult parseIntercession()
     if (Tok.is(tok::kw___variable_decl)) {
       llvm::errs() << "Hello __variable_decl\n";
       SourceLocation kwLoc = ConsumeToken();
@@ -4832,7 +4834,9 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
         llvm::errs() << "\n";
         auto IE = Actions.ActOnIntercessionDeclarator(
             stringLiteral, kwLoc, identifierStrLoc, Tok.getLocation());
-        (void)IE;
+        // TODO Error handling, when IE is bad
+        D.setIntercession(IE.get());
+        goto PastIdentifier;
       }
     } else if (Tok.is(tok::identifier) || Tok.is(tok::kw_operator) ||
                Tok.is(tok::annot_template_id) || Tok.is(tok::tilde)) {
