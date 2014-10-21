@@ -22,6 +22,7 @@
 #include "clang/Basic/ExpressionTraits.h"
 #include "clang/AST/LambdaCapture.h"
 #include "clang/Basic/TypeTraits.h"
+#include "clang/sema/DeclSpec.h" // For IntercessionExpr::UnqualifiedId
 #include "llvm/Support/Compiler.h"
 
 namespace clang {
@@ -2155,6 +2156,7 @@ class IntercessionExpr : public Expr {
   // start location of the subexpression
   SourceLocation subLoc;
   SourceLocation rparen;
+  UnqualifiedId Name;
 
 public:
   static IntercessionExpr *Create(ASTContext &C, Expr *expr,
