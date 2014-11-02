@@ -3742,16 +3742,20 @@ ExprResult Sema::ActOnTypeTrait(TypeTrait Kind, SourceLocation KWLoc,
   return BuildTypeTrait(Kind, KWLoc, ConvertedArgs, RParenLoc);
 }
 
-ExprResult Sema::ActOnIntercession(Expr *expr, SourceLocation kwLoc,
-                                             SourceLocation subLoc,
-                                             SourceLocation rparen) {
-  return BuildIntercession(expr, kwLoc, subLoc, rparen);
+ExprResult Sema::ActOnIntercession(ParsedType Ty, Expr *SubExpr,
+                                   SourceLocation KwLoc, SourceLocation SubLoc,
+                                   SourceLocation Rparen) {
+  TypeSourceInfo *TSInfo;
+  QualType T = GetTypeFromParser(Ty, &TSInfo);
+  if (!TSInfo)
+    TSInfo = Context.getTrivialTypeSourceInfo(T);
+  return BuildIntercession(TSInfo, SubExpr, KwLoc, SubLoc, Rparen);
 }
 
-ExprResult Sema::BuildIntercession(Expr *expr, SourceLocation kwLoc,
-                                   SourceLocation subLoc,
-                                   SourceLocation rparen) {
-  return IntercessionExpr::Create(Context, expr, kwLoc, subLoc, rparen);
+ExprResult Sema::BuildIntercession(TypeSourceInfo *Type, Expr *SubExpr,
+                                   SourceLocation KwLoc, SourceLocation SubLoc,
+                                   SourceLocation Rparen) {
+  return IntercessionExpr::Create(Context, Type, SubExpr, KwLoc, SubLoc, Rparen);
 }
 
 static bool EvaluateBinaryTypeTrait(Sema &Self, TypeTrait BTT, QualType LhsT,

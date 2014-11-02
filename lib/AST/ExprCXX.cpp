@@ -1537,18 +1537,20 @@ TypeTraitExpr *TypeTraitExpr::CreateDeserialized(const ASTContext &C,
 
 void ArrayTypeTraitExpr::anchor() { }
 
-IntercessionExpr::IntercessionExpr(Expr *SubExpr, SourceLocation KwLoc,
-                                   SourceLocation SubLoc, SourceLocation Rparen)
+IntercessionExpr::IntercessionExpr(TypeSourceInfo *Type, Expr *SubExpr,
+                                   SourceLocation KwLoc, SourceLocation SubLoc,
+                                   SourceLocation Rparen)
     : Expr(IntercessionExprClass, SubExpr->getType(), VK_LValue, OK_Ordinary,
            // TODO false
-           SubExpr->getType()->isDependentType(), false, false, false) {}
+           SubExpr->getType()->isDependentType(), false, false, false),
+      Type(Type), SubExpr(SubExpr) {}
 
-IntercessionExpr *IntercessionExpr::Create(ASTContext &C, Expr *SubExpr,
-                                           SourceLocation KwLoc,
+IntercessionExpr *IntercessionExpr::Create(ASTContext &C, TypeSourceInfo *Type, 
+                                           Expr *SubExpr, SourceLocation KwLoc,
                                            SourceLocation SubLoc,
                                            SourceLocation Rparen) {
   unsigned size = sizeof(IntercessionExpr);
   void *mem = C.Allocate(size);
-  return new (mem) IntercessionExpr(SubExpr, KwLoc, SubLoc, Rparen);
+  return new (mem) IntercessionExpr(Type, SubExpr, KwLoc, SubLoc, Rparen);
 }
 

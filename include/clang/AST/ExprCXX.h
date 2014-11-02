@@ -2146,10 +2146,10 @@ public:
 };
 
 class IntercessionExpr : public Expr {
-  IntercessionExpr(Expr *SubExpr, SourceLocation KwLoc, SourceLocation SubLoc,
-                   SourceLocation Rparen);
+  IntercessionExpr(TypeSourceInfo *Type, Expr *SubExpr, SourceLocation KwLoc,
+                   SourceLocation SubLoc, SourceLocation Rparen);
 
-  // type of declared variable
+  // type of the declared variable
   TypeSourceInfo *Type;
   // the expression which determines the name (the declarator)
   Expr *SubExpr;
@@ -2160,9 +2160,9 @@ class IntercessionExpr : public Expr {
   SourceLocation Rparen;
 
 public:
-  static IntercessionExpr *Create(ASTContext &C, Expr *SubExpr,
-                                  SourceLocation KwLoc, SourceLocation SubLoc,
-                                  SourceLocation Rparen);
+  static IntercessionExpr *Create(ASTContext &C,TypeSourceInfo *Type,
+                                  Expr *SubExpr, SourceLocation KwLoc,
+                                  SourceLocation SubLoc, SourceLocation Rparen);
 
   // These functions must be implemented to fullfill clang's concepts
   child_range children() {

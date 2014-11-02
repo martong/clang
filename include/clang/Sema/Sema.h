@@ -1564,11 +1564,12 @@ public:
 
   Decl *ActOnDeclarator(Scope *S, Declarator &D);
 
-  ExprResult ActOnIntercession(Expr *expr, SourceLocation kwLoc,
-                                         SourceLocation subLoc,
-                                         SourceLocation rparen);
-  ExprResult BuildIntercession(Expr *expr, SourceLocation kwLoc,
-                               SourceLocation subLoc, SourceLocation rparen);
+  ExprResult ActOnIntercession(ParsedType Ty, Expr *SubExpr,
+                               SourceLocation KwLoc, SourceLocation SubLoc,
+                               SourceLocation Rparen);
+  ExprResult BuildIntercession(TypeSourceInfo *Type, Expr *SubExpr,
+                               SourceLocation KwLoc, SourceLocation SubLoc,
+                               SourceLocation Rparen);
 
   NamedDecl *HandleDeclarator(Scope *S, Declarator &D,
                               MultiTemplateParamsArg TemplateParameterLists);
