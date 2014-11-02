@@ -931,7 +931,7 @@ ExprResult Parser::ParseIntercession() {
       llvm::errs() << "source location of string literal: ";
       identifierStrLoc.dump(this->Diags.getSourceManager());
       llvm::errs() << "\n";
-      auto IE = Actions.ActOnIntercessionDeclarator(
+      auto IE = Actions.ActOnIntercession(
           stringLiteral, kwLoc, identifierStrLoc, Tok.getLocation());
       (void)IE;
     }

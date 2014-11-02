@@ -1564,7 +1564,7 @@ public:
 
   Decl *ActOnDeclarator(Scope *S, Declarator &D);
 
-  ExprResult ActOnIntercessionDeclarator(Expr *expr, SourceLocation kwLoc,
+  ExprResult ActOnIntercession(Expr *expr, SourceLocation kwLoc,
                                          SourceLocation subLoc,
                                          SourceLocation rparen);
   ExprResult BuildIntercession(Expr *expr, SourceLocation kwLoc,

@@ -3742,7 +3742,7 @@ ExprResult Sema::ActOnTypeTrait(TypeTrait Kind, SourceLocation KWLoc,
   return BuildTypeTrait(Kind, KWLoc, ConvertedArgs, RParenLoc);
 }
 
-ExprResult Sema::ActOnIntercessionDeclarator(Expr *expr, SourceLocation kwLoc,
+ExprResult Sema::ActOnIntercession(Expr *expr, SourceLocation kwLoc,
                                              SourceLocation subLoc,
                                              SourceLocation rparen) {
   return BuildIntercession(expr, kwLoc, subLoc, rparen);
