@@ -1228,6 +1228,8 @@ private:
                                                 ParsingDeclSpec &DS,
                                                 AccessSpecifier AS);
 
+  ExprResult ParseIntercession();
+
   Decl *ParseFunctionDefinition(ParsingDeclarator &D,
                  const ParsedTemplateInfo &TemplateInfo = ParsedTemplateInfo(),
                  LateParsedAttrList *LateParsedAttrs = nullptr);

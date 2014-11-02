@@ -827,6 +827,9 @@ Parser::DeclGroupPtrTy
 Parser::ParseDeclOrFunctionDefInternal(ParsedAttributesWithRange &attrs,
                                        ParsingDeclSpec &DS,
                                        AccessSpecifier AS) {
+
+  ParseIntercession();
+
   // Parse the common declaration-specifiers piece.
   ParseDeclarationSpecifiers(DS, ParsedTemplateInfo(), AS, DSC_top_level);
 
@@ -886,6 +889,55 @@ Parser::ParseDeclOrFunctionDefInternal(ParsedAttributesWithRange &attrs,
   }
 
   return ParseDeclGroup(DS, Declarator::FileContext, true);
+}
+
+ExprResult Parser::ParseIntercession() {
+  if (Tok.is(tok::kw___variable_decl)) {
+    llvm::errs() << "Hello __variable_decl\n";
+    SourceLocation kwLoc = ConsumeToken();
+    BalancedDelimiterTracker Parens(*this, tok::l_paren);
+    // TODO check
+    // TODO why we need to consume, shouldn't the constructor do this?
+    Parens.expectAndConsume();
+
+    TypeResult Ty = ParseTypeName();
+    if (Ty.isInvalid()) {
+      Parens.skipToEnd();
+      return ExprError();
+    }
+
+    // Parse comma and then expression
+    // FIXME diag::err
+    if (ExpectAndConsume(tok::comma, diag::err_missing_comma_before_ellipsis)) {
+      Parens.skipToEnd();
+      return ExprError();
+    }
+
+    if (isTokenStringLiteral()) {
+      StringRef identifierStr;
+      SourceLocation identifierStrLoc;
+      identifierStrLoc = Tok.getLocation();
+      ExprResult exprResult = ParseStringLiteralExpression(false);
+      if (exprResult.isInvalid()) {
+        return ExprError();
+      }
+      Expr *expr = exprResult.get();
+      StringLiteral *stringLiteral = dyn_cast<StringLiteral>(expr);
+      if (!stringLiteral) {
+        return ExprError();
+      }
+      identifierStr = stringLiteral->getString();
+      llvm::errs() << "string literal: " << identifierStr << "\n";
+      llvm::errs() << "source location of string literal: ";
+      identifierStrLoc.dump(this->Diags.getSourceManager());
+      llvm::errs() << "\n";
+      auto IE = Actions.ActOnIntercessionDeclarator(
+          stringLiteral, kwLoc, identifierStrLoc, Tok.getLocation());
+      (void)IE;
+    }
+  }
+
+  return ExprResult{};
 }
 
 Parser::DeclGroupPtrTy

@@ -4805,36 +4805,7 @@ void Parser::ParseDirectDeclarator(Declarator &D) {
       // the l_paren token.
     }
 
-    if (Tok.is(tok::kw___variable_decl)) {
-      llvm::errs() << "Hello __variable_decl\n";
-      SourceLocation kwLoc = ConsumeToken();
-      BalancedDelimiterTracker Parens(*this, tok::l_paren);
-      // TODO check
-      // TODO why we need to consume, shouldn't the constructor do this?
-      Parens.expectAndConsume();
-      if (isTokenStringLiteral()) {
-        StringRef identifierStr;
-        SourceLocation identifierStrLoc;
-        identifierStrLoc = Tok.getLocation();
-        ExprResult exprResult = ParseStringLiteralExpression(false);
-        // if (exprResult.isInvalid()) {
-        // return ExprError();
-        //}
-        Expr *expr = exprResult.get();
-        StringLiteral *stringLiteral = dyn_cast<StringLiteral>(expr);
-        // if (!stringLiteral) {
-        // return ExprError();
-        //}
-        identifierStr = stringLiteral->getString();
-        llvm::errs() << "string literal: " << identifierStr << "\n";
-        llvm::errs() << "source location of string literal: ";
-        identifierStrLoc.dump(this->Diags.getSourceManager());
-        llvm::errs() << "\n";
-        auto IE = Actions.ActOnIntercessionDeclarator(
-            stringLiteral, kwLoc, identifierStrLoc, Tok.getLocation());
-        (void)IE;
-      }
-    } else if (Tok.is(tok::identifier) || Tok.is(tok::kw_operator) ||
+    if (Tok.is(tok::identifier) || Tok.is(tok::kw_operator) ||
                Tok.is(tok::annot_template_id) || Tok.is(tok::tilde)) {
       // We found something that indicates the start of an unqualified-id.
       // Parse that unqualified-id.
