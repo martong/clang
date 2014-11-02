@@ -2149,12 +2149,12 @@ class IntercessionExpr : public Expr {
   IntercessionExpr(Expr *expr, SourceLocation kwLoc, SourceLocation subLoc,
                    SourceLocation rparen);
 
-  Expr *subExpr;
+  Expr *SubExpr;
   // location of the keyword
-  SourceLocation kwLoc;
+  SourceLocation KwLoc;
   // start location of the subexpression
-  SourceLocation subLoc;
-  SourceLocation rparen;
+  SourceLocation SubLoc;
+  SourceLocation Rparen;
 
 public:
   static IntercessionExpr *Create(ASTContext &C, Expr *expr,
@@ -2164,14 +2164,14 @@ public:
   // These functions must be implemented to fullfill clang's concepts
   child_range children() {
     // TODO check!
-    Stmt **begin = reinterpret_cast<Stmt **>(&this->subExpr);
+    Stmt **begin = reinterpret_cast<Stmt **>(&this->SubExpr);
     return child_range(begin, begin + 1);
   }
-  SourceLocation getLocStart() const { return kwLoc; }
-  SourceLocation getLocEnd() const { return rparen; }
+  SourceLocation getLocStart() const { return KwLoc; }
+  SourceLocation getLocEnd() const { return Rparen; }
 
-  Expr *getSubExpr() { return static_cast<Expr *>(subExpr); }
-  const Expr *getSubExpr() const { return static_cast<const Expr *>(subExpr); }
+  Expr *getSubExpr() { return static_cast<Expr *>(SubExpr); }
+  const Expr *getSubExpr() const { return static_cast<const Expr *>(SubExpr); }
 };
 
 /// \brief An Embarcadero array type trait, as used in the implementation of
