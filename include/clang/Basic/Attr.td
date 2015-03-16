@@ -660,6 +660,16 @@ def Deprecated : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def SelectiveFriend : InheritableAttr {
+  let Spellings = [GCC<"friend_for">, Declspec<"friend_for">,
+                   CXX11<"","friend_for", 201309>];
+  let Args = [IdentifierArgument<"Member">];
+  /*let Subjects = SubjectList<[Friend]>;*/
+  // TODO make it work on FriendDecls
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [Undocumented];
+}
+
 def Destructor : InheritableAttr {
   let Spellings = [GCC<"destructor">];
   let Args = [DefaultIntArgument<"Priority", 65535>];

@@ -4178,6 +4178,9 @@ static void handleDeprecatedAttr(Sema &S, Decl *D, const AttributeList &Attr) {
   handleAttrWithMessage<DeprecatedAttr>(S, D, Attr);
 }
 
+static void handleSelectiveFriendAttr(Sema &S, Decl *D,
+                                      const AttributeList &Attr) {}
+
 /// Handles semantic checking for features that are common to all attributes,
 /// such as checking whether a parameter was properly specified, or the correct
 /// number of arguments were passed, etc.
@@ -4329,6 +4332,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case AttributeList::AT_Deprecated:
     handleDeprecatedAttr(S, D, Attr);
+    break;
+  case AttributeList::AT_SelectiveFriend:
+    handleSelectiveFriendAttr(S, D, Attr);
     break;
   case AttributeList::AT_Destructor:
     handleDestructorAttr(S, D, Attr);
