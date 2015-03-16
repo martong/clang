@@ -660,6 +660,14 @@ def Deprecated : InheritableAttr {
   let Documentation = [Undocumented];
 }
 
+def OutOfClassFriend : InheritableAttr {
+  let Spellings = [GCC<"friend">, Declspec<"friend">,
+                   CXX11<"","friend", 201309>];
+  let Args = [TypeArgument<"Host">];
+  let Subjects = SubjectList<[Function]>;
+  let Documentation = [Undocumented];
+}
+
 def Destructor : InheritableAttr {
   let Spellings = [GCC<"destructor">];
   let Args = [DefaultIntArgument<"Priority", 65535>];

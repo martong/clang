@@ -4178,6 +4178,23 @@ static void handleDeprecatedAttr(Sema &S, Decl *D, const AttributeList &Attr) {
   handleAttrWithMessage<DeprecatedAttr>(S, D, Attr);
 }
 
+static void handleOutOfClassFriendAttr(Sema &S, Decl *D,
+                                       const AttributeList &Attr) {
+  ParsedType PT;
+  if (Attr.hasParsedType())
+    PT = Attr.getTypeArg();
+  else { // TODO
+  }
+  TypeSourceInfo *QTLoc = nullptr;
+  QualType QT = S.GetTypeFromParser(PT, &QTLoc);
+  if (!QTLoc)
+    QTLoc = S.Context.getTrivialTypeSourceInfo(QT, Attr.getLoc());
+  D->addAttr(::new (S.Context) OutOfClassFriendAttr(
+      Attr.getRange(), S.Context, QTLoc, Attr.getAttributeSpellingListIndex()));
+
+  D->dump();
+}
+
 /// Handles semantic checking for features that are common to all attributes,
 /// such as checking whether a parameter was properly specified, or the correct
 /// number of arguments were passed, etc.
@@ -4329,6 +4346,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     break;
   case AttributeList::AT_Deprecated:
     handleDeprecatedAttr(S, D, Attr);
+    break;
+  case AttributeList::AT_OutOfClassFriend:
+    handleOutOfClassFriendAttr(S, D, Attr);
     break;
   case AttributeList::AT_Destructor:
     handleDestructorAttr(S, D, Attr);
