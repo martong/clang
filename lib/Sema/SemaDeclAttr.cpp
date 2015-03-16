@@ -17,6 +17,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclTemplate.h"
+#include "clang/AST/DeclFriend.h"
 #include "clang/AST/Expr.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/Mangle.h"
@@ -4178,17 +4179,57 @@ static void handleDeprecatedAttr(Sema &S, Decl *D, const AttributeList &Attr) {
   handleAttrWithMessage<DeprecatedAttr>(S, D, Attr);
 }
 
+static RecordDecl *getRecordDecl(QualType QT) {
+  const Type *T = QT.getTypePtr();
+  if (const RecordType *TT = dyn_cast<RecordType>(T)) {
+    return TT->getDecl();
+  }
+  while (true) {
+    QualType SingleStepDesugar =
+        T->getLocallyUnqualifiedSingleStepDesugaredType();
+    const Type *T2 = SingleStepDesugar.getTypePtr();
+    if (SingleStepDesugar == QualType(T, 0))
+      break;
+    if (const RecordType *TT = dyn_cast<RecordType>(T2)) {
+      return TT->getDecl();
+    }
+    T = T2;
+  }
+  return nullptr;
+}
+
 static void handleOutOfClassFriendAttr(Sema &S, Decl *D,
                                        const AttributeList &Attr) {
+  // Get the attribute type argument as QualType
   ParsedType PT;
   if (Attr.hasParsedType())
     PT = Attr.getTypeArg();
-  else { // TODO
+  else { // TODO error handling
   }
   TypeSourceInfo *QTLoc = nullptr;
   QualType QT = S.GetTypeFromParser(PT, &QTLoc);
+
   if (!QTLoc)
     QTLoc = S.Context.getTrivialTypeSourceInfo(QT, Attr.getLoc());
+
+  // The type argument must be a CXXRecordDecl
+  RecordDecl* RD = getRecordDecl(QT);
+  assert(RD);
+  CXXRecordDecl* CRD = cast<CXXRecordDecl>(RD);
+  RD->dump();
+
+  // The attribute is subject of a FunctionDecl
+  FunctionDecl* FD = cast<FunctionDecl>(D);
+  // Set this function as a friend function
+  FD->setObjectOfFriendDecl();
+
+  FriendDecl::Create(S.Context, CRD, D->getLocation(),
+      cast<NamedDecl>(D), Attr.getLoc());
+
+  for (const auto& FD : CRD->friends()) {
+    FD->dump();
+  }
+
   D->addAttr(::new (S.Context) OutOfClassFriendAttr(
       Attr.getRange(), S.Context, QTLoc, Attr.getAttributeSpellingListIndex()));
 
