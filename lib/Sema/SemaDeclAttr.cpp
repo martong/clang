@@ -4181,10 +4181,10 @@ static void handleDeprecatedAttr(Sema &S, Decl *D, const AttributeList &Attr) {
 static void handleSelectiveFriendAttr(Sema &S, Decl *D,
                                       const AttributeList &Attr) {
   Expr *E = Attr.getArgAsExpr(0);
-  E->dump();
-  UnaryOperator *UO = cast<UnaryOperator>(E);
-  DeclRefExpr *DRef = cast<DeclRefExpr>(UO->getSubExpr());
-  DRef->getDecl()->dump();
+  //E->dump();
+  //UnaryOperator *UO = cast<UnaryOperator>(E);
+  //DeclRefExpr *DRef = cast<DeclRefExpr>(UO->getSubExpr());
+  //DRef->getDecl()->dump();
 
   D->addAttr(::new (S.Context) SelectiveFriendAttr(
       Attr.getRange(), S.Context, E, Attr.getAttributeSpellingListIndex()));
