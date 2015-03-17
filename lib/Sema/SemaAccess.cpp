@@ -570,7 +570,10 @@ static AccessResult SelectiveFriendConstraint(FriendDecl *Friend, const CXXRecor
                                               const AccessTarget &Target) {
   NamedDecl *ND = Friend->getFriendDecl();
   // handling of friend classes not implemented
-  assert(ND);
+  if (!ND) {
+    return AR_accessible;
+  }
+
   FunctionDecl* FD = dyn_cast<FunctionDecl>(Friend->getFriendDecl());
   if (!FD) {
     FunctionTemplateDecl* FTD = cast<FunctionTemplateDecl>(ND);
