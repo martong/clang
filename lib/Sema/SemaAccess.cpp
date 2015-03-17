@@ -568,6 +568,7 @@ static AccessResult MatchesFriend(Sema &S,
 
 static AccessResult GetFriendKind(Sema &S,
                                   const EffectiveContext &EC,
+                                  const AccessTarget& Target,
                                   const CXXRecordDecl *Class) {
   AccessResult OnFailure = AR_inaccessible;
 
@@ -597,6 +598,7 @@ namespace {
 struct ProtectedFriendContext {
   Sema &S;
   const EffectiveContext &EC;
+  const AccessTarget& Target;
   const CXXRecordDecl *NamingClass;
   bool CheckDependent;
   bool EverDependent;
@@ -605,19 +607,20 @@ struct ProtectedFriendContext {
   SmallVector<const CXXRecordDecl*, 20> CurPath;
 
   ProtectedFriendContext(Sema &S, const EffectiveContext &EC,
+                         const AccessTarget &Target,
                          const CXXRecordDecl *InstanceContext,
                          const CXXRecordDecl *NamingClass)
-    : S(S), EC(EC), NamingClass(NamingClass),
-      CheckDependent(InstanceContext->isDependentContext() ||
-                     NamingClass->isDependentContext()),
-      EverDependent(false) {}
+      : S(S), EC(EC), Target(Target), NamingClass(NamingClass),
+        CheckDependent(InstanceContext->isDependentContext() ||
+                       NamingClass->isDependentContext()),
+        EverDependent(false) {}
 
   /// Check classes in the current path for friendship, starting at
   /// the given index.
   bool checkFriendshipAlongPath(unsigned I) {
     assert(I < CurPath.size());
     for (unsigned E = CurPath.size(); I != E; ++I) {
-      switch (GetFriendKind(S, EC, CurPath[I])) {
+      switch (GetFriendKind(S, EC, Target, CurPath[I])) {
       case AR_accessible:   return true;
       case AR_inaccessible: continue;
       case AR_dependent:    EverDependent = true; continue;
@@ -708,6 +711,7 @@ struct ProtectedFriendContext {
 ///     because of crazy subclassing.
 /// So we don't implement that.
 static AccessResult GetProtectedFriendKind(Sema &S, const EffectiveContext &EC,
+                                           const AccessTarget &Target,
                                            const CXXRecordDecl *InstanceContext,
                                            const CXXRecordDecl *NamingClass) {
   assert(InstanceContext == nullptr ||
@@ -717,9 +721,9 @@ static AccessResult GetProtectedFriendKind(Sema &S, const EffectiveContext &EC,
   // If we don't have an instance context, our constraints give us
   // that NamingClass <= P <= NamingClass, i.e. P == NamingClass.
   // This is just the usual friendship check.
-  if (!InstanceContext) return GetFriendKind(S, EC, NamingClass);
+  if (!InstanceContext) return GetFriendKind(S, EC, Target, NamingClass);
 
-  ProtectedFriendContext PRC(S, EC, InstanceContext, NamingClass);
+  ProtectedFriendContext PRC(S, EC, Target, InstanceContext, NamingClass);
   if (PRC.findFriendship(InstanceContext)) return AR_accessible;
   if (PRC.EverDependent) return AR_dependent;
   return AR_inaccessible;
@@ -849,7 +853,8 @@ static AccessResult HasAccess(Sema &S,
       if (!InstanceContext) return AR_dependent;
     }
 
-    switch (GetProtectedFriendKind(S, EC, InstanceContext, NamingClass)) {
+    switch (
+        GetProtectedFriendKind(S, EC, Target, InstanceContext, NamingClass)) {
     case AR_accessible: return AR_accessible;
     case AR_inaccessible: return OnFailure;
     case AR_dependent: return AR_dependent;
@@ -857,7 +862,7 @@ static AccessResult HasAccess(Sema &S,
     llvm_unreachable("impossible friendship kind");
   }
 
-  switch (GetFriendKind(S, EC, NamingClass)) {
+  switch (GetFriendKind(S, EC, Target, NamingClass)) {
   case AR_accessible: return AR_accessible;
   case AR_inaccessible: return OnFailure;
   case AR_dependent: return AR_dependent;
