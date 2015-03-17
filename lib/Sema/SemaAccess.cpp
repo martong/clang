@@ -566,6 +566,32 @@ static AccessResult MatchesFriend(Sema &S,
   return MatchesFriend(S, EC, cast<FunctionDecl>(Friend));
 }
 
+static AccessResult SelectiveFriendConstraint(const EffectiveContext &EC,
+                                              const AccessTarget &Target) {
+  const CXXRecordDecl *NamingClass = Target.getEffectiveNamingClass();
+  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(EC.getInnerContext())) {
+    if (SelectiveFriendAttr *Attr = FD->getAttr<SelectiveFriendAttr>()) {
+      const Expr *E = Attr->getExpr();
+      // llvm::outs() << " XXXXXXXXXXXXXXXXXXXXX \n";
+      // E->dump();
+      const UnaryOperator *UO = cast<UnaryOperator>(E);
+      const DeclRefExpr *DRef = cast<DeclRefExpr>(UO->getSubExpr());
+      // DRef->getDecl()->dump();
+
+      auto *Host = DRef->getDecl()->getDeclContext();
+      assert(Host == NamingClass);
+
+      const ValueDecl *VD = DRef->getDecl();
+
+      const NamedDecl *ND = Target.getTargetDecl();
+      if (ND != VD) {
+        return AR_inaccessible;
+      }
+    }
+  }
+  return AR_accessible;
+}
+
 static AccessResult GetFriendKind(Sema &S,
                                   const EffectiveContext &EC,
                                   const AccessTarget& Target,
@@ -576,7 +602,11 @@ static AccessResult GetFriendKind(Sema &S,
   for (auto *Friend : Class->friends()) {
     switch (MatchesFriend(S, EC, Friend)) {
     case AR_accessible:
-      return AR_accessible;
+      switch(SelectiveFriendConstraint(EC, Target)) {
+        case AR_accessible: return AR_accessible;
+        case AR_inaccessible: continue;
+        default : assert(false && "should not reach this point");
+      }
 
     case AR_inaccessible:
       continue;
