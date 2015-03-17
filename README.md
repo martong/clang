@@ -9,7 +9,7 @@ class A {
 
 void func(A &a) {
   a.x = 1;
-  a.y = 1; // expected-error {{'y' is a private member of 'test0::A'}}
+  a.y = 1; // expected-error {{'y' is a private member of 'A'}}
 }
 ```
 Currently only one instance member can be added as an argument to the attribute.
