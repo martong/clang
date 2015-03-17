@@ -1,5 +1,5 @@
 The goal of this branch is to add a new attribute which implements the "selective friend" language extension.
-Example:
+Example, the following would not compile, because func is restriced to have acces to private member 'x' only:
 ```
 class A {
   int x = 0;
