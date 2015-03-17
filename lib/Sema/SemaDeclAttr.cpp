@@ -4216,7 +4216,6 @@ static void handleOutOfClassFriendAttr(Sema &S, Decl *D,
   RecordDecl* RD = getRecordDecl(QT);
   assert(RD);
   CXXRecordDecl* CRD = cast<CXXRecordDecl>(RD);
-  RD->dump();
 
   // The attribute is subject of a FunctionDecl
   FunctionDecl* FD = cast<FunctionDecl>(D);
@@ -4226,14 +4225,8 @@ static void handleOutOfClassFriendAttr(Sema &S, Decl *D,
   FriendDecl::Create(S.Context, CRD, D->getLocation(),
       cast<NamedDecl>(D), Attr.getLoc());
 
-  for (const auto& FD : CRD->friends()) {
-    FD->dump();
-  }
-
   D->addAttr(::new (S.Context) OutOfClassFriendAttr(
       Attr.getRange(), S.Context, QTLoc, Attr.getAttributeSpellingListIndex()));
-
-  D->dump();
 }
 
 /// Handles semantic checking for features that are common to all attributes,
