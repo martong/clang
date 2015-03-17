@@ -566,27 +566,33 @@ static AccessResult MatchesFriend(Sema &S,
   return MatchesFriend(S, EC, cast<FunctionDecl>(Friend));
 }
 
-static AccessResult SelectiveFriendConstraint(const EffectiveContext &EC,
+static AccessResult SelectiveFriendConstraint(FriendDecl *Friend, const CXXRecordDecl* Class,
                                               const AccessTarget &Target) {
-  const CXXRecordDecl *NamingClass = Target.getEffectiveNamingClass();
-  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(EC.getInnerContext())) {
-    if (SelectiveFriendAttr *Attr = FD->getAttr<SelectiveFriendAttr>()) {
-      const Expr *E = Attr->getExpr();
-      // llvm::outs() << " XXXXXXXXXXXXXXXXXXXXX \n";
-      // E->dump();
-      const UnaryOperator *UO = cast<UnaryOperator>(E);
-      const DeclRefExpr *DRef = cast<DeclRefExpr>(UO->getSubExpr());
-      // DRef->getDecl()->dump();
-
-      auto *Host = DRef->getDecl()->getDeclContext();
-      assert(Host == NamingClass);
-
-      const ValueDecl *VD = DRef->getDecl();
-
-      const NamedDecl *ND = Target.getTargetDecl();
-      if (ND != VD) {
-        return AR_inaccessible;
-      }
+  NamedDecl *ND = Friend->getFriendDecl();
+  // handling of friend classes not implemented
+  assert(ND);
+  FunctionDecl* FD = dyn_cast<FunctionDecl>(Friend->getFriendDecl());
+  if (!FD) {
+    FunctionTemplateDecl* FTD = cast<FunctionTemplateDecl>(ND);
+    FD = FTD->getTemplatedDecl();
+  }
+  assert(FD);
+  //llvm::outs() << "FriendDecl's FunctionDecl: " << FD << "\n";
+  if (SelectiveFriendAttr *Attr = FD->getAttr<SelectiveFriendAttr>()) {
+    const Expr *E = Attr->getExpr();
+    // E->dump();
+    const UnaryOperator *UO = cast<UnaryOperator>(E);
+    const DeclRefExpr *DRef = cast<DeclRefExpr>(UO->getSubExpr());
+    // DRef->getDecl()->dump();
+    //const CXXRecordDecl *Host = cast<CXXRecordDecl>(DRef->getDecl()->getDeclContext());
+    //llvm::outs() << "Dref->getDecl()->dump()" << "\n";
+    //DRef->getDecl()->dump();
+    //llvm::outs() << "Host: " << Host << "\n";
+    //llvm::outs() << "Class: " << Class << "\n";
+    //assert(Host == Class);
+    if (cast<NamedDecl>(DRef->getDecl()) != Target.getTargetDecl()){
+    //if (ND != VD) {
+      return AR_inaccessible;
     }
   }
   return AR_accessible;
@@ -598,11 +604,24 @@ static AccessResult GetFriendKind(Sema &S,
                                   const CXXRecordDecl *Class) {
   AccessResult OnFailure = AR_inaccessible;
 
+  //llvm::outs() << " EC.Functions: \n";
+  //for (SmallVectorImpl<FunctionDecl *>::const_iterator I = EC.Functions.begin(),
+                                                       //E = EC.Functions.end();
+       //I != E; ++I) {
+    //llvm::outs() << *I << '\n';
+  //}
+  //llvm::outs() << " EC.Records: \n";
+  //for (SmallVectorImpl<CXXRecordDecl *>::const_iterator I = EC.Records.begin(),
+                                                        //E = EC.Records.end();
+       //I != E; ++I) {
+    //llvm::outs() << *I << '\n';
+  //}
+
   // Okay, check friends.
   for (auto *Friend : Class->friends()) {
     switch (MatchesFriend(S, EC, Friend)) {
     case AR_accessible:
-      switch(SelectiveFriendConstraint(EC, Target)) {
+      switch(SelectiveFriendConstraint(Friend, Class, Target)) {
         case AR_accessible: return AR_accessible;
         case AR_inaccessible: continue;
         default : assert(false && "should not reach this point");
