@@ -10,9 +10,18 @@ public:
   int getA() { return a; }
 };
 
-void func(A &a);
 __attribute__((friend(A))) void func(A &a) {
   a.a = 1;
+}
+
+// The above friend declaration is equivalent if it would be declared in-class.
+// Therefore is not found by normal lookup.
+// So, we need to make it available by declaring it as a free function,
+// just as we'd do it with in-class declarations.
+void func(A &a);
+void user() {
+  A a;
+  func(a);
 }
 
 } // namespace test0
@@ -27,14 +36,16 @@ public:
 };
 
 template <int I>
-void func(A &a);
-
-template <int I>
 __attribute__((friend(A))) void func(A &a) {
   a.a = 1;
 }
 
-template void func<0>(A&);
+template <int I>
+void func(A &a);
+void user() {
+  A a;
+  func<0>(a);
+}
 
 } // namespace test1
 
@@ -59,6 +70,12 @@ void func(A<int> &a);
 
 __attribute__((friend(A<int>))) void func(A<int> &a) {
   a.a = 1;
+}
+
+void func(A<int> &a);
+void user() {
+  A<int> a;
+  func(a);
 }
 
 } // namespace test2
