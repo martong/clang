@@ -4208,7 +4208,6 @@ static void handleOutOfClassFriendAttr(Sema &S, Decl *D,
   }
   TypeSourceInfo *QTLoc = nullptr;
   QualType QT = S.GetTypeFromParser(PT, &QTLoc);
-
   if (!QTLoc)
     QTLoc = S.Context.getTrivialTypeSourceInfo(QT, Attr.getLoc());
 
@@ -4225,6 +4224,7 @@ static void handleOutOfClassFriendAttr(Sema &S, Decl *D,
   FriendDecl::Create(S.Context, CRD, D->getLocation(),
       cast<NamedDecl>(D), Attr.getLoc());
 
+  // For the record, Add the attribute to the Decl
   D->addAttr(::new (S.Context) OutOfClassFriendAttr(
       Attr.getRange(), S.Context, QTLoc, Attr.getAttributeSpellingListIndex()));
 }
