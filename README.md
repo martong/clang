@@ -15,5 +15,7 @@ __attribute__((friend(A))) void func(A &a) {
 Currently only friend functions and function templates can be added this way.
 Later it might be extended to be able to add out-of-class friend classes and friend class templates.
 
-#### Diff
+#### diff
 https://github.com/martong/clang/compare/friendfor_0...martong:out-of-class_friend_attr
+#### llvm
+Use friendfor_0 tag from https://github.com/martong/llvm/releases
