@@ -17,3 +17,4 @@ Later it might be extended to have more arguments, and to handle member classes 
 
 #### Diff
 https://github.com/martong/clang/compare/friendfor_0...martong:selective_friend
+Note, for llvm use friendfor_0 tag from https://github.com/martong/llvm/releases
