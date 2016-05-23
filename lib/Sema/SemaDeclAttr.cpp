@@ -4221,6 +4221,7 @@ static void handleOutOfClassFriendAttr(Sema &S, Decl *D,
   // Set this function as a friend function
   FD->setObjectOfFriendDecl();
 
+  // Create a new friend decl for the befriending class
   FriendDecl::Create(S.Context, CRD, D->getLocation(),
       cast<NamedDecl>(D), Attr.getLoc());
 
