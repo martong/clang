@@ -14,3 +14,6 @@ void func(A &a) {
 ```
 Currently only one instance member can be added as an argument to the attribute.
 Later it might be extended to have more arguments, and to handle member classes and static variables as well.
+
+#### Diff
+https://github.com/martong/clang/compare/friendfor_0...martong:selective_friend
