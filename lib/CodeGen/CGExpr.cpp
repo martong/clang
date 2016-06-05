@@ -4043,6 +4043,24 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     }
   }
 
+  //auto X = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(8,1));
+  //auto Y = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(8,1));
+  //auto Match = Builder.CreateICmpEQ(X, Y);
+  //llvm::BasicBlock *Cont = createBasicBlock("cont");
+  //llvm::BasicBlock *TypeCheck = createBasicBlock("typecheck");
+  //Builder.CreateCondBr(Match, TypeCheck, Cont);
+  //EmitBlock(TypeCheck);
+  //Builder.CreateBr(Cont);
+  //EmitBlock(Cont);
+
+  {
+    llvm::FunctionType *FT =
+        llvm::FunctionType::get(llvm::Type::getInt1Ty(getLLVMContext()), false);
+    llvm::Function *F = llvm::Function::Create(
+        FT, llvm::Function::ExternalLinkage, "_Z4hookv", &CGM.getModule());
+    Builder.CreateCall(F, {}, "hook_result");
+  }
+
   // If we are checking indirect calls and this call is indirect, check that the
   // function pointer is a member of the bit set for the function type.
   if (SanOpts.has(SanitizerKind::CFIICall) &&
