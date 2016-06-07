@@ -4053,14 +4053,6 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
   //Builder.CreateBr(Cont);
   //EmitBlock(Cont);
 
-  {
-    llvm::FunctionType *FT =
-        llvm::FunctionType::get(llvm::Type::getInt1Ty(getLLVMContext()), false);
-    llvm::Function *F = llvm::Function::Create(
-        FT, llvm::Function::ExternalLinkage, "_Z4hookv", &CGM.getModule());
-    Builder.CreateCall(F, {}, "hook_result");
-  }
-
   // If we are checking indirect calls and this call is indirect, check that the
   // function pointer is a member of the bit set for the function type.
   if (SanOpts.has(SanitizerKind::CFIICall) &&
@@ -4127,6 +4119,41 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     CalleeTy = CalleeTy->getPointerTo();
     Callee = Builder.CreateBitCast(Callee, CalleeTy, "callee.knr.cast");
   }
+
+  {
+    llvm::FunctionType *FT =
+        llvm::FunctionType::get(llvm::Type::getInt1Ty(getLLVMContext()), false);
+    llvm::Function *F = llvm::Function::Create(
+        FT, llvm::Function::ExternalLinkage, "_Z4hookv", &CGM.getModule());
+    llvm::Value *HookResult = Builder.CreateCall(F, {}, "hook_result");
+
+    //auto Zero = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1,0));
+    //auto Match = Builder.CreateICmpEQ(HookResult, Zero);
+    //llvm::BasicBlock *Cont = createBasicBlock("cont");
+    //llvm::BasicBlock *Check = createBasicBlock("check");
+    //Builder.CreateCondBr(Match, Check, Cont);
+    //EmitBlock(Check);
+    //Builder.CreateBr(Cont);
+    //EmitBlock(Cont);
+
+    auto Zero = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1,0));
+    auto Match = Builder.CreateICmpEQ(HookResult, Zero);
+    llvm::BasicBlock *Cont = createBasicBlock("cont");
+    llvm::BasicBlock *Then = createBasicBlock("then");
+    //llvm::BasicBlock *Else = createBasicBlock("else");
+    Builder.CreateCondBr(Match, Then, Cont);
+
+    EmitBlock(Then);
+
+    //QualType RetTy = FnInfo.getReturnType();
+    //llvm::Type *RetIRTy = ConvertType(RetTy);
+    //llvm::Value *V = Zero;
+    //V = Builder.CreateBitCast(V, RetIRTy);
+    Builder.CreateRetVoid();
+
+    EmitBlock(Cont);
+  }
+
 
   return EmitCall(FnInfo, Callee, ReturnValue, Args,
                   CGCalleeInfo(NonCanonicalFTP, TargetDecl));
