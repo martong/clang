@@ -19,3 +19,14 @@ Later it might be extended to have more arguments, and to handle member classes 
 https://github.com/martong/clang/compare/friendfor_0...martong:selective_friend
 #### llvm
 Use friendfor_0 tag from https://github.com/martong/llvm/releases
+### tests
+Run the selective friend tests like this:
+```
+python PATH_TO_LLVM/llvm/utils/lit/lit.py -sv --param clang_site_config=PATH_TO_CLANG/clang/test/lit.site.cfg PATH_TO_CLANG/clang/test/SemaCXX/selective_friend.cpp
+```
+Run the whole regression test suite for C++ sema:
+```
+python PATH_TO_LLVM/llvm/utils/lit/lit.py -sv --param clang_site_config=PATH_TO_CLANG/clang/test/lit.site.cfg PATH_TO_CLANG/clang/test/SemaCXX/
+
+```
+
