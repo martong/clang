@@ -661,8 +661,7 @@ def Deprecated : InheritableAttr {
 }
 
 def SelectiveFriend : InheritableAttr {
-  let Spellings = [GCC<"friend_for">, Declspec<"friend_for">,
-                   CXX11<"","friend_for", 201309>];
+  let Spellings = [GCC<"friend_for">];
   let Args = [ExprArgument<"Expr">];
   // let Subjects = SubjectList<[Friend]>; Not Working
   let Subjects = SubjectList<[Function]>;
