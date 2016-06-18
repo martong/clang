@@ -76,3 +76,16 @@ void funcT(A &a) {
 template void funcT<0>(A &);
 }
 
+// select member function with attr
+namespace test4 {
+class A {
+  void x() {};
+  int y = 0; // expected-note {{implicitly declared private here}}
+  __attribute__((friend_for(&A::x))) friend void func(A &a);
+};
+
+void func(A &a) {
+  a.x();
+  a.y = 1; // expected-error {{'y' is a private member of 'test4::A'}}
+}
+}
