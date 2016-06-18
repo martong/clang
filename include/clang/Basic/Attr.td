@@ -664,8 +664,7 @@ def SelectiveFriend : InheritableAttr {
   let Spellings = [GCC<"friend_for">, Declspec<"friend_for">,
                    CXX11<"","friend_for", 201309>];
   let Args = [ExprArgument<"Expr">];
-  /*let Subjects = SubjectList<[Friend]>;*/
-  // TODO make it work on FriendDecls
+  // let Subjects = SubjectList<[Friend]>; Not Working
   let Subjects = SubjectList<[Function]>;
   let Documentation = [Undocumented];
 }

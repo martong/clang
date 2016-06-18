@@ -4180,6 +4180,8 @@ static void handleDeprecatedAttr(Sema &S, Decl *D, const AttributeList &Attr) {
 
 static void handleSelectiveFriendAttr(Sema &S, Decl *D,
                                       const AttributeList &Attr) {
+  // TODO Add error handling, when D is not a FriendDecl
+
   Expr *E = Attr.getArgAsExpr(0);
 
   D->addAttr(::new (S.Context) SelectiveFriendAttr(
