@@ -574,7 +574,7 @@ static AccessResult SelectiveFriendConstraint(FriendDecl *Friend, const CXXRecor
     return AR_accessible;
   }
 
-  FunctionDecl* FD = dyn_cast<FunctionDecl>(Friend->getFriendDecl());
+  FunctionDecl* FD = dyn_cast<FunctionDecl>(ND);
   if (!FD) {
     FunctionTemplateDecl* FTD = dyn_cast<FunctionTemplateDecl>(ND);
     // handling of friend class templates not implemented
