@@ -584,6 +584,7 @@ static AccessResult SelectiveFriendConstraint(FriendDecl *Friend,
     FD = FTD->getTemplatedDecl();
   }
   assert(FD);
+
   if (SelectiveFriendAttr *Attr = FD->getAttr<SelectiveFriendAttr>()) {
     const Expr *E = Attr->getExpr();
     const UnaryOperator *UO = cast<UnaryOperator>(E);
@@ -592,6 +593,7 @@ static AccessResult SelectiveFriendConstraint(FriendDecl *Friend,
       return AR_inaccessible;
     }
   }
+
   return AR_accessible;
 }
 
