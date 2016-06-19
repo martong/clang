@@ -26,7 +26,6 @@ python PATH_TO_LLVM/llvm/utils/lit/lit.py -sv --param clang_site_config=PATH_TO_
 ```
 Run the whole regression test suite for C++ sema:
 ```
-python PATH_TO_LLVM/llvm/utils/lit/lit.py -sv --param clang_site_config=PATH_TO_CLANG/clang/test/lit.site.cfg PATH_TO_CLANG/clang/test/SemaCXX/
-
+python path_to_llvm_SRC/llvm/utils/lit/lit.py -sv --param clang_site_config=path_to_clang_BUILD/clang/test/lit.site.cfg path_to_clang_SRC/clang/test/SemaCXX/
 ```
 
