@@ -566,7 +566,7 @@ static AccessResult MatchesFriend(Sema &S,
   return MatchesFriend(S, EC, cast<FunctionDecl>(Friend));
 }
 
-static AccessResult SelectiveFriendConstraint(FriendDecl *Friend, const CXXRecordDecl* Class,
+static AccessResult SelectiveFriendConstraint(FriendDecl *Friend,
                                               const AccessTarget &Target) {
   NamedDecl *ND = Friend->getFriendDecl();
   // handling of friend classes not implemented
@@ -574,9 +574,9 @@ static AccessResult SelectiveFriendConstraint(FriendDecl *Friend, const CXXRecor
     return AR_accessible;
   }
 
-  FunctionDecl* FD = dyn_cast<FunctionDecl>(ND);
+  FunctionDecl *FD = dyn_cast<FunctionDecl>(ND);
   if (!FD) {
-    FunctionTemplateDecl* FTD = dyn_cast<FunctionTemplateDecl>(ND);
+    FunctionTemplateDecl *FTD = dyn_cast<FunctionTemplateDecl>(ND);
     // handling of friend class templates not implemented
     if (!FTD) {
       return AR_accessible;
@@ -588,7 +588,7 @@ static AccessResult SelectiveFriendConstraint(FriendDecl *Friend, const CXXRecor
     const Expr *E = Attr->getExpr();
     const UnaryOperator *UO = cast<UnaryOperator>(E);
     const DeclRefExpr *DRef = cast<DeclRefExpr>(UO->getSubExpr());
-    if (cast<NamedDecl>(DRef->getDecl()) != Target.getTargetDecl()){
+    if (cast<NamedDecl>(DRef->getDecl()) != Target.getTargetDecl()) {
       return AR_inaccessible;
     }
   }
@@ -605,7 +605,7 @@ static AccessResult GetFriendKind(Sema &S,
   for (auto *Friend : Class->friends()) {
     switch (MatchesFriend(S, EC, Friend)) {
     case AR_accessible:
-      switch(SelectiveFriendConstraint(Friend, Class, Target)) {
+      switch(SelectiveFriendConstraint(Friend, Target)) {
         case AR_accessible: return AR_accessible;
         case AR_inaccessible: continue;
         default : assert(false && "should not reach this point");
