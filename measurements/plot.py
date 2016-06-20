@@ -41,7 +41,7 @@ for arg in args.ps:
     i = i + 1
 
 plt.title('Comparing Compile Times')
-#plt.xlabel('No. member accesses')
-plt.xlabel('No. friends')
+plt.xlabel('No. member accesses')
+#plt.xlabel('No. friends')
 plt.ylabel('Time (s)')
 plt.show()
