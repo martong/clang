@@ -5,17 +5,16 @@ import matplotlib.pyplot as plt
 #import matplotlib.patches as mpatches
 import numpy as np
 
-dot_formats = {0: 'bs', 1: 'r*', 2: 'go'}
+dot_formats = {0: 'bs', 1: 'rd', 2: 'go'}
 fit_formats = {0: '-b', 1: '--r', 2: '-.g'}
 
 def plot(xs, ys, i, filename):
     fit = np.polyfit(xs,ys,1)
     fit_fn = np.poly1d(fit)
-    plt.plot(xs, ys, dot_formats[i], xs, fit_fn(xs), fit_formats[i], label=filename)
+    plt.plot(xs, ys, dot_formats[i], label=filename)
+    plt.plot(xs, fit_fn(xs), fit_formats[i])
 
     legend = plt.legend(loc='upper left', shadow=True, fontsize='medium')
-
-    #plt.show()
 
 
 def parse_file(i, filename):
@@ -40,8 +39,8 @@ for arg in args.ps:
     parse_file(i, arg)
     i = i + 1
 
-plt.title('Comparing Compile Times')
-plt.xlabel('No. member accesses')
-#plt.xlabel('No. friends')
+#plt.title('Comparing Compile Times')
+plt.xlabel('#member accesses')
+#plt.xlabel('#friends')
 plt.ylabel('Time (s)')
 plt.show()
