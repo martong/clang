@@ -4122,17 +4122,22 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
 
   {
 
+    // Create the function type for
+    // bool fake_subject_hook(void* callee)
     llvm::PointerType *PointerTy = Int8PtrTy;
     llvm::Type *FakeSubjectHookFuncArgs[] = { PointerTy };
-
+    // represent bool with Int1
     llvm::Type *Int1Ty = llvm::Type::getInt1Ty(getLLVMContext());
     llvm::FunctionType *FunctionTy =
         llvm::FunctionType::get(Int1Ty, FakeSubjectHookFuncArgs, false);
 
+    // Create the function
     llvm::Constant *F = CGM.CreateRuntimeFunction(FunctionTy, "__hook");
     //llvm::Function *F = llvm::Function::Create(
         //FunctionTy, llvm::Function::ExternalLinkage, "__hook", &CGM.getModule());
 
+    // Emit the the function call
+    // Emit first cast of the func pointer to int* (void*)
     llvm::Value *CastedCallee = Builder.CreateBitCast(Callee, PointerTy);
     llvm::Value *args[] = {CastedCallee};
     llvm::Value *HookResult = Builder.CreateCall(F, args, "hook_result");
