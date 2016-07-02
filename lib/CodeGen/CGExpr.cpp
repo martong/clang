@@ -4125,11 +4125,11 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     /// Create the function type for
     /// bool fake_subject_hook(void* callee)
     llvm::PointerType *PointerTy = Int8PtrTy;
-    llvm::Type *FakeSubjectHookFuncArgs[] = {PointerTy};
+    llvm::Type *FakeSubjectHookArgs[] = {PointerTy};
     /// represent bool with Int1
     llvm::Type *Int1Ty = llvm::Type::getInt1Ty(getLLVMContext());
     llvm::FunctionType *FunctionTy =
-        llvm::FunctionType::get(Int1Ty, FakeSubjectHookFuncArgs, false);
+        llvm::FunctionType::get(Int1Ty, FakeSubjectHookArgs, false);
 
     /// Create the function
     llvm::Constant *F =
@@ -4144,20 +4144,34 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     llvm::Value *FakeSubjectHookResult =
         Builder.CreateCall(F, args, "fake_subject_hook_result");
 
+
+    // Emit the branching on the hook result
     auto Zero = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1, 0));
-    auto Match = Builder.CreateICmpEQ(FakeSubjectHookResult, Zero);
+    auto Match = Builder.CreateICmpNE(FakeSubjectHookResult, Zero);
     llvm::BasicBlock *Cont = createBasicBlock("cont");
     llvm::BasicBlock *Then = createBasicBlock("then");
     // llvm::BasicBlock *Else = createBasicBlock("else");
     Builder.CreateCondBr(Match, Then, Cont);
 
-    EmitBlock(Then);
 
+    // Then
+    EmitBlock(Then);
     // QualType RetTy = FnInfo.getReturnType();
     // llvm::Type *RetIRTy = ConvertType(RetTy);
     // llvm::Value *V = Zero;
     // V = Builder.CreateBitCast(V, RetIRTy);
+    {
+      llvm::Type *FakeHookArgs[] = {PointerTy};
+      llvm::FunctionType *FunctionTy =
+          llvm::FunctionType::get(VoidTy, FakeHookArgs, false);
+      llvm::Constant *F = CGM.CreateRuntimeFunction(FunctionTy, "__fake_hook");
+      llvm::Value *args[] = {CastedCallee};
+      llvm::Value *FakeHookResult =
+          //Builder.CreateCall(F, args, "fake_hook_result");
+          Builder.CreateCall(F, args);
+    }
     Builder.CreateRetVoid();
+
 
     EmitBlock(Cont);
   }
