@@ -4132,7 +4132,8 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
         llvm::FunctionType::get(Int1Ty, FakeSubjectHookFuncArgs, false);
 
     // Create the function
-    llvm::Constant *F = CGM.CreateRuntimeFunction(FunctionTy, "__hook");
+    llvm::Constant *F = CGM.CreateRuntimeFunction(FunctionTy,
+        "__fake_subject_hook");
     //llvm::Function *F = llvm::Function::Create(
         //FunctionTy, llvm::Function::ExternalLinkage, "__hook", &CGM.getModule());
 
@@ -4140,10 +4141,10 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     // Emit first cast of the func pointer to int* (void*)
     llvm::Value *CastedCallee = Builder.CreateBitCast(Callee, PointerTy);
     llvm::Value *args[] = {CastedCallee};
-    llvm::Value *HookResult = Builder.CreateCall(F, args, "hook_result");
+    llvm::Value *FakeSubjectHookResult = Builder.CreateCall(F, args, "fake_subject_hook_result");
 
     //auto Zero = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1,0));
-    //auto Match = Builder.CreateICmpEQ(HookResult, Zero);
+    //auto Match = Builder.CreateICmpEQ(FakeSubjectHookResult, Zero);
     //llvm::BasicBlock *Cont = createBasicBlock("cont");
     //llvm::BasicBlock *Check = createBasicBlock("check");
     //Builder.CreateCondBr(Match, Check, Cont);
@@ -4152,7 +4153,7 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     //EmitBlock(Cont);
 
     auto Zero = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1,0));
-    auto Match = Builder.CreateICmpEQ(HookResult, Zero);
+    auto Match = Builder.CreateICmpEQ(FakeSubjectHookResult, Zero);
     llvm::BasicBlock *Cont = createBasicBlock("cont");
     llvm::BasicBlock *Then = createBasicBlock("then");
     //llvm::BasicBlock *Else = createBasicBlock("else");
