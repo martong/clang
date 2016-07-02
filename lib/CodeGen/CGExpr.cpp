@@ -4125,13 +4125,16 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     llvm::PointerType *PointerTy = Int8PtrTy;
     llvm::Type *FakeSubjectHookFuncArgs[] = { PointerTy };
 
+    llvm::Type *Int1Ty = llvm::Type::getInt1Ty(getLLVMContext());
+    llvm::FunctionType *FunctionTy =
+        llvm::FunctionType::get(Int1Ty, FakeSubjectHookFuncArgs, false);
+
+    llvm::Constant *F = CGM.CreateRuntimeFunction(FunctionTy, "__hook");
+    //llvm::Function *F = llvm::Function::Create(
+        //FunctionTy, llvm::Function::ExternalLinkage, "__hook", &CGM.getModule());
+
     llvm::Value *CastedCallee = Builder.CreateBitCast(Callee, PointerTy);
     llvm::Value *args[] = {CastedCallee};
-
-    llvm::FunctionType *FT =
-        llvm::FunctionType::get(llvm::Type::getInt1Ty(getLLVMContext()), FakeSubjectHookFuncArgs, false);
-    llvm::Function *F = llvm::Function::Create(
-        FT, llvm::Function::ExternalLinkage, "_Z4hookPv", &CGM.getModule());
     llvm::Value *HookResult = Builder.CreateCall(F, args, "hook_result");
 
     //auto Zero = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1,0));
