@@ -4150,8 +4150,8 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     auto Match = Builder.CreateICmpNE(FakeSubjectHookResult, Zero);
     llvm::BasicBlock *Cont = createBasicBlock("cont");
     llvm::BasicBlock *Then = createBasicBlock("then");
-    // llvm::BasicBlock *Else = createBasicBlock("else");
-    Builder.CreateCondBr(Match, Then, Cont);
+    llvm::BasicBlock *Else = createBasicBlock("else");
+    Builder.CreateCondBr(Match, Then, Else);
 
 
     // Then
@@ -4167,18 +4167,23 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
       llvm::Constant *F = CGM.CreateRuntimeFunction(FunctionTy, "__fake_hook");
       llvm::Value *args[] = {CastedCallee};
       llvm::Value *FakeHookResult =
-          //Builder.CreateCall(F, args, "fake_hook_result");
+          // Builder.CreateCall(F, args, "fake_hook_result");
           Builder.CreateCall(F, args);
     }
-    Builder.CreateRetVoid();
+    // Builder.CreateRetVoid();
+    Builder.CreateBr(Cont);
 
+
+    // Else
+    EmitBlock(Else);
+    // call the original
+    auto res = EmitCall(FnInfo, Callee, ReturnValue, Args,
+                        CGCalleeInfo(NonCanonicalFTP, TargetDecl));
 
     EmitBlock(Cont);
-  }
-
-
-  return EmitCall(FnInfo, Callee, ReturnValue, Args,
-                  CGCalleeInfo(NonCanonicalFTP, TargetDecl));
+    // TODO is it a good return value when we don't call from block Then?
+    return res;
+  } // TODO remove superfl block
 }
 
 LValue CodeGenFunction::
