@@ -4121,11 +4121,18 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
   }
 
   {
+
+    llvm::PointerType *PointerTy = Int8PtrTy;
+    llvm::Type *FakeSubjectHookFuncArgs[] = { PointerTy };
+
+    llvm::Value *CastedCallee = Builder.CreateBitCast(Callee, PointerTy);
+    llvm::Value *args[] = {CastedCallee};
+
     llvm::FunctionType *FT =
-        llvm::FunctionType::get(llvm::Type::getInt1Ty(getLLVMContext()), false);
+        llvm::FunctionType::get(llvm::Type::getInt1Ty(getLLVMContext()), FakeSubjectHookFuncArgs, false);
     llvm::Function *F = llvm::Function::Create(
-        FT, llvm::Function::ExternalLinkage, "_Z4hookv", &CGM.getModule());
-    llvm::Value *HookResult = Builder.CreateCall(F, {}, "hook_result");
+        FT, llvm::Function::ExternalLinkage, "_Z4hookPv", &CGM.getModule());
+    llvm::Value *HookResult = Builder.CreateCall(F, args, "hook_result");
 
     //auto Zero = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1,0));
     //auto Match = Builder.CreateICmpEQ(HookResult, Zero);
