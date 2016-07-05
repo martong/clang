@@ -4120,7 +4120,7 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     Callee = Builder.CreateBitCast(Callee, CalleeTy, "callee.knr.cast");
   }
 
-  {
+  if (SanOpts.has(SanitizerKind::Mock)) {
 
     /// Create the function type for
     /// bool fake_subject_hook(void* callee)
@@ -4144,7 +4144,6 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     llvm::Value *FakeSubjectHookResult =
         Builder.CreateCall(F, args, "fake_subject_hook_result");
 
-
     // Emit the branching on the hook result
     auto Zero = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1, 0));
     auto Match = Builder.CreateICmpNE(FakeSubjectHookResult, Zero);
@@ -4152,7 +4151,6 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     llvm::BasicBlock *Then = createBasicBlock("then");
     llvm::BasicBlock *Else = createBasicBlock("else");
     Builder.CreateCondBr(Match, Then, Else);
-
 
     // Then
     EmitBlock(Then);
@@ -4173,7 +4171,6 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     // Builder.CreateRetVoid();
     Builder.CreateBr(Cont);
 
-
     // Else
     EmitBlock(Else);
     // call the original
@@ -4183,7 +4180,10 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     EmitBlock(Cont);
     // TODO is it a good return value when we don't call from block Then?
     return res;
-  } // TODO remove superfl block
+  } else {
+    return EmitCall(FnInfo, Callee, ReturnValue, Args,
+                    CGCalleeInfo(NonCanonicalFTP, TargetDecl));
+  }
 }
 
 LValue CodeGenFunction::

@@ -123,5 +123,8 @@ SANITIZER_GROUP("efficiency-all", Efficiency, EfficiencyCacheFrag)
 // can be used to disable all the sanitizers.
 SANITIZER_GROUP("all", All, ~0ULL)
 
+// MockSanitizer
+SANITIZER("mock", Mock)
+
 #undef SANITIZER
 #undef SANITIZER_GROUP
