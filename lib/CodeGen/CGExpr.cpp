@@ -4088,6 +4088,7 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
   if (Chain)
     Args.add(RValue::get(Builder.CreateBitCast(Chain, CGM.VoidPtrTy)),
              CGM.getContext().VoidPtrTy);
+  // Checkpoint
   EmitCallArgs(Args, dyn_cast<FunctionProtoType>(FnType), E->arguments(),
                E->getDirectCallee(), /*ParamsToSkip*/ 0);
 
@@ -4159,14 +4160,25 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     // llvm::Value *V = Zero;
     // V = Builder.CreateBitCast(V, RetIRTy);
     {
-      llvm::Type *FakeHookArgs[] = {PointerTy};
+      //llvm::Value *IntArg = Args[0].RV.getScalarVal();
+      //llvm::Type *FakeHookArgs[] = {PointerTy, IntArg->getType()};
+      llvm::SmallVector<llvm::Type*, 16> FakeHookArgTypes = {PointerTy, Int32Ty};
+      auto Count = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(32, Args.size()));
+      llvm::SmallVector<llvm::Value*, 16> FakeHookArgs = {CastedCallee, Count};
+      for (const auto& Arg: Args) {
+        llvm::Value *ArgV = Arg.RV.getScalarVal();
+        //FakeHookArgTypes.push_back(ArgV->getType());
+        FakeHookArgs.push_back(ArgV);
+      }
       llvm::FunctionType *FunctionTy =
-          llvm::FunctionType::get(VoidTy, FakeHookArgs, false);
+          llvm::FunctionType::get(VoidTy, FakeHookArgTypes, true);
       llvm::Constant *F = CGM.CreateRuntimeFunction(FunctionTy, "__fake_hook");
-      llvm::Value *args[] = {CastedCallee};
-      llvm::Value *FakeHookResult =
-          // Builder.CreateCall(F, args, "fake_hook_result");
-          Builder.CreateCall(F, args);
+
+      //llvm::Value *IntArg = Builder.CreateBitCast(Args[0].RV.getScalarVal(), Int64Ty);
+      //llvm::Value *args[] = {CastedCallee, IntArg};
+      //llvm::Value *FakeHookResult =
+      // Builder.CreateCall(F, args, "fake_hook_result");
+      Builder.CreateCall(F, FakeHookArgs);
     }
     // Builder.CreateRetVoid();
     Builder.CreateBr(Cont);

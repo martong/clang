@@ -3917,6 +3917,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 
   llvm::CallSite CS;
   if (!InvokeDest) {
+    // Checkpoint
     CS = Builder.CreateCall(Callee, IRCallArgs, BundleList);
   } else {
     llvm::BasicBlock *Cont = createBasicBlock("invoke.cont");
