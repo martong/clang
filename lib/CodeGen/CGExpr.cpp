@@ -4190,6 +4190,7 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
                         CGCalleeInfo(NonCanonicalFTP, TargetDecl));
 
     EmitBlock(Cont);
+    this->CurFn->dump();
     // TODO is it a good return value when we don't call from block Then?
     return res;
   } else {
