@@ -3809,7 +3809,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       assert(IRArgPos == FirstIRArg + NumIRArgs);
       break;
     }
-  }
+  } // for
 
   if (ArgMemory.isValid()) {
     llvm::Value *Arg = ArgMemory.getPointer();

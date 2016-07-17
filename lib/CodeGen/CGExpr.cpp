@@ -4123,6 +4123,22 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
 
   if (SanOpts.has(SanitizerKind::Mock)) {
 
+    /// Create an alloca to hold the return value
+    //const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl)
+    //llvm::FunctionType *CalleeTy = getTypes().ConvertFunctionType(QualType(FnType, 0), FD);
+    // QualType RetTy = FnInfo.getReturnType();
+    // llvm::Type *RetIRTy = ConvertType(RetTy);
+    llvm::FunctionType *CalleeTy = getTypes().GetFunctionType(FnInfo);
+    llvm::Type* RetTy = CalleeTy->getReturnType();
+    llvm::Optional<Address> CallResAddr;
+    //Address CallResAddr(nullptr, CharUnits{});
+    //llvm::AllocaInst* CallRes = nullptr;
+    //llvm::Value* CallRes = nullptr;
+    if (RetTy != VoidTy) {
+      //CallRes = CreateTempAlloca(RetTy, "call_res");
+      CallResAddr = CreateDefaultAlignTempAlloca(RetTy, "call_res");
+    }
+
     /// Create the function type for
     /// bool fake_subject_hook(void* callee)
     llvm::PointerType *PointerTy = Int8PtrTy;
@@ -4135,17 +4151,16 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     /// Create the function
     llvm::Constant *F =
         CGM.CreateRuntimeFunction(FunctionTy, "__fake_subject_hook");
-    // llvm::Function *F = llvm::Function::Create(
-    // FunctionTy, llvm::Function::ExternalLinkage, "__hook", &CGM.getModule());
 
-    /// Emit the the function call
-    /// Emit first cast of the func pointer to int* (void*)
+    /// Emit the call for SUBJECT hook
+    ///   Firs param: function pointer
+    ///     Emit the cast of the func pointer to int*
     llvm::Value *CastedCallee = Builder.CreateBitCast(Callee, PointerTy);
-    llvm::Value *args[] = {CastedCallee};
+    llvm::Value *args[] = {CastedCallee}; // TODO rename
     llvm::Value *FakeSubjectHookResult =
         Builder.CreateCall(F, args, "fake_subject_hook_result");
 
-    // Emit the branching on the hook result
+    ///   Emit the branching on the hook result
     auto Zero = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1, 0));
     auto Match = Builder.CreateICmpNE(FakeSubjectHookResult, Zero);
     llvm::BasicBlock *Cont = createBasicBlock("cont");
@@ -4153,46 +4168,65 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     llvm::BasicBlock *Else = createBasicBlock("else");
     Builder.CreateCondBr(Match, Then, Else);
 
-    // Then
+    ///   Then
     EmitBlock(Then);
-    // QualType RetTy = FnInfo.getReturnType();
-    // llvm::Type *RetIRTy = ConvertType(RetTy);
-    // llvm::Value *V = Zero;
-    // V = Builder.CreateBitCast(V, RetIRTy);
     {
-      //llvm::Value *IntArg = Args[0].RV.getScalarVal();
-      //llvm::Type *FakeHookArgs[] = {PointerTy, IntArg->getType()};
+      ///    Emit the call for FAKE hook
       llvm::SmallVector<llvm::Type*, 16> FakeHookArgTypes = {PointerTy, Int32Ty};
       auto Count = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(32, Args.size()));
       llvm::SmallVector<llvm::Value*, 16> FakeHookArgs = {CastedCallee, Count};
       for (const auto& Arg: Args) {
         llvm::Value *ArgV = Arg.RV.getScalarVal();
-        //FakeHookArgTypes.push_back(ArgV->getType());
         FakeHookArgs.push_back(ArgV);
       }
       llvm::FunctionType *FunctionTy =
-          llvm::FunctionType::get(VoidTy, FakeHookArgTypes, true);
+          llvm::FunctionType::get(Int32Ty, FakeHookArgTypes, true);
       llvm::Constant *F = CGM.CreateRuntimeFunction(FunctionTy, "__fake_hook");
 
-      //llvm::Value *IntArg = Builder.CreateBitCast(Args[0].RV.getScalarVal(), Int64Ty);
-      //llvm::Value *args[] = {CastedCallee, IntArg};
-      //llvm::Value *FakeHookResult =
-      // Builder.CreateCall(F, args, "fake_hook_result");
-      Builder.CreateCall(F, FakeHookArgs);
+      if (RetTy == VoidTy) {
+        Builder.CreateCall(F, FakeHookArgs);
+      } else {
+        llvm::Value *FakeHookResult =
+            Builder.CreateCall(F, FakeHookArgs, "fake_hook_result");
+        assert(CallResAddr.hasValue());
+        // TODO aligned store?
+        Builder.CreateStore(FakeHookResult, CallResAddr.getValue());
+        //Builder.CreateStore();
+      }
     }
-    // Builder.CreateRetVoid();
     Builder.CreateBr(Cont);
 
-    // Else
+    //   Else
     EmitBlock(Else);
-    // call the original
-    auto res = EmitCall(FnInfo, Callee, ReturnValue, Args,
+    //   call the original
+    RValue res = EmitCall(FnInfo, Callee, ReturnValue, Args,
                         CGCalleeInfo(NonCanonicalFTP, TargetDecl));
 
+    //     Emit the store to call_res
+    if (RetTy != VoidTy) {
+      assert(res.isScalar());
+      if (res.isScalar()) {
+        // TODO aligned store?
+        Builder.CreateStore(res.getScalarVal(), CallResAddr.getValue());
+      }
+    }
+
     EmitBlock(Cont);
+    if (RetTy != VoidTy) {
+      assert(res.isScalar());
+      if (res.isScalar()) {
+        auto Load = Builder.CreateLoad(CallResAddr.getValue(), "load res");
+
+        llvm::outs() << "Debug: \n";
+        res.getScalarVal()->getType()->dump();
+        res = RValue::get(Load);
+        res.getScalarVal()->getType()->dump();
+      }
+    }
+
     this->CurFn->dump();
-    // TODO is it a good return value when we don't call from block Then?
     return res;
+
   } else {
     return EmitCall(FnInfo, Callee, ReturnValue, Args,
                     CGCalleeInfo(NonCanonicalFTP, TargetDecl));
