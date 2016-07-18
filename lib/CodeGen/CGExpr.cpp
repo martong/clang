@@ -4043,16 +4043,6 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     }
   }
 
-  //auto X = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(8,1));
-  //auto Y = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(8,1));
-  //auto Match = Builder.CreateICmpEQ(X, Y);
-  //llvm::BasicBlock *Cont = createBasicBlock("cont");
-  //llvm::BasicBlock *TypeCheck = createBasicBlock("typecheck");
-  //Builder.CreateCondBr(Match, TypeCheck, Cont);
-  //EmitBlock(TypeCheck);
-  //Builder.CreateBr(Cont);
-  //EmitBlock(Cont);
-
   // If we are checking indirect calls and this call is indirect, check that the
   // function pointer is a member of the bit set for the function type.
   if (SanOpts.has(SanitizerKind::CFIICall) &&
@@ -4124,41 +4114,33 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
   if (SanOpts.has(SanitizerKind::Mock)) {
 
     /// Create an alloca to hold the return value
-    //const FunctionDecl *FD = dyn_cast_or_null<FunctionDecl>(TargetDecl)
-    //llvm::FunctionType *CalleeTy = getTypes().ConvertFunctionType(QualType(FnType, 0), FD);
-    // QualType RetTy = FnInfo.getReturnType();
-    // llvm::Type *RetIRTy = ConvertType(RetTy);
     llvm::FunctionType *CalleeTy = getTypes().GetFunctionType(FnInfo);
-    llvm::Type* RetTy = CalleeTy->getReturnType();
+    llvm::Type *RetTy = CalleeTy->getReturnType();
     llvm::Optional<Address> CallResAddr;
-    //Address CallResAddr(nullptr, CharUnits{});
-    //llvm::AllocaInst* CallRes = nullptr;
-    //llvm::Value* CallRes = nullptr;
     if (RetTy != VoidTy) {
-      //CallRes = CreateTempAlloca(RetTy, "call_res");
       CallResAddr = CreateDefaultAlignTempAlloca(RetTy, "call_res");
     }
 
     /// Create the function type for
-    /// bool fake_subject_hook(void* callee)
+    ///   bool fake_subject_hook(void* callee)
     llvm::PointerType *PointerTy = Int8PtrTy;
-    llvm::Type *FakeSubjectHookArgs[] = {PointerTy};
+    llvm::Type *FakeSubjectHookArgTypes[] = {PointerTy};
     /// represent bool with Int1
     llvm::Type *Int1Ty = llvm::Type::getInt1Ty(getLLVMContext());
-    llvm::FunctionType *FunctionTy =
-        llvm::FunctionType::get(Int1Ty, FakeSubjectHookArgs, false);
+    llvm::FunctionType *FakeSubjectHook =
+        llvm::FunctionType::get(Int1Ty, FakeSubjectHookArgTypes, false);
 
     /// Create the function
     llvm::Constant *F =
-        CGM.CreateRuntimeFunction(FunctionTy, "__fake_subject_hook");
+        CGM.CreateRuntimeFunction(FakeSubjectHook, "__fake_subject_hook");
 
     /// Emit the call for SUBJECT hook
     ///   Firs param: function pointer
     ///     Emit the cast of the func pointer to int*
     llvm::Value *CastedCallee = Builder.CreateBitCast(Callee, PointerTy);
-    llvm::Value *args[] = {CastedCallee}; // TODO rename
+    llvm::Value *FakeSubjectHookArgs[] = {CastedCallee};
     llvm::Value *FakeSubjectHookResult =
-        Builder.CreateCall(F, args, "fake_subject_hook_result");
+        Builder.CreateCall(F, FakeSubjectHookArgs, "fake_subject_hook_result");
 
     ///   Emit the branching on the hook result
     auto Zero = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1, 0));
@@ -4174,12 +4156,15 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
       ///    Emit the call for FAKE hook
       ///    signature:
       ///     hook(void* fp, int num_args, void* ret_value, int ret_size, ...)
-      llvm::SmallVector<llvm::Type *, 16> FakeHookArgTypes = {PointerTy, Int32Ty, PointerTy, Int32Ty};
-      auto Count = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(32, Args.size()));
-      llvm::SmallVector<llvm::Value*, 16> FakeHookArgs = {CastedCallee, Count};
+      llvm::SmallVector<llvm::Type *, 16> FakeHookArgTypes = {
+          PointerTy, Int32Ty, PointerTy, Int32Ty};
+      auto Count = llvm::ConstantInt::get(CGM.getLLVMContext(),
+                                          llvm::APInt(32, Args.size()));
+      llvm::SmallVector<llvm::Value *, 16> FakeHookArgs = {CastedCallee, Count};
       if (RetTy == VoidTy) {
         auto Nullptr = llvm::ConstantPointerNull::get(PointerTy);
-        auto Zero = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(32, 0));
+        auto Zero =
+            llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(32, 0));
         FakeHookArgs.push_back(Nullptr);
         FakeHookArgs.push_back(Zero);
       } else {
@@ -4192,14 +4177,14 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
         FakeHookArgs.push_back(RetTySize);
       }
 
-      for (const auto& Arg: Args) {
+      for (const auto &Arg : Args) {
         assert(Arg.RV.isScalar());
         llvm::Value *ArgV = Arg.RV.getScalarVal();
         FakeHookArgs.push_back(ArgV);
       }
-      llvm::FunctionType *FunctionTy =
+      llvm::FunctionType *FakeHook =
           llvm::FunctionType::get(VoidTy, FakeHookArgTypes, true);
-      llvm::Constant *F = CGM.CreateRuntimeFunction(FunctionTy, "__fake_hook");
+      llvm::Constant *F = CGM.CreateRuntimeFunction(FakeHook, "__fake_hook");
       Builder.CreateCall(F, FakeHookArgs);
     }
     Builder.CreateBr(Cont);
@@ -4208,8 +4193,9 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     EmitBlock(Else);
     //   call the original
     RValue res = EmitCall(FnInfo, Callee, ReturnValue, Args,
-                        CGCalleeInfo(NonCanonicalFTP, TargetDecl));
+                          CGCalleeInfo(NonCanonicalFTP, TargetDecl));
 
+    //   store the return value to call_res
     //     Emit the store to call_res
     if (RetTy != VoidTy) {
       assert(res.isScalar());
@@ -4223,12 +4209,10 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     if (RetTy != VoidTy) {
       assert(res.isScalar());
       if (res.isScalar()) {
+        // By this time the return value is stored either by the fake_hook
+        // or the original function returned with that.
         auto Load = Builder.CreateLoad(CallResAddr.getValue(), "load res");
-
-        llvm::outs() << "Debug: \n";
-        res.getScalarVal()->getType()->dump();
         res = RValue::get(Load);
-        res.getScalarVal()->getType()->dump();
       }
     }
 
