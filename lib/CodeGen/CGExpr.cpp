@@ -4172,27 +4172,35 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     EmitBlock(Then);
     {
       ///    Emit the call for FAKE hook
-      llvm::SmallVector<llvm::Type*, 16> FakeHookArgTypes = {PointerTy, Int32Ty};
+      ///    signature:
+      ///     hook(void* fp, int num_args, void* ret_value, int ret_size, ...)
+      llvm::SmallVector<llvm::Type *, 16> FakeHookArgTypes = {PointerTy, Int32Ty, PointerTy, Int32Ty};
       auto Count = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(32, Args.size()));
       llvm::SmallVector<llvm::Value*, 16> FakeHookArgs = {CastedCallee, Count};
+      if (RetTy == VoidTy) {
+        auto Nullptr = llvm::ConstantPointerNull::get(PointerTy);
+        auto Zero = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(32, 0));
+        FakeHookArgs.push_back(Nullptr);
+        FakeHookArgs.push_back(Zero);
+      } else {
+        llvm::Value *CastedCallRes = Builder.CreateBitCast(
+            CallResAddr.getValue().getPointer(), PointerTy);
+        auto RetTySize = llvm::ConstantInt::get(
+            CGM.getLLVMContext(),
+            llvm::APInt(32, CGM.getDataLayout().getTypeSizeInBits(RetTy)));
+        FakeHookArgs.push_back(CastedCallRes);
+        FakeHookArgs.push_back(RetTySize);
+      }
+
       for (const auto& Arg: Args) {
+        assert(Arg.RV.isScalar());
         llvm::Value *ArgV = Arg.RV.getScalarVal();
         FakeHookArgs.push_back(ArgV);
       }
       llvm::FunctionType *FunctionTy =
-          llvm::FunctionType::get(Int32Ty, FakeHookArgTypes, true);
+          llvm::FunctionType::get(VoidTy, FakeHookArgTypes, true);
       llvm::Constant *F = CGM.CreateRuntimeFunction(FunctionTy, "__fake_hook");
-
-      if (RetTy == VoidTy) {
-        Builder.CreateCall(F, FakeHookArgs);
-      } else {
-        llvm::Value *FakeHookResult =
-            Builder.CreateCall(F, FakeHookArgs, "fake_hook_result");
-        assert(CallResAddr.hasValue());
-        // TODO aligned store?
-        Builder.CreateStore(FakeHookResult, CallResAddr.getValue());
-        //Builder.CreateStore();
-      }
+      Builder.CreateCall(F, FakeHookArgs);
     }
     Builder.CreateBr(Cont);
 
