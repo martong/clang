@@ -4155,37 +4155,70 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     {
       ///    Emit the call for FAKE hook
       ///    signature:
-      ///     hook(void* fp, int num_args, void* ret_value, int ret_size, ...)
-      llvm::SmallVector<llvm::Type *, 16> FakeHookArgTypes = {
-          PointerTy, Int32Ty, PointerTy, Int32Ty};
-      auto Count = llvm::ConstantInt::get(CGM.getLLVMContext(),
-                                          llvm::APInt(32, Args.size()));
-      llvm::SmallVector<llvm::Value *, 16> FakeHookArgs = {CastedCallee, Count};
-      if (RetTy == VoidTy) {
-        auto Nullptr = llvm::ConstantPointerNull::get(PointerTy);
-        auto Zero =
-            llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(32, 0));
-        FakeHookArgs.push_back(Nullptr);
-        FakeHookArgs.push_back(Zero);
-      } else {
-        llvm::Value *CastedCallRes = Builder.CreateBitCast(
-            CallResAddr.getValue().getPointer(), PointerTy);
-        auto RetTySize = llvm::ConstantInt::get(
-            CGM.getLLVMContext(),
-            llvm::APInt(32, CGM.getDataLayout().getTypeSizeInBits(RetTy)));
-        FakeHookArgs.push_back(CastedCallRes);
-        FakeHookArgs.push_back(RetTySize);
+      ///     void* hook(void* fp)
+      {
+        llvm::SmallVector<llvm::Type *, 16> FakeHookMapArgTypes = {PointerTy};
+        llvm::SmallVector<llvm::Value *, 16> FakeHookMapArgs = {CastedCallee};
+        llvm::FunctionType *FakeHookMap =
+            llvm::FunctionType::get(PointerTy, FakeHookMapArgTypes, false);
+        llvm::Constant *FakeHookMapRtFun =
+            CGM.CreateRuntimeFunction(FakeHookMap, "__fake_hook_map");
+        llvm::Value *FakeHookMapResult = Builder.CreateCall(
+            FakeHookMapRtFun, FakeHookMapArgs, "fake_hook_map_result");
+
+        llvm::PointerType *CalleePtrTy =
+            llvm::PointerType::get(CalleeTy, 0); // TODO addressspace
+        llvm::Value *FakeHookPtr =
+            Builder.CreateBitCast(FakeHookMapResult, CalleePtrTy);
+
+        llvm::SmallVector<llvm::Value *, 16> FakeHookArgs;
+        for (const auto &Arg : Args) {
+          assert(Arg.RV.isScalar());
+          llvm::Value *ArgV = Arg.RV.getScalarVal();
+          FakeHookArgs.push_back(ArgV);
+        }
+        if (RetTy == VoidTy) {
+          Builder.CreateCall(CalleeTy, FakeHookPtr, FakeHookArgs);
+        } else {
+          llvm::Value *FakeHookResult = Builder.CreateCall(
+              CalleeTy, FakeHookPtr, FakeHookArgs, "fake_hook_result");
+          Builder.CreateStore(FakeHookResult, CallResAddr.getValue());
+        }
       }
 
-      for (const auto &Arg : Args) {
-        assert(Arg.RV.isScalar());
-        llvm::Value *ArgV = Arg.RV.getScalarVal();
-        FakeHookArgs.push_back(ArgV);
-      }
-      llvm::FunctionType *FakeHook =
-          llvm::FunctionType::get(VoidTy, FakeHookArgTypes, true);
-      llvm::Constant *F = CGM.CreateRuntimeFunction(FakeHook, "__fake_hook");
-      Builder.CreateCall(F, FakeHookArgs);
+      ///    Emit the call for FAKE hook
+      ///    signature:
+      ///     hook(void* fp, int num_args, void* ret_value, int ret_size, ...)
+      //llvm::SmallVector<llvm::Type *, 16> FakeHookArgTypes = {
+          //PointerTy, Int32Ty, PointerTy, Int32Ty};
+      //auto Count = llvm::ConstantInt::get(CGM.getLLVMContext(),
+                                          //llvm::APInt(32, Args.size()));
+      //llvm::SmallVector<llvm::Value *, 16> FakeHookArgs = {CastedCallee, Count};
+      //if (RetTy == VoidTy) {
+        //auto Nullptr = llvm::ConstantPointerNull::get(PointerTy);
+        //auto Zero =
+            //llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(32, 0));
+        //FakeHookArgs.push_back(Nullptr);
+        //FakeHookArgs.push_back(Zero);
+      //} else {
+        //llvm::Value *CastedCallRes = Builder.CreateBitCast(
+            //CallResAddr.getValue().getPointer(), PointerTy);
+        //auto RetTySize = llvm::ConstantInt::get(
+            //CGM.getLLVMContext(),
+            //llvm::APInt(32, CGM.getDataLayout().getTypeSizeInBits(RetTy)));
+        //FakeHookArgs.push_back(CastedCallRes);
+        //FakeHookArgs.push_back(RetTySize);
+      //}
+
+      //for (const auto &Arg : Args) {
+        //assert(Arg.RV.isScalar());
+        //llvm::Value *ArgV = Arg.RV.getScalarVal();
+        //FakeHookArgs.push_back(ArgV);
+      //}
+      //llvm::FunctionType *FakeHook =
+          //llvm::FunctionType::get(VoidTy, FakeHookArgTypes, true);
+      //llvm::Constant *F = CGM.CreateRuntimeFunction(FakeHook, "__fake_hook");
+      //Builder.CreateCall(F, FakeHookArgs);
     }
     Builder.CreateBr(Cont);
 
