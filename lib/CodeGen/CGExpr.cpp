@@ -4121,40 +4121,12 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
       CallResAddr = CreateDefaultAlignTempAlloca(RetTy, "call_res");
     }
 
-    /// Create the function type for
-    ///   bool fake_subject_hook(void* callee)
-    llvm::PointerType *PointerTy = Int8PtrTy;
-    llvm::Type *FakeSubjectHookArgTypes[] = {PointerTy};
-    /// represent bool with Int1
-    llvm::Type *Int1Ty = llvm::Type::getInt1Ty(getLLVMContext());
-    llvm::FunctionType *FakeSubjectHook =
-        llvm::FunctionType::get(Int1Ty, FakeSubjectHookArgTypes, false);
-
-    /// Create the function
-    llvm::Constant *F =
-        CGM.CreateRuntimeFunction(FakeSubjectHook, "__fake_subject_hook");
-
-    /// Emit the call for SUBJECT hook
-    ///   Firs param: function pointer
-    ///     Emit the cast of the func pointer to int*
-    llvm::Value *CastedCallee = Builder.CreateBitCast(Callee, PointerTy);
-    llvm::Value *FakeSubjectHookArgs[] = {CastedCallee};
-    llvm::Value *FakeSubjectHookResult =
-        Builder.CreateCall(F, FakeSubjectHookArgs, "fake_subject_hook_result");
-
-    /// Emit the branching on the hook result
-    auto Zero = llvm::ConstantInt::get(CGM.getLLVMContext(), llvm::APInt(1, 0));
-    auto Match = Builder.CreateICmpNE(FakeSubjectHookResult, Zero);
-    llvm::BasicBlock *Cont = createBasicBlock("cont");
-    llvm::BasicBlock *Then = createBasicBlock("then");
-    llvm::BasicBlock *Else = createBasicBlock("else");
-    Builder.CreateCondBr(Match, Then, Else);
-
-    EmitBlock(Then);
     ///    Emit the call for FAKE hook
     ///    signature:
     ///     void* hook(void* fp)
+    llvm::PointerType *PointerTy = Int8PtrTy;
     llvm::SmallVector<llvm::Type *, 16> FakeHookMapArgTypes = {PointerTy};
+    llvm::Value *CastedCallee = Builder.CreateBitCast(Callee, PointerTy);
     llvm::SmallVector<llvm::Value *, 16> FakeHookMapArgs = {CastedCallee};
     llvm::FunctionType *FakeHookMap =
         llvm::FunctionType::get(PointerTy, FakeHookMapArgTypes, false);
@@ -4163,6 +4135,15 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     llvm::Value *FakeHookMapResult = Builder.CreateCall(
         FakeHookMapRtFun, FakeHookMapArgs, "fake_hook_map_result");
 
+    /// Emit the branching on the hook result
+    auto Match = Builder.CreateICmpNE(
+        FakeHookMapResult, llvm::ConstantPointerNull::get(PointerTy));
+    llvm::BasicBlock *Cont = createBasicBlock("cont");
+    llvm::BasicBlock *Then = createBasicBlock("then");
+    llvm::BasicBlock *Else = createBasicBlock("else");
+    Builder.CreateCondBr(Match, Then, Else);
+
+    EmitBlock(Then);
     llvm::PointerType *CalleePtrTy =
         llvm::PointerType::get(CalleeTy, 0); // TODO addressspace
     llvm::Value *FakeHookPtr =
