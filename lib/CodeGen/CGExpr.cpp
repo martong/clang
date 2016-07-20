@@ -4125,19 +4125,19 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     ///    signature:
     ///     void* hook(void* fp)
     llvm::PointerType *PointerTy = Int8PtrTy;
-    llvm::SmallVector<llvm::Type *, 16> FakeHookMapArgTypes = {PointerTy};
+    llvm::SmallVector<llvm::Type *, 16> FakeHookArgTypes = {PointerTy};
     llvm::Value *CastedCallee = Builder.CreateBitCast(Callee, PointerTy);
-    llvm::SmallVector<llvm::Value *, 16> FakeHookMapArgs = {CastedCallee};
-    llvm::FunctionType *FakeHookMap =
-        llvm::FunctionType::get(PointerTy, FakeHookMapArgTypes, false);
-    llvm::Constant *FakeHookMapRtFun =
-        CGM.CreateRuntimeFunction(FakeHookMap, "__fake_hook_map");
-    llvm::Value *FakeHookMapResult = Builder.CreateCall(
-        FakeHookMapRtFun, FakeHookMapArgs, "fake_hook_map_result");
+    llvm::SmallVector<llvm::Value *, 16> FakeHookArgs = {CastedCallee};
+    llvm::FunctionType *FakeHook =
+        llvm::FunctionType::get(PointerTy, FakeHookArgTypes, false);
+    llvm::Constant *FakeHookRtFun =
+        CGM.CreateRuntimeFunction(FakeHook, "__fake_hook");
+    llvm::Value *FakeHookResult = Builder.CreateCall(
+        FakeHookRtFun, FakeHookArgs, "fake_hook_result");
 
     /// Emit the branching on the hook result
     auto Match = Builder.CreateICmpNE(
-        FakeHookMapResult, llvm::ConstantPointerNull::get(PointerTy));
+        FakeHookResult, llvm::ConstantPointerNull::get(PointerTy));
     llvm::BasicBlock *Cont = createBasicBlock("cont");
     llvm::BasicBlock *Then = createBasicBlock("then");
     llvm::BasicBlock *Else = createBasicBlock("else");
@@ -4146,21 +4146,21 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     EmitBlock(Then);
     llvm::PointerType *CalleePtrTy =
         llvm::PointerType::get(CalleeTy, 0); // TODO addressspace
-    llvm::Value *FakeHookPtr =
-        Builder.CreateBitCast(FakeHookMapResult, CalleePtrTy);
+    llvm::Value *SubstituteFunPtr =
+        Builder.CreateBitCast(FakeHookResult, CalleePtrTy);
 
-    llvm::SmallVector<llvm::Value *, 16> FakeHookArgs;
+    llvm::SmallVector<llvm::Value *, 16> SubstituteFunArgs;
     for (const auto &Arg : Args) {
       assert(Arg.RV.isScalar());
       llvm::Value *ArgV = Arg.RV.getScalarVal();
-      FakeHookArgs.push_back(ArgV);
+      SubstituteFunArgs.push_back(ArgV);
     }
     if (RetTy == VoidTy) {
-      Builder.CreateCall(CalleeTy, FakeHookPtr, FakeHookArgs);
+      Builder.CreateCall(CalleeTy, SubstituteFunPtr, SubstituteFunArgs);
     } else {
-      llvm::Value *FakeHookResult = Builder.CreateCall(
-          CalleeTy, FakeHookPtr, FakeHookArgs, "fake_hook_result");
-      Builder.CreateStore(FakeHookResult, CallResAddr.getValue());
+      llvm::Value *SubstituteFunResult = Builder.CreateCall(
+          CalleeTy, SubstituteFunPtr, SubstituteFunArgs, "subst_fun_result");
+      Builder.CreateStore(SubstituteFunResult, CallResAddr.getValue());
     }
     Builder.CreateBr(Cont);
 
