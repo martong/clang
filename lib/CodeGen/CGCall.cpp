@@ -3896,6 +3896,78 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   llvm::AttributeSet Attrs = llvm::AttributeSet::get(getLLVMContext(),
                                                      AttributeList);
 
+  if (SanOpts.has(SanitizerKind::Mock)) {
+
+    /// Create an alloca to hold the return value
+    llvm::FunctionType *CalleeTy = getTypes().GetFunctionType(CallInfo);
+    llvm::Type *RetTy = CalleeTy->getReturnType();
+    llvm::Optional<Address> CallResAddr;
+    if (RetTy != VoidTy) {
+      CallResAddr = CreateDefaultAlignTempAlloca(RetTy, "call_res");
+    }
+
+    ///    Emit the call for FAKE hook
+    ///    signature:
+    ///     void* hook(void* fp)
+    llvm::PointerType *PointerTy = Int8PtrTy;
+    llvm::SmallVector<llvm::Type *, 16> FakeHookArgTypes = {PointerTy};
+    llvm::Value *CastedCallee = Builder.CreateBitCast(Callee, PointerTy);
+    llvm::SmallVector<llvm::Value *, 16> FakeHookArgs = {CastedCallee};
+    llvm::FunctionType *FakeHook =
+        llvm::FunctionType::get(PointerTy, FakeHookArgTypes, false);
+    llvm::Constant *FakeHookRtFun =
+        CGM.CreateRuntimeFunction(FakeHook, "__fake_hook");
+    llvm::Value *FakeHookResult = Builder.CreateCall(
+        FakeHookRtFun, FakeHookArgs, "fake_hook_result");
+
+    /// Emit the branching on the hook result
+    auto Match = Builder.CreateICmpNE(
+        FakeHookResult, llvm::ConstantPointerNull::get(PointerTy));
+    llvm::BasicBlock *Cont = createBasicBlock("cont");
+    llvm::BasicBlock *Then = createBasicBlock("then");
+    llvm::BasicBlock *Else = createBasicBlock("else");
+    Builder.CreateCondBr(Match, Then, Else);
+
+    EmitBlock(Then);
+    llvm::PointerType *CalleePtrTy =
+        llvm::PointerType::get(CalleeTy, 0); // TODO addressspace
+    llvm::Value *SubstituteFunPtr =
+        Builder.CreateBitCast(FakeHookResult, CalleePtrTy);
+    if (RetTy == VoidTy) {
+      Builder.CreateCall(CalleeTy, SubstituteFunPtr, IRCallArgs);
+    } else {
+      llvm::Value *SubstituteFunResult = Builder.CreateCall(
+          CalleeTy, SubstituteFunPtr, IRCallArgs, "subst_fun_result");
+      Builder.CreateStore(SubstituteFunResult, CallResAddr.getValue());
+    }
+    Builder.CreateBr(Cont);
+
+    EmitBlock(Else);
+    /// Call the original
+    // TODO bundle
+    // TODO invoke
+    llvm::Value* Ret = Builder.CreateCall(Callee, IRCallArgs);
+    /// Store the return value to call_res
+    if (RetTy != VoidTy) {
+      // TODO aligned store?
+      Builder.CreateStore(Ret, CallResAddr.getValue());
+    }
+
+    EmitBlock(Cont);
+    if (RetTy != VoidTy) {
+      // By this time the return value is stored either by the fake_hook
+      // or the original function returned with that.
+      auto Load = Builder.CreateLoad(CallResAddr.getValue(), "load res");
+      // TODO handle return correctly: aggregate, etc
+      Ret = Load;
+    }
+
+    this->CurFn->dump();
+
+    return RValue::get(Ret);
+
+  } // MockSan
+
   bool CannotThrow;
   if (currentFunctionUsesSEHTry()) {
     // SEH cares about asynchronous exceptions, everything can "throw."

@@ -4111,6 +4111,7 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     Callee = Builder.CreateBitCast(Callee, CalleeTy, "callee.knr.cast");
   }
 
+  /*
   if (SanOpts.has(SanitizerKind::Mock)) {
 
     /// Create an alloca to hold the return value
@@ -4192,10 +4193,9 @@ RValue CodeGenFunction::EmitCall(QualType CalleeType, llvm::Value *Callee,
     this->CurFn->dump();
     return res;
 
-  } else {
+  } else { */
     return EmitCall(FnInfo, Callee, ReturnValue, Args,
                     CGCalleeInfo(NonCanonicalFTP, TargetDecl));
-  }
 }
 
 LValue CodeGenFunction::
