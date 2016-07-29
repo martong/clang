@@ -3896,6 +3896,115 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   llvm::AttributeSet Attrs = llvm::AttributeSet::get(getLLVMContext(),
                                                      AttributeList);
 
+  auto Exception = [&]() {
+    bool CannotThrow;
+    if (currentFunctionUsesSEHTry()) {
+      // SEH cares about asynchronous exceptions, everything can "throw."
+      CannotThrow = false;
+    } else if (isCleanupPadScope() &&
+               EHPersonality::get(*this).isMSVCXXPersonality()) {
+      // The MSVC++ personality will implicitly terminate the program if an
+      // exception is thrown.  An unwind edge cannot be reached.
+      CannotThrow = true;
+    } else {
+      // Otherwise, nowunind callsites will never throw.
+      CannotThrow = Attrs.hasAttribute(llvm::AttributeSet::FunctionIndex,
+                                       llvm::Attribute::NoUnwind);
+    }
+    llvm::BasicBlock *InvokeDest = CannotThrow ? nullptr : getInvokeDest();
+
+    SmallVector<llvm::OperandBundleDef, 1> BundleList;
+    getBundlesForFunclet(Callee, CurrentFuncletPad, BundleList);
+
+    llvm::CallSite CS;
+    if (!InvokeDest) {
+      // Checkpoint
+      CS = Builder.CreateCall(Callee, IRCallArgs, BundleList);
+    } else {
+      llvm::BasicBlock *Cont = createBasicBlock("invoke.cont");
+      CS = Builder.CreateInvoke(Callee, Cont, InvokeDest, IRCallArgs,
+                                BundleList);
+      EmitBlock(Cont);
+    }
+    if (callOrInvoke)
+      *callOrInvoke = CS.getInstruction();
+
+    if (CurCodeDecl && CurCodeDecl->hasAttr<FlattenAttr>() &&
+        !CS.hasFnAttr(llvm::Attribute::NoInline))
+      Attrs = Attrs.addAttribute(getLLVMContext(),
+                                 llvm::AttributeSet::FunctionIndex,
+                                 llvm::Attribute::AlwaysInline);
+
+    // Disable inlining inside SEH __try blocks.
+    if (isSEHTryScope())
+      Attrs = Attrs.addAttribute(getLLVMContext(),
+                                 llvm::AttributeSet::FunctionIndex,
+                                 llvm::Attribute::NoInline);
+
+    CS.setAttributes(Attrs);
+    CS.setCallingConv(static_cast<llvm::CallingConv::ID>(CallingConv));
+
+    // Insert instrumentation or attach profile metadata at indirect call sites.
+    // For more details, see the comment before the definition of
+    // IPVK_IndirectCallTarget in InstrProfData.inc.
+    if (!CS.getCalledFunction())
+      PGO.valueProfile(Builder, llvm::IPVK_IndirectCallTarget,
+                       CS.getInstruction(), Callee);
+
+    // In ObjC ARC mode with no ObjC ARC exception safety, tell the ARC
+    // optimizer it can aggressively ignore unwind edges.
+    if (CGM.getLangOpts().ObjCAutoRefCount)
+      AddObjCARCExceptionMetadata(CS.getInstruction());
+
+    return CS;
+  };
+
+  auto NoReturn = [&]() {
+    if (UnusedReturnSize)
+      EmitLifetimeEnd(llvm::ConstantInt::get(Int64Ty, UnusedReturnSize),
+                      SRetPtr.getPointer());
+
+    Builder.CreateUnreachable();
+    Builder.ClearInsertionPoint();
+
+    // FIXME: For now, emit a dummy basic block because expr emitters in
+    // generally are not ready to handle emitting expressions at unreachable
+    // points.
+    EnsureInsertPoint();
+
+    // Return a reasonable RValue.
+    return GetUndefRValue(RetTy);
+  };
+
+  auto Writeback = [&](const llvm::CallSite& CS) { // TODO copy?
+
+    llvm::Instruction *CI = CS.getInstruction();
+    if (!CI->getType()->isVoidTy())
+      CI->setName("call");
+
+    // Perform the swifterror writeback.
+    if (swiftErrorTemp.isValid()) {
+      llvm::Value *errorResult = Builder.CreateLoad(swiftErrorTemp);
+      Builder.CreateStore(errorResult, swiftErrorArg);
+    }
+
+    // Emit any writebacks immediately.  Arguably this should happen
+    // after any return-value munging.
+    if (CallArgs.hasWritebacks())
+      emitWritebacks(*this, CallArgs);
+
+    // The stack cleanup for inalloca arguments has to run out of the normal
+    // lexical order, so deactivate it and run it manually here.
+    CallArgs.freeArgumentMemory(*this);
+
+    if (llvm::CallInst *Call = dyn_cast<llvm::CallInst>(CI)) {
+      const Decl *TargetDecl = CalleeInfo.getCalleeDecl();
+      if (TargetDecl && TargetDecl->hasAttr<NotTailCalledAttr>())
+        Call->setTailCallKind(llvm::CallInst::TCK_NoTail);
+    }
+    return CI;
+  };
+
   auto Return = [&RetAI, this, &SRetPtr, &RetTy, &UnusedReturnSize,
                 &ReturnValue](llvm::Instruction *CI) {
     switch (RetAI.getKind()) {
@@ -3994,6 +4103,24 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     llvm_unreachable("Unhandled ABIArgInfo::Kind");
   };
 
+  auto Alignment = [&](const RValue& Ret) {
+    const Decl *TargetDecl = CalleeInfo.getCalleeDecl();
+
+    if (Ret.isScalar() && TargetDecl) {
+      if (const auto *AA = TargetDecl->getAttr<AssumeAlignedAttr>()) {
+        llvm::Value *OffsetValue = nullptr;
+        if (const auto *Offset = AA->getOffset())
+          OffsetValue = EmitScalarExpr(Offset);
+
+        llvm::Value *Alignment = EmitScalarExpr(AA->getAlignment());
+        llvm::ConstantInt *AlignmentCI = cast<llvm::ConstantInt>(Alignment);
+        EmitAlignmentAssumption(Ret.getScalarVal(), AlignmentCI->getZExtValue(),
+                                OffsetValue);
+      }
+    }
+  };
+
+
   if (SanOpts.has(SanitizerKind::Mock)) {
 
     /// Create an alloca to hold the return value
@@ -4066,127 +4193,16 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 
   } // MockSan
 
-  bool CannotThrow;
-  if (currentFunctionUsesSEHTry()) {
-    // SEH cares about asynchronous exceptions, everything can "throw."
-    CannotThrow = false;
-  } else if (isCleanupPadScope() &&
-             EHPersonality::get(*this).isMSVCXXPersonality()) {
-    // The MSVC++ personality will implicitly terminate the program if an
-    // exception is thrown.  An unwind edge cannot be reached.
-    CannotThrow = true;
-  } else {
-    // Otherwise, nowunind callsites will never throw.
-    CannotThrow = Attrs.hasAttribute(llvm::AttributeSet::FunctionIndex,
-                                     llvm::Attribute::NoUnwind);
-  }
-  llvm::BasicBlock *InvokeDest = CannotThrow ? nullptr : getInvokeDest();
-
-  SmallVector<llvm::OperandBundleDef, 1> BundleList;
-  getBundlesForFunclet(Callee, CurrentFuncletPad, BundleList);
-
-  llvm::CallSite CS;
-  if (!InvokeDest) {
-    // Checkpoint
-    CS = Builder.CreateCall(Callee, IRCallArgs, BundleList);
-  } else {
-    llvm::BasicBlock *Cont = createBasicBlock("invoke.cont");
-    CS = Builder.CreateInvoke(Callee, Cont, InvokeDest, IRCallArgs,
-                              BundleList);
-    EmitBlock(Cont);
-  }
-  if (callOrInvoke)
-    *callOrInvoke = CS.getInstruction();
-
-  if (CurCodeDecl && CurCodeDecl->hasAttr<FlattenAttr>() &&
-      !CS.hasFnAttr(llvm::Attribute::NoInline))
-    Attrs =
-        Attrs.addAttribute(getLLVMContext(), llvm::AttributeSet::FunctionIndex,
-                           llvm::Attribute::AlwaysInline);
-
-  // Disable inlining inside SEH __try blocks.
-  if (isSEHTryScope())
-    Attrs =
-        Attrs.addAttribute(getLLVMContext(), llvm::AttributeSet::FunctionIndex,
-                           llvm::Attribute::NoInline);
-
-  CS.setAttributes(Attrs);
-  CS.setCallingConv(static_cast<llvm::CallingConv::ID>(CallingConv));
-
-  // Insert instrumentation or attach profile metadata at indirect call sites.
-  // For more details, see the comment before the definition of
-  // IPVK_IndirectCallTarget in InstrProfData.inc.
-  if (!CS.getCalledFunction())
-    PGO.valueProfile(Builder, llvm::IPVK_IndirectCallTarget,
-                     CS.getInstruction(), Callee);
-
-  // In ObjC ARC mode with no ObjC ARC exception safety, tell the ARC
-  // optimizer it can aggressively ignore unwind edges.
-  if (CGM.getLangOpts().ObjCAutoRefCount)
-    AddObjCARCExceptionMetadata(CS.getInstruction());
-
+  auto CS = Exception();
   // If the call doesn't return, finish the basic block and clear the
   // insertion point; this allows the rest of IRgen to discard
   // unreachable code.
   if (CS.doesNotReturn()) {
-    if (UnusedReturnSize)
-      EmitLifetimeEnd(llvm::ConstantInt::get(Int64Ty, UnusedReturnSize),
-                      SRetPtr.getPointer());
-
-    Builder.CreateUnreachable();
-    Builder.ClearInsertionPoint();
-
-    // FIXME: For now, emit a dummy basic block because expr emitters in
-    // generally are not ready to handle emitting expressions at unreachable
-    // points.
-    EnsureInsertPoint();
-
-    // Return a reasonable RValue.
-    return GetUndefRValue(RetTy);
+    return NoReturn();
   }
-
-  llvm::Instruction *CI = CS.getInstruction();
-  if (!CI->getType()->isVoidTy())
-    CI->setName("call");
-
-  // Perform the swifterror writeback.
-  if (swiftErrorTemp.isValid()) {
-    llvm::Value *errorResult = Builder.CreateLoad(swiftErrorTemp);
-    Builder.CreateStore(errorResult, swiftErrorArg);
-  }
-
-  // Emit any writebacks immediately.  Arguably this should happen
-  // after any return-value munging.
-  if (CallArgs.hasWritebacks())
-    emitWritebacks(*this, CallArgs);
-
-  // The stack cleanup for inalloca arguments has to run out of the normal
-  // lexical order, so deactivate it and run it manually here.
-  CallArgs.freeArgumentMemory(*this);
-
-  if (llvm::CallInst *Call = dyn_cast<llvm::CallInst>(CI)) {
-    const Decl *TargetDecl = CalleeInfo.getCalleeDecl();
-    if (TargetDecl && TargetDecl->hasAttr<NotTailCalledAttr>())
-      Call->setTailCallKind(llvm::CallInst::TCK_NoTail);
-  }
-
+  auto CI = Writeback(CS);
   RValue Ret = Return(CI);
-
-  const Decl *TargetDecl = CalleeInfo.getCalleeDecl();
-
-  if (Ret.isScalar() && TargetDecl) {
-    if (const auto *AA = TargetDecl->getAttr<AssumeAlignedAttr>()) {
-      llvm::Value *OffsetValue = nullptr;
-      if (const auto *Offset = AA->getOffset())
-        OffsetValue = EmitScalarExpr(Offset);
-
-      llvm::Value *Alignment = EmitScalarExpr(AA->getAlignment());
-      llvm::ConstantInt *AlignmentCI = cast<llvm::ConstantInt>(Alignment);
-      EmitAlignmentAssumption(Ret.getScalarVal(), AlignmentCI->getZExtValue(),
-                              OffsetValue);
-    }
-  }
-
+  Alignment(Ret);
   return Ret;
 }
 
