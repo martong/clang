@@ -4131,6 +4131,17 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       CallResAddr = CreateDefaultAlignTempAlloca(RetTy, "call_res");
     }
 
+    //auto Store = [&](llvm::Value * Ret) {
+      //// TODO aligned store?
+      //Builder.CreateStore(Ret, CallResAddr.getValue());
+    //};
+    auto Store = [&](RValue Ret) {
+      // TODO handle store correctly: aggregate, etc
+      assert(Ret.isScalar());
+      // TODO aligned store?
+      Builder.CreateStore(Ret.getScalarVal(), CallResAddr.getValue());
+    };
+
     ///    Emit the call for FAKE hook
     ///    signature:
     ///     void* hook(void* fp)
@@ -4158,24 +4169,33 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         llvm::PointerType::get(CalleeTy, 0); // TODO addressspace
     llvm::Value *SubstituteFunPtr =
         Builder.CreateBitCast(FakeHookResult, CalleePtrTy);
+    llvm::CallSite CS;
     if (RetTy == VoidTy) {
-      Builder.CreateCall(CalleeTy, SubstituteFunPtr, IRCallArgs);
+      CS = Builder.CreateCall(CalleeTy, SubstituteFunPtr, IRCallArgs);
     } else {
-      llvm::Value *SubstituteFunResult = Builder.CreateCall(
+      CS =  Builder.CreateCall(
           CalleeTy, SubstituteFunPtr, IRCallArgs, "subst_fun_result");
-      Builder.CreateStore(SubstituteFunResult, CallResAddr.getValue());
+      llvm::Instruction *CI = CS.getInstruction();
+      RValue Ret = Return(CI);
+      Store(Ret);
+      //Store(CS.getCalledValue());
     }
     Builder.CreateBr(Cont);
 
     EmitBlock(Else);
     /// Call the original
-    // TODO bundle
-    // TODO invoke
-    llvm::Value* Ret = Builder.CreateCall(Callee, IRCallArgs);
-    /// Store the return value to call_res
+    CS = Exception();
+    // If the call doesn't return, finish the basic block and clear the
+    // insertion point; this allows the rest of IRgen to discard
+    // unreachable code.
+    if (CS.doesNotReturn()) {
+      return NoReturn();
+    }
+    auto CI = Writeback(CS);
+    RValue Ret = Return(CI);
+    Alignment(Ret);
     if (RetTy != VoidTy) {
-      // TODO aligned store?
-      Builder.CreateStore(Ret, CallResAddr.getValue());
+      Store(Ret);
     }
 
     EmitBlock(Cont);
@@ -4184,12 +4204,13 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       // or the original function returned with that.
       auto Load = Builder.CreateLoad(CallResAddr.getValue(), "load res");
       // TODO handle return correctly: aggregate, etc
-      Ret = Load;
+      assert(Ret.isScalar());
+      Ret = RValue::get(Load);
     }
 
     this->CurFn->dump();
 
-    return RValue::get(Ret);
+    return Ret;
 
   } // MockSan
 
