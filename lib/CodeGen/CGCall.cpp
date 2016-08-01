@@ -4066,6 +4066,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
             DestPtr = CreateMemTemp(RetTy, "agg.tmp");
             DestIsVolatile = false;
           }
+
           BuildAggStore(*this, CI, DestPtr, DestIsVolatile);
           return RValue::getAggregate(DestPtr);
         }
@@ -4125,21 +4126,44 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 
     /// Create an alloca to hold the return value
     llvm::FunctionType *CalleeTy = getTypes().GetFunctionType(CallInfo);
-    llvm::Type *RetTy = CalleeTy->getReturnType();
+    llvm::Type *LRetTy = CalleeTy->getReturnType();
     llvm::Optional<Address> CallResAddr;
-    if (RetTy != VoidTy) {
-      CallResAddr = CreateDefaultAlignTempAlloca(RetTy, "call_res");
+    if (LRetTy != VoidTy) {
+      //CallResAddr = CreateDefaultAlignTempAlloca(LRetTy, "call_res");
+      CallResAddr = CreateMemTemp(RetTy, "call_res");
     }
 
-    //auto Store = [&](llvm::Value * Ret) {
-      //// TODO aligned store?
-      //Builder.CreateStore(Ret, CallResAddr.getValue());
-    //};
     auto Store = [&](RValue Ret) {
       // TODO handle store correctly: aggregate, etc
-      assert(Ret.isScalar());
-      // TODO aligned store?
-      Builder.CreateStore(Ret.getScalarVal(), CallResAddr.getValue());
+      assert(Ret.isScalar() || Ret.isAggregate());
+      if (Ret.isScalar()) {
+
+        // Debug
+        //llvm::errs() << "Scalar\n";
+        //Ret.getScalarVal()->getType()->dump();
+        //CallResAddr.getValue().getType()->dump();
+
+        // TODO aligned store?
+        Builder.CreateStore(Ret.getScalarVal(), CallResAddr.getValue());
+      } else if (Ret.isAggregate()) {
+        bool DestIsVolatile = ReturnValue.isVolatile();
+
+        // Debug
+        //llvm::errs() << "Aggr\n";
+        //Ret.getAggregatePointer()->getType()->dump();
+        //CallResAddr.getValue().getType()->dump();
+
+        // We need this extra load because Ret holds a pointer to an alloca
+        // in case of aggregates.
+        // The firs param of the store must be a value, the second must be a pointer
+        // with a pointee type equal to value's type.
+        // TODO Can we eliminate this extra load?
+        auto Load = Builder.CreateLoad(Ret.getAggregateAddress(), "load_aggr_res");
+        Load->getType()->dump();
+
+        BuildAggStore(*this, Load, CallResAddr.getValue(),
+                      DestIsVolatile);
+      }
     };
 
     ///    Emit the call for FAKE hook
@@ -4170,12 +4194,14 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     llvm::Value *SubstituteFunPtr =
         Builder.CreateBitCast(FakeHookResult, CalleePtrTy);
     llvm::CallSite CS;
-    if (RetTy == VoidTy) {
+    if (LRetTy == VoidTy) {
       CS = Builder.CreateCall(CalleeTy, SubstituteFunPtr, IRCallArgs);
     } else {
       CS =  Builder.CreateCall(
           CalleeTy, SubstituteFunPtr, IRCallArgs, "subst_fun_result");
       llvm::Instruction *CI = CS.getInstruction();
+      llvm::errs() << "CI\n";
+      CI->getType()->dump();
       RValue Ret = Return(CI);
       Store(Ret);
       //Store(CS.getCalledValue());
@@ -4194,18 +4220,23 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     auto CI = Writeback(CS);
     RValue Ret = Return(CI);
     Alignment(Ret);
-    if (RetTy != VoidTy) {
+    if (LRetTy != VoidTy) {
       Store(Ret);
     }
 
     EmitBlock(Cont);
-    if (RetTy != VoidTy) {
+    if (LRetTy != VoidTy) {
       // By this time the return value is stored either by the fake_hook
       // or the original function returned with that.
       auto Load = Builder.CreateLoad(CallResAddr.getValue(), "load res");
       // TODO handle return correctly: aggregate, etc
-      assert(Ret.isScalar());
-      Ret = RValue::get(Load);
+      assert(Ret.isScalar() || Ret.isAggregate());
+      if (Ret.isScalar()) {
+        Ret = RValue::get(Load);
+      } else if (Ret.isAggregate()) {
+        bool DestIsVolatile = ReturnValue.isVolatile();
+        RValue::getAggregate(CallResAddr.getValue(), DestIsVolatile);
+      }
     }
 
     this->CurFn->dump();
