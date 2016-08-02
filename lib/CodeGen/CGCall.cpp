@@ -4159,7 +4159,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         // with a pointee type equal to value's type.
         // TODO Can we eliminate this extra load?
         auto Load = Builder.CreateLoad(Ret.getAggregateAddress(), "load_aggr_res");
-        Load->getType()->dump();
+        //Load->getType()->dump();
 
         BuildAggStore(*this, Load, CallResAddr.getValue(),
                       DestIsVolatile);
@@ -4200,8 +4200,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       CS =  Builder.CreateCall(
           CalleeTy, SubstituteFunPtr, IRCallArgs, "subst_fun_result");
       llvm::Instruction *CI = CS.getInstruction();
-      llvm::errs() << "CI\n";
-      CI->getType()->dump();
       RValue Ret = Return(CI);
       Store(Ret);
       //Store(CS.getCalledValue());
@@ -4239,7 +4237,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       }
     }
 
-    this->CurFn->dump();
+    // Debug
+    //this->CurFn->dump();
 
     return Ret;
 
