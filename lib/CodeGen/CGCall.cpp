@@ -4138,20 +4138,34 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       assert(Ret.isScalar() || Ret.isAggregate());
       if (Ret.isScalar()) {
 
+        llvm::Type* PointeeTy = CallResAddr.getValue().getType()->getElementType();
+        llvm::Value *V = Ret.getScalarVal();
+
         // Debug
-        //llvm::errs() << "Scalar\n";
-        //Ret.getScalarVal()->getType()->dump();
-        //CallResAddr.getValue().getType()->dump();
+        llvm::errs() << "Scalar\n";
+        V->getType()->dump();
+        PointeeTy->dump();
+
+        // Handle bool
+        auto Ty = dyn_cast<llvm::IntegerType>(V->getType());
+        if (Ty && Ty->getBitWidth() == 1) {
+          // alloca returns i8* in case of bool return type
+          // so we'll have i8 as pointeeTy
+          if (V->getType() != PointeeTy) {
+            // V = Builder.CreateBitCast(V, PointeeTy);
+            V = Builder.CreateZExt(V, PointeeTy);
+          }
+        }
 
         // TODO aligned store?
-        Builder.CreateStore(Ret.getScalarVal(), CallResAddr.getValue());
+        Builder.CreateStore(V, CallResAddr.getValue());
       } else if (Ret.isAggregate()) {
         bool DestIsVolatile = ReturnValue.isVolatile();
 
         // Debug
-        //llvm::errs() << "Aggr\n";
-        //Ret.getAggregatePointer()->getType()->dump();
-        //CallResAddr.getValue().getType()->dump();
+        llvm::errs() << "Aggr\n";
+        Ret.getAggregatePointer()->getType()->dump();
+        CallResAddr.getValue().getType()->dump();
 
         // We need this extra load because Ret holds a pointer to an alloca
         // in case of aggregates.
@@ -4231,6 +4245,16 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       assert(Ret.isScalar() || Ret.isAggregate());
       if (Ret.isScalar()) {
         Ret = RValue::get(Load);
+
+        // Handle bool
+        llvm::Type *RetIRTy = ConvertType(RetTy);
+        auto Ty = dyn_cast<llvm::IntegerType>(RetIRTy);
+        if (Ty && Ty->getBitWidth() == 1) {
+          llvm::errs() << "BOOM\n";
+          llvm::Type *Int1Ty = llvm::Type::getInt1Ty(getLLVMContext());
+          Ret = RValue::get(Builder.CreateTrunc(Load, Int1Ty));
+        }
+
       } else if (Ret.isAggregate()) {
         bool DestIsVolatile = ReturnValue.isVolatile();
         RValue::getAggregate(CallResAddr.getValue(), DestIsVolatile);
@@ -4238,7 +4262,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     }
 
     // Debug
-    //this->CurFn->dump();
+    this->CurFn->dump();
 
     return Ret;
 
