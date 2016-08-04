@@ -4122,7 +4122,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   };
 
 
-  if (SanOpts.has(SanitizerKind::Mock)) {
+  const Decl *TargetDecl = CalleeInfo.getCalleeDecl();
+  if (!TargetDecl->getAttr<AlwaysInlineAttr>() && SanOpts.has(SanitizerKind::Mock)) {
 
     /// Create an alloca to hold the return value
     llvm::FunctionType *CalleeTy = getTypes().GetFunctionType(CallInfo);
