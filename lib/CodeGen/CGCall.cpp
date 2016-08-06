@@ -4142,8 +4142,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     }
 
     auto Store = [&](RValue Ret) {
-      // TODO handle store correctly: aggregate, etc
-      assert(Ret.isScalar() || Ret.isAggregate());
+      // TODO use a switch, but for that RValue::Flavour should be public
       if (Ret.isScalar()) {
 
         llvm::Type* PointeeTy = CallResAddr.getValue().getType()->getElementType();
@@ -4183,8 +4182,19 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         auto Load = Builder.CreateLoad(Ret.getAggregateAddress(), "load_aggr_res");
         //Load->getType()->dump();
 
+        // TODO aligned store?
         BuildAggStore(*this, Load, CallResAddr.getValue(),
                       DestIsVolatile);
+      } else if (Ret.isComplex()) {
+        auto C = Ret.getComplexVal();
+        // TODO aligned store?
+        //EmitStoreOfComplex(C, MakeNaturalAlignAddrLValue(
+                                  //CallResAddr.getValue().getPointer(), RetTy),
+                           //false);
+        EmitStoreOfComplex(C, MakeAddrLValue(CallResAddr.getValue(), RetTy),
+                           false);
+      } else {
+        llvm_unreachable("bad rvalue flavour");
       }
     };
 
@@ -4255,8 +4265,6 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       // By this time the return value is stored either by the fake_hook
       // or the original function returned with that.
       auto Load = Builder.CreateLoad(CallResAddr.getValue(), "load res");
-      // TODO handle return correctly: aggregate, etc
-      assert(Ret.isScalar() || Ret.isAggregate());
       if (Ret.isScalar()) {
         Ret = RValue::get(Load);
 
@@ -4272,6 +4280,12 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       } else if (Ret.isAggregate()) {
         bool DestIsVolatile = ReturnValue.isVolatile();
         RValue::getAggregate(CallResAddr.getValue(), DestIsVolatile);
+      } else if (Ret.isComplex()) {
+        ComplexPairTy C =
+        EmitLoadOfComplex(MakeAddrLValue(CallResAddr.getValue(), RetTy), SourceLocation{});
+        Ret = RValue::getComplex(C.first, C.second);
+      } else {
+        llvm_unreachable("bad rvalue flavour");
       }
     }
 
