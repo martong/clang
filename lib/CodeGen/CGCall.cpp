@@ -4279,7 +4279,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 
       } else if (Ret.isAggregate()) {
         bool DestIsVolatile = ReturnValue.isVolatile();
-        RValue::getAggregate(CallResAddr.getValue(), DestIsVolatile);
+        Ret = RValue::getAggregate(CallResAddr.getValue(), DestIsVolatile);
       } else if (Ret.isComplex()) {
         ComplexPairTy C =
         EmitLoadOfComplex(MakeAddrLValue(CallResAddr.getValue(), RetTy), SourceLocation{});
