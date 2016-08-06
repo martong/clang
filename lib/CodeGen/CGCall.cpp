@@ -4134,10 +4134,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
 
     /// Create an alloca to hold the return value
     llvm::FunctionType *CalleeTy = getTypes().GetFunctionType(CallInfo);
-    llvm::Type *LRetTy = CalleeTy->getReturnType();
+    llvm::Type *IRRetTy = CalleeTy->getReturnType();
     llvm::Optional<Address> CallResAddr;
-    if (LRetTy != VoidTy) {
-      //CallResAddr = CreateDefaultAlignTempAlloca(LRetTy, "call_res");
+    if (IRRetTy != VoidTy) {
       CallResAddr = CreateMemTemp(RetTy, "call_res");
     }
 
@@ -4145,52 +4144,52 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       // TODO use a switch, but for that RValue::Flavour should be public
       if (Ret.isScalar()) {
 
-        llvm::Type* PointeeTy = CallResAddr.getValue().getType()->getElementType();
+        llvm::Type *PointeeTy =
+            CallResAddr.getValue().getType()->getElementType();
         llvm::Value *V = Ret.getScalarVal();
 
         // Debug
-        llvm::errs() << "Scalar\n";
-        V->getType()->dump();
-        PointeeTy->dump();
+        // llvm::errs() << "Scalar\n";
+        // V->getType()->dump();
+        // PointeeTy->dump();
 
         // Handle bool
         auto Ty = dyn_cast<llvm::IntegerType>(V->getType());
         if (Ty && Ty->getBitWidth() == 1) {
-          // alloca returns i8* in case of bool return type
-          // so we'll have i8 as pointeeTy
+          /// alloca returns i8* in case of bool return type
+          /// so we'll have i8 as pointeeTy
           if (V->getType() != PointeeTy) {
             // V = Builder.CreateBitCast(V, PointeeTy);
             V = Builder.CreateZExt(V, PointeeTy);
           }
         }
 
-        // TODO aligned store?
         Builder.CreateStore(V, CallResAddr.getValue());
       } else if (Ret.isAggregate()) {
         bool DestIsVolatile = ReturnValue.isVolatile();
 
         // Debug
-        llvm::errs() << "Aggr\n";
-        Ret.getAggregatePointer()->getType()->dump();
-        CallResAddr.getValue().getType()->dump();
+        // llvm::errs() << "Aggr\n";
+        // Ret.getAggregatePointer()->getType()->dump();
+        // CallResAddr.getValue().getType()->dump();
 
-        // We need this extra load because Ret holds a pointer to an alloca
-        // in case of aggregates.
-        // The firs param of the store must be a value, the second must be a pointer
-        // with a pointee type equal to value's type.
-        // TODO Can we eliminate this extra load?
-        auto Load = Builder.CreateLoad(Ret.getAggregateAddress(), "load_aggr_res");
-        //Load->getType()->dump();
+        /// We need this extra load because Ret holds a pointer to an alloca
+        /// in case of aggregates.
+        /// The firs param of the store must be a value, the second must be a
+        /// pointer
+        /// with a pointee type equal to value's type.
+        /// TODO Can we eliminate this extra load?
+        auto Load =
+            Builder.CreateLoad(Ret.getAggregateAddress(), "load_aggr_res");
+        // Load->getType()->dump();
 
-        // TODO aligned store?
-        BuildAggStore(*this, Load, CallResAddr.getValue(),
-                      DestIsVolatile);
+        BuildAggStore(*this, Load, CallResAddr.getValue(), DestIsVolatile);
       } else if (Ret.isComplex()) {
         auto C = Ret.getComplexVal();
-        // TODO aligned store?
-        //EmitStoreOfComplex(C, MakeNaturalAlignAddrLValue(
-                                  //CallResAddr.getValue().getPointer(), RetTy),
-                           //false);
+        /// TODO should we use natural aligned?
+        // EmitStoreOfComplex(C, MakeNaturalAlignAddrLValue(
+        // CallResAddr.getValue().getPointer(), RetTy),
+        // false);
         EmitStoreOfComplex(C, MakeAddrLValue(CallResAddr.getValue(), RetTy),
                            false);
       } else {
@@ -4198,9 +4197,9 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       }
     };
 
-    ///    Emit the call for FAKE hook
-    ///    signature:
-    ///     void* hook(void* fp)
+    /// Emit the call for FAKE hook
+    /// signature:
+    ///   void* hook(void* fp)
     llvm::PointerType *PointerTy = Int8PtrTy;
     llvm::SmallVector<llvm::Type *, 16> FakeHookArgTypes = {PointerTy};
     llvm::Value *CastedCallee = Builder.CreateBitCast(Callee, PointerTy);
@@ -4209,8 +4208,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         llvm::FunctionType::get(PointerTy, FakeHookArgTypes, false);
     llvm::Constant *FakeHookRtFun =
         CGM.CreateRuntimeFunction(FakeHook, "__fake_hook");
-    llvm::Value *FakeHookResult = Builder.CreateCall(
-        FakeHookRtFun, FakeHookArgs, "fake_hook_result");
+    llvm::Value *FakeHookResult =
+        Builder.CreateCall(FakeHookRtFun, FakeHookArgs, "fake_hook_result");
 
     /// Emit the branching on the hook result
     auto Match = Builder.CreateICmpNE(
@@ -4220,59 +4219,60 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     llvm::BasicBlock *Else = createBasicBlock("else");
     Builder.CreateCondBr(Match, Then, Else);
 
+    /// THEN
     EmitBlock(Then);
+    /// The default address space is 0. The semantics of non-zero address spaces
+    /// are target-specific.
     llvm::PointerType *CalleePtrTy =
-        llvm::PointerType::get(CalleeTy, 0); // TODO addressspace
+        llvm::PointerType::get(CalleeTy, 0 /*address space */);
     llvm::Value *SubstituteFunPtr =
         Builder.CreateBitCast(FakeHookResult, CalleePtrTy);
     llvm::CallSite CS;
-    if (LRetTy == VoidTy) {
+    if (IRRetTy == VoidTy) {
       CS = Builder.CreateCall(CalleeTy, SubstituteFunPtr, IRCallArgs);
     } else {
-      CS =  Builder.CreateCall(
-          CalleeTy, SubstituteFunPtr, IRCallArgs, "subst_fun_result");
+      CS = Builder.CreateCall(CalleeTy, SubstituteFunPtr, IRCallArgs,
+                              "subst_fun_result");
       llvm::Instruction *CI = CS.getInstruction();
       RValue Ret = Return(CI);
       Store(Ret);
-      //Store(CS.getCalledValue());
     }
     Builder.CreateBr(Cont);
 
+    /// ELSE
     EmitBlock(Else);
     /// Call the original
     CS = Exception();
-
-    // If the call doesn't return, finish the basic block and clear the
-    // insertion point; this allows the rest of IRgen to discard
-    // unreachable code.
-    // TODO Is there any point in supporting noreturn functions?
-    // E.g. abort() could be replaced with a throwing function in some cases.
-    // Anyway, we could support noreturn functions by handling them as regular
-    // returning functions here.
-    //if (CS.doesNotReturn()) {
-      //return NoReturn();
+    /// If the call doesn't return, finish the basic block and clear the
+    /// insertion point; this allows the rest of IRgen to discard
+    /// unreachable code.
+    /// TODO Is there any point in supporting noreturn functions?
+    /// E.g. abort() could be replaced with a throwing function in some cases.
+    /// Anyway, we could support noreturn functions by handling them as regular
+    /// returning functions here.
+    // if (CS.doesNotReturn()) {
+    // return NoReturn();
     //}
-
     auto CI = Writeback(CS);
     RValue Ret = Return(CI);
     Alignment(Ret);
-    if (LRetTy != VoidTy) {
+    if (IRRetTy != VoidTy) {
       Store(Ret);
     }
 
+    /// CONT
     EmitBlock(Cont);
-    if (LRetTy != VoidTy) {
-      // By this time the return value is stored either by the fake_hook
-      // or the original function returned with that.
-      auto Load = Builder.CreateLoad(CallResAddr.getValue(), "load res");
+    if (IRRetTy != VoidTy) {
+      /// By this time the return value is stored either by the fake_hook
+      /// or the original function returned with that.
+      auto Load = Builder.CreateLoad(CallResAddr.getValue(), "load_res");
       if (Ret.isScalar()) {
         Ret = RValue::get(Load);
 
-        // Handle bool
+        /// Handle bool
         llvm::Type *RetIRTy = ConvertType(RetTy);
         auto Ty = dyn_cast<llvm::IntegerType>(RetIRTy);
         if (Ty && Ty->getBitWidth() == 1) {
-          llvm::errs() << "BOOM\n";
           llvm::Type *Int1Ty = llvm::Type::getInt1Ty(getLLVMContext());
           Ret = RValue::get(Builder.CreateTrunc(Load, Int1Ty));
         }
@@ -4281,8 +4281,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
         bool DestIsVolatile = ReturnValue.isVolatile();
         Ret = RValue::getAggregate(CallResAddr.getValue(), DestIsVolatile);
       } else if (Ret.isComplex()) {
-        ComplexPairTy C =
-        EmitLoadOfComplex(MakeAddrLValue(CallResAddr.getValue(), RetTy), SourceLocation{});
+        ComplexPairTy C = EmitLoadOfComplex(
+            MakeAddrLValue(CallResAddr.getValue(), RetTy), SourceLocation{});
         Ret = RValue::getComplex(C.first, C.second);
       } else {
         llvm_unreachable("bad rvalue flavour");
@@ -4290,11 +4290,10 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     }
 
     // Debug
-    this->CurFn->dump();
+    // this->CurFn->dump();
 
     return Ret;
-
-  } // MockSan
+  } /// MockSan
 
   auto CS = Exception();
   // If the call doesn't return, finish the basic block and clear the
