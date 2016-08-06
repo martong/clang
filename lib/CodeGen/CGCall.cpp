@@ -4122,13 +4122,17 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
   };
 
   auto MockSanEnabled = [&]() {
-    const Decl *TargetDecl = CalleeInfo.getCalleeDecl();
-    auto hasNoReturnAttr = TargetDecl->getAttr<NoReturnAttr>() ||
-                           TargetDecl->getAttr<C11NoReturnAttr>() ||
-                           TargetDecl->getAttr<CXX11NoReturnAttr>() ||
-                           TargetDecl->getAttr<AnalyzerNoReturnAttr>();
-    return !TargetDecl->getAttr<AlwaysInlineAttr>() && !hasNoReturnAttr &&
-           SanOpts.has(SanitizerKind::Mock);
+    if (!SanOpts.has(SanitizerKind::Mock)) {
+      return false;
+    }
+    if (const Decl *TargetDecl = CalleeInfo.getCalleeDecl()) {
+      auto hasNoReturnAttr = TargetDecl->getAttr<NoReturnAttr>() ||
+                             TargetDecl->getAttr<C11NoReturnAttr>() ||
+                             TargetDecl->getAttr<CXX11NoReturnAttr>() ||
+                             TargetDecl->getAttr<AnalyzerNoReturnAttr>();
+      return !TargetDecl->getAttr<AlwaysInlineAttr>() && !hasNoReturnAttr;
+    }
+    return false;
   };
   if (MockSanEnabled()) {
 
