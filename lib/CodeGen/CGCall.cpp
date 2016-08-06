@@ -4121,9 +4121,16 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     }
   };
 
-
-  const Decl *TargetDecl = CalleeInfo.getCalleeDecl();
-  if (!TargetDecl->getAttr<AlwaysInlineAttr>() && SanOpts.has(SanitizerKind::Mock)) {
+  auto MockSanEnabled = [&]() {
+    const Decl *TargetDecl = CalleeInfo.getCalleeDecl();
+    auto hasNoReturnAttr = TargetDecl->getAttr<NoReturnAttr>() ||
+                           TargetDecl->getAttr<C11NoReturnAttr>() ||
+                           TargetDecl->getAttr<CXX11NoReturnAttr>() ||
+                           TargetDecl->getAttr<AnalyzerNoReturnAttr>();
+    return !TargetDecl->getAttr<AlwaysInlineAttr>() && !hasNoReturnAttr &&
+           SanOpts.has(SanitizerKind::Mock);
+  };
+  if (MockSanEnabled()) {
 
     /// Create an alloca to hold the return value
     llvm::FunctionType *CalleeTy = getTypes().GetFunctionType(CallInfo);
@@ -4224,12 +4231,18 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     EmitBlock(Else);
     /// Call the original
     CS = Exception();
+
     // If the call doesn't return, finish the basic block and clear the
     // insertion point; this allows the rest of IRgen to discard
     // unreachable code.
-    if (CS.doesNotReturn()) {
-      return NoReturn();
-    }
+    // TODO Is there any point in supporting noreturn functions?
+    // E.g. abort() could be replaced with a throwing function in some cases.
+    // Anyway, we could support noreturn functions by handling them as regular
+    // returning functions here.
+    //if (CS.doesNotReturn()) {
+      //return NoReturn();
+    //}
+
     auto CI = Writeback(CS);
     RValue Ret = Return(CI);
     Alignment(Ret);
