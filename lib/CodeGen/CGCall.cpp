@@ -4126,11 +4126,7 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       return false;
     }
     if (const Decl *TargetDecl = CalleeInfo.getCalleeDecl()) {
-      auto hasNoReturnAttr = TargetDecl->getAttr<NoReturnAttr>() ||
-                             TargetDecl->getAttr<C11NoReturnAttr>() ||
-                             TargetDecl->getAttr<CXX11NoReturnAttr>() ||
-                             TargetDecl->getAttr<AnalyzerNoReturnAttr>();
-      return !TargetDecl->getAttr<AlwaysInlineAttr>() && !hasNoReturnAttr;
+      return !TargetDecl->getAttr<AlwaysInlineAttr>();
     }
     return false;
   };
