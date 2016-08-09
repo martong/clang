@@ -4243,16 +4243,8 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
     EmitBlock(Else);
     /// Call the original
     CS = Exception();
-    /// If the call doesn't return, finish the basic block and clear the
-    /// insertion point; this allows the rest of IRgen to discard
-    /// unreachable code.
-    /// TODO Is there any point in supporting noreturn functions?
-    /// E.g. abort() could be replaced with a throwing function in some cases.
-    /// Anyway, we could support noreturn functions by handling them as regular
-    /// returning functions here.
-    // if (CS.doesNotReturn()) {
-    // return NoReturn();
-    //}
+    /// Note, noreturn functions handled similarly to regular returning
+    /// functions
     auto CI = Writeback(CS);
     RValue Ret = Return(CI);
     Alignment(Ret);
