@@ -4126,7 +4126,11 @@ RValue CodeGenFunction::EmitCall(const CGFunctionInfo &CallInfo,
       return false;
     }
     if (const Decl *TargetDecl = CalleeInfo.getCalleeDecl()) {
-      return !TargetDecl->getAttr<AlwaysInlineAttr>();
+      if (SanOpts.has(SanitizerKind::MockAlwaysInline)) {
+        return true;
+      } else {
+        return !TargetDecl->getAttr<AlwaysInlineAttr>();
+      }
     }
     return false;
   };

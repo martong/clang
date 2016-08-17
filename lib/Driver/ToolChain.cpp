@@ -692,6 +692,7 @@ SanitizerMask ToolChain::getSupportedSanitizers() const {
       getTriple().getArch() == llvm::Triple::x86_64)
     Res |= CFIICall;
   Res |= Mock;
+  Res |= MockAlwaysInline;
   return Res;
 }
 

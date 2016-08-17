@@ -125,6 +125,7 @@ SANITIZER_GROUP("all", All, ~0ULL)
 
 // MockSanitizer
 SANITIZER("mock", Mock)
+SANITIZER("mock_always_inline", MockAlwaysInline)
 
 #undef SANITIZER
 #undef SANITIZER_GROUP
