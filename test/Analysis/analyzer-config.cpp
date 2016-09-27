@@ -39,5 +39,6 @@ public:
 // CHECK-NEXT: mode = deep
 // CHECK-NEXT: region-store-small-struct-limit = 2
 // CHECK-NEXT: widen-loops = false
+// CHECK-NEXT: xtu-dir =
 // CHECK-NEXT: [stats]
-// CHECK-NEXT: num-entries = 22
+// CHECK-NEXT: num-entries = 23
