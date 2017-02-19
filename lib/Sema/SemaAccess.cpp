@@ -733,6 +733,7 @@ static AccessResult HasAccess(Sema &S,
   assert(NamingClass->getCanonicalDecl() == NamingClass &&
          "declaration should be canonicalized before being passed here");
 
+  llvm::errs() << "Hello\n";
   if (Access == AS_public) return AR_accessible;
   assert(Access == AS_private || Access == AS_protected);
 
@@ -856,6 +857,8 @@ static AccessResult HasAccess(Sema &S,
     }
     llvm_unreachable("impossible friendship kind");
   }
+
+  llvm::errs() << "Hello 2\n";
 
   switch (GetFriendKind(S, EC, NamingClass)) {
   case AR_accessible: return AR_accessible;
@@ -1840,6 +1843,20 @@ void Sema::CheckLookupAccess(const LookupResult &R) {
                           R.getBaseObjectType());
       Entity.setDiag(diag::err_access);
       CheckAccess(*this, R.getNameLoc(), Entity);
+    } else { // public
+      AccessTarget Entity(Context, AccessedEntity::Member,
+                          R.getNamingClass(), I.getPair(),
+                          R.getBaseObjectType());
+      EffectiveContext EC(CurContext);
+      CXXRecordDecl* Class = R.getNamingClass();
+      for (auto *Friend : Class->friends()) {
+        if (MatchesFriend(*this, EC, Friend) == ::AR_accessible) {
+          llvm::errs() << "Found a friend decl\n";
+          Diag(Friend->getFriendLoc(), diag::ext_constexpr_body_multiple_return);
+          Diag(I.getDecl()->getLocation(), diag::ext_constexpr_body_multiple_return);
+          break;
+        }
+      }
     }
   }
 }
