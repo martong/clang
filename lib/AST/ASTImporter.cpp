@@ -1717,6 +1717,8 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
           continue;
         } else if (!SearchName) {
           continue;
+        } else {
+          PrevDecl = FoundRecord->getMostRecentDecl();
         }
       }
       
@@ -1767,7 +1769,7 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
       D2->setAccess(D->getAccess());
     } else {
       D2 = RecordDecl::Create(Importer.getToContext(), D->getTagKind(),
-                              DC, StartLoc, Loc, Name.getAsIdentifierInfo());
+                              DC, StartLoc, Loc, Name.getAsIdentifierInfo(), PrevDecl);
     }
     
     D2->setQualifierInfo(Importer.Import(D->getQualifierLoc()));
