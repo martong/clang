@@ -1685,6 +1685,9 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
               if (*Index1 != *Index2)
                 continue;
             }
+          } else {
+            if(!IsStructuralMatch(D, FoundRecord,false))
+              continue;
           }
         }
 
