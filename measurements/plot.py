@@ -1,9 +1,13 @@
 #!/usr/bin/env python
 
 import argparse
+from matplotlib import rc
 import matplotlib.pyplot as plt
 #import matplotlib.patches as mpatches
 import numpy as np
+
+rc('text', usetex=True)
+rc('font',**{'family':'serif','serif':['Computer Modern Roman']})
 
 dot_formats = {0: 'bs', 1: 'rd', 2: 'go'}
 fit_formats = {0: '-b', 1: '--r', 2: '-.g'}
@@ -40,7 +44,12 @@ for arg in args.ps:
     i = i + 1
 
 #plt.title('Comparing Compile Times')
-plt.xlabel('#member accesses')
-#plt.xlabel('#friends')
+#plt.xlabel('\#member accesses')
+plt.xlabel('\#friends')
 plt.ylabel('Time (s)')
-plt.show()
+#plt.show()
+
+import os
+cwd = os.getcwd()
+basename = os.path.basename(os.path.normpath(cwd))
+plt.savefig(basename + ".eps", format='eps', dpi=1000)
