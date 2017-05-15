@@ -1255,7 +1255,7 @@ bool ASTNodeImporter::IsStructuralMatch(EnumConstantDecl *FromEC,
 
   EnumDecl* ToDC = cast<EnumDecl>(ToEC->getDeclContext());
   EnumDecl* FromDC = cast<EnumDecl>(FromEC->getDeclContext());
-  if(!IsStructuralMatch(FromDC,ToDC,false))
+  if(!IsStructuralMatch(FromDC, ToDC, false))
     return false;
 
   return FromVal.isSigned() == ToVal.isSigned() &&
@@ -1445,14 +1445,14 @@ Decl *ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
               dyn_cast<TypedefNameDecl>(FoundDecls[I])) {
         if (Importer.IsStructurallyEquivalent(
                 D->getUnderlyingType(), FoundTypedef->getUnderlyingType())) {
-          QualType original_ut = D->getUnderlyingType();
-          QualType found_ut = FoundTypedef->getUnderlyingType();
+          QualType OriginalUT = D->getUnderlyingType();
+          QualType FoundUT = FoundTypedef->getUnderlyingType();
           // If the found definition is incomplete
           // but it should be complete import
           // FIXME: maybe this check should go into
           // IsStructurallyEquivalent() function?
-          if (!original_ut->isIncompleteType() &&
-              found_ut->isIncompleteType()) {
+          if (!OriginalUT->isIncompleteType() &&
+              FoundUT->isIncompleteType()) {
             continue;
           } else {
             return Importer.Imported(D, FoundTypedef);
@@ -1686,7 +1686,7 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
                 continue;
             }
           } else {
-            if(!IsStructuralMatch(D, FoundRecord,false))
+            if(!IsStructuralMatch(D, FoundRecord, false))
               continue;
           }
         }
@@ -1725,8 +1725,8 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
               
           AdoptDecl = FoundRecord;
           continue;
-        } else {
-          PrevDecl = FoundRecord->getMostRecentDecl();
+        } else if (!SearchName) {
+          continue;
         }
       }
       
@@ -1776,14 +1776,13 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
       D2 = D2CXX;
       D2->setAccess(D->getAccess());
     } else {
-      D2 = RecordDecl::Create(Importer.getToContext(), D->getTagKind(),
-                              DC, StartLoc, Loc, Name.getAsIdentifierInfo(), PrevDecl);
+      D2 = RecordDecl::Create(Importer.getToContext(), D->getTagKind(), DC,
+                              StartLoc, Loc, Name.getAsIdentifierInfo());
     }
     
     D2->setQualifierInfo(Importer.Import(D->getQualifierLoc()));
     D2->setLexicalDeclContext(LexicalDC);
     LexicalDC->addDeclInternal(D2);
-    D2->setImplicit(D->isImplicit());
     if (D->isAnonymousStructOrUnion())
       D2->setAnonymousStructOrUnion(true);
     if (PrevDecl) {
@@ -1934,7 +1933,8 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   QualType FromTy = D->getType();
   bool usedDifferentExceptionSpec = false;
 
-  if (const auto *FromFPT = D->getType()->getAs<FunctionProtoType>()) {
+  if (const FunctionProtoType *
+        FromFPT = D->getType()->getAs<FunctionProtoType>()) {
     FunctionProtoType::ExtProtoInfo FromEPI = FromFPT->getExtProtoInfo();
     // FunctionProtoType::ExtProtoInfo's ExceptionSpecDecl can point to the
     // FunctionDecl that we are importing the FunctionProtoType for.
@@ -1969,7 +1969,7 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   TypeSourceInfo *TInfo = Importer.Import(D->getTypeSourceInfo());
   FunctionDecl *ToFunction = nullptr;
   SourceLocation InnerLocStart = Importer.Import(D->getInnerLocStart());
-  if (auto *FromConstructor = dyn_cast<CXXConstructorDecl>(D)) {
+  if (CXXConstructorDecl *FromConstructor = dyn_cast<CXXConstructorDecl>(D)) {
     ToFunction = CXXConstructorDecl::Create(Importer.getToContext(),
                                             cast<CXXRecordDecl>(DC),
                                             InnerLocStart,
@@ -2001,7 +2001,8 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
                                            NameInfo, T, TInfo,
                                            D->isInlineSpecified(),
                                            D->isImplicit());
-  } else if (auto *FromConversion = dyn_cast<CXXConversionDecl>(D)) {
+  } else if (CXXConversionDecl *FromConversion
+                                           = dyn_cast<CXXConversionDecl>(D)) {
     ToFunction = CXXConversionDecl::Create(Importer.getToContext(), 
                                            cast<CXXRecordDecl>(DC),
                                            InnerLocStart,
@@ -2010,7 +2011,7 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
                                            FromConversion->isExplicit(),
                                            D->isConstexpr(),
                                            Importer.Import(D->getLocEnd()));
-  } else if (auto *Method = dyn_cast<CXXMethodDecl>(D)) {
+  } else if (CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(D)) {
     ToFunction = CXXMethodDecl::Create(Importer.getToContext(), 
                                        cast<CXXRecordDecl>(DC),
                                        InnerLocStart,
@@ -2238,7 +2239,6 @@ Decl *ASTNodeImporter::VisitIndirectFieldDecl(IndirectFieldDecl *D) {
 
   ToIndirectField->setAccess(D->getAccess());
   ToIndirectField->setLexicalDeclContext(LexicalDC);
-  ToIndirectField->setImplicit(D->isImplicit());
   Importer.Imported(D, ToIndirectField);
   LexicalDC->addDeclInternal(ToIndirectField);
   return ToIndirectField;
