@@ -388,6 +388,12 @@ StringRef AnalyzerOptions::getCTUDir() {
   return CTUDir.getValue();
 }
 
+StringRef AnalyzerOptions::getCTUReparseOnDemand() {
+  if (!CTUReparseOnDemand.hasValue())
+    CTUReparseOnDemand = getOptionAsString("xtu-reparse", "");
+  return CTUReparseOnDemand.getValue();
+}
+
 bool AnalyzerOptions::shouldReanalyzeXTUVisitedFns() {
   if (!ReanalyzeXTUVisitedFns.hasValue())
     ReanalyzeXTUVisitedFns =
