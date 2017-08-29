@@ -1076,6 +1076,10 @@ bool ASTNodeImporter::ImportDefinition(RecordDecl *From, RecordDecl *To,
     ImportDeclContext(From, /*ForceImport=*/true, To);
   
   To->completeDefinition();
+  // The code bellow will make the tests fail but can be useful for debugging
+  // purposes.
+  // assert(IsStructuralMatch(To, From) &&
+  //       "Imported class should be eq to the original.");
   return false;
 }
 
