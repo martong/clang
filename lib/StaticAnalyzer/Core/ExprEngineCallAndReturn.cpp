@@ -19,6 +19,7 @@
 #include "clang/Analysis/Analyses/LiveVariables.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
+#include "clang/Tooling/CrossTranslationUnit.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/SaveAndRestore.h"
@@ -790,6 +791,9 @@ static bool mayInlineDecl(AnalysisDeclContext *CalleeADC,
 bool ExprEngine::shouldInlineCall(const CallEvent &Call, const Decl *D,
                                   const ExplodedNode *Pred) {
   if (!D)
+    return false;
+
+  if (CTU.isInvalidFunction(dyn_cast<FunctionDecl>(D)))
     return false;
 
   AnalysisManager &AMgr = getAnalysisManager();

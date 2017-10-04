@@ -39,6 +39,8 @@ STATISTIC(
 STATISTIC(NumIterateNotFound, "The # of iteration not found");
 STATISTIC(NumGetCTUSuccess, "The # of getCTUDefinition successfully return the "
                             "requested function's body");
+STATISTIC(NumUnsupportedNodeFound, "The # of imports when the ASTImporter "
+                                   "encountered an unsupported AST Node");
 }
 
 namespace clang {
@@ -193,6 +195,12 @@ const FunctionDecl *CrossTranslationUnit::getCrossTUDefinition(
           findFunctionInDeclContext(TU, LookupFnName)) {
     auto *ToDecl = cast<FunctionDecl>(
         Importer.Import(const_cast<FunctionDecl *>(ResultDecl)));
+    if (Importer.hasEncounteredUnsupportedNode()) {
+      InvalidFunctions.insert(ToDecl);
+      Importer.setEncounteredUnsupportedNode(false);
+      NumUnsupportedNodeFound++;
+      return nullptr;
+    }
     assert(ToDecl->hasBody());
     assert(FD->hasBody() && "Functions already imported should have body.");
     ++NumGetCTUSuccess;
@@ -211,6 +219,10 @@ ASTImporter &CrossTranslationUnit::getOrCreateASTImporter(ASTContext &From) {
                       From, From.getSourceManager().getFileManager(), false);
   ASTUnitImporterMap[From.getTranslationUnitDecl()].reset(NewImporter);
   return *NewImporter;
+}
+
+bool CrossTranslationUnit::isInvalidFunction(const FunctionDecl *FD) {
+  return InvalidFunctions.find(FD) != InvalidFunctions.end();
 }
 
 } // namespace tooling

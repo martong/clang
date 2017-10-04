@@ -2,7 +2,7 @@
 // RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -emit-pch -o %T/xtudir/xtu-other.cpp.ast %S/Inputs/xtu-other.cpp
 // RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -emit-pch -o %T/xtudir/xtu-chain.cpp.ast %S/Inputs/xtu-chain.cpp
 // RUN: cp %S/Inputs/externalFnMap_usr.txt %T/xtudir/externalFnMap.txt
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fsyntax-only -analyze -analyzer-checker=core,debug.ExprInspection -analyzer-config xtu-dir=%T/xtudir -analyzer-config use-usr=true -analyzer-config reanalyze-xtu-visited=true -verify %s
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fsyntax-only -analyze -analyzer-checker=core,debug.ExprInspection -analyzer-config xtu-dir=%T/xtudir -analyzer-config use-usr=true -analyzer-config reanalyze-xtu-visited=true -std=c++11 -verify %s
 
 void clang_analyzer_eval(int);
 
@@ -44,6 +44,8 @@ int chf1(int x);
 typedef struct AVBuffer avt;
 int avtSize(void);
 
+int fun_with_unsupported_node(int);
+
 int main() {
   clang_analyzer_eval(f(3) == 2); // expected-warning{{TRUE}}
   clang_analyzer_eval(f(4) == 3); // expected-warning{{TRUE}}
@@ -58,4 +60,9 @@ int main() {
   clang_analyzer_eval(mycls::embed_cls2().fecl2(0) == -11); // expected-warning{{TRUE}}
   clang_analyzer_eval(chns::chf1(4) == 12); // expected-warning{{TRUE}}
   clang_analyzer_eval(avtSize() == 4); // expected-warning{{TRUE}}
+
+  // First time, when the import of the function with unsupported node happens.
+  clang_analyzer_eval(fun_with_unsupported_node(0) == 0); // expected-warning{{UNKNOWN}}
+  // When it is already imported.
+  clang_analyzer_eval(fun_with_unsupported_node(0) == 0); // expected-warning{{UNKNOWN}}
 }
