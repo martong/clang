@@ -387,6 +387,7 @@ UNARY_OPERATION(PreInc, "++")
 UNARY_OPERATION(PreDec, "--")
 // [C99 6.5.3.2] Address and indirection
 UNARY_OPERATION(AddrOf, "&")
+UNARY_OPERATION(FunctionId, "__function_id")
 UNARY_OPERATION(Deref, "*")
 // [C99 6.5.3.3] Unary arithmetic 
 UNARY_OPERATION(Plus, "+")

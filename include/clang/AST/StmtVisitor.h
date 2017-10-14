@@ -86,6 +86,7 @@ public:
       case UO_PreInc:    DISPATCH(UnaryPreInc,    UnaryOperator);
       case UO_PreDec:    DISPATCH(UnaryPreDec,    UnaryOperator);
       case UO_AddrOf:    DISPATCH(UnaryAddrOf,    UnaryOperator);
+      case UO_FunctionId:    DISPATCH(UnaryFunctionId,    UnaryOperator);
       case UO_Deref:     DISPATCH(UnaryDeref,     UnaryOperator);
       case UO_Plus:      DISPATCH(UnaryPlus,      UnaryOperator);
       case UO_Minus:     DISPATCH(UnaryMinus,     UnaryOperator);
@@ -155,6 +156,7 @@ public:
   UNARYOP_FALLBACK(PostInc)   UNARYOP_FALLBACK(PostDec)
   UNARYOP_FALLBACK(PreInc)    UNARYOP_FALLBACK(PreDec)
   UNARYOP_FALLBACK(AddrOf)    UNARYOP_FALLBACK(Deref)
+  UNARYOP_FALLBACK(FunctionId)
 
   UNARYOP_FALLBACK(Plus)      UNARYOP_FALLBACK(Minus)
   UNARYOP_FALLBACK(Not)       UNARYOP_FALLBACK(LNot)

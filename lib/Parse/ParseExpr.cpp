@@ -1039,6 +1039,7 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
                                  SavedKind, Res.get());
     return Res;
   }
+  case tok::kw___function_id:
   case tok::amp: {         // unary-expression: '&' cast-expression
     // Special treatment because of member pointers
     SourceLocation SavedLoc = ConsumeToken();

@@ -495,6 +495,8 @@ KEYWORD(__forceinline               , KEYMS)
 KEYWORD(__unaligned                 , KEYMS)
 KEYWORD(__super                     , KEYMS)
 
+KEYWORD(__function_id, KEYALL)
+
 // OpenCL address space qualifiers
 KEYWORD(__global                    , KEYOPENCL)
 KEYWORD(__local                     , KEYOPENCL)

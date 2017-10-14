@@ -363,6 +363,11 @@ public:
 
     return EmitLValue(E->getSubExpr()).getPointer();
   }
+
+  Value *VisitUnaryFunctionId(const UnaryOperator *E) {
+    return EmitLValue(E->getSubExpr()).getPointer();
+  }
+
   Value *VisitUnaryDeref(const UnaryOperator *E) {
     if (E->getType()->isVoidType())
       return Visit(E->getSubExpr()); // the actual value should be unused

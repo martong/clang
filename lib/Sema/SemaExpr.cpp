@@ -10659,6 +10659,7 @@ static inline UnaryOperatorKind ConvertTokenKindToUnaryOpcode(
   case tok::kw___real:    Opc = UO_Real; break;
   case tok::kw___imag:    Opc = UO_Imag; break;
   case tok::kw___extension__: Opc = UO_Extension; break;
+  case tok::kw___function_id: Opc = UO_FunctionId; break;
   }
   return Opc;
 }
@@ -11304,6 +11305,9 @@ ExprResult Sema::CreateBuiltinUnaryOp(SourceLocation OpLoc,
   case UO_AddrOf:
     resultType = CheckAddressOfOperand(Input, OpLoc);
     RecordModifiableNonNullParam(*this, InputExpr);
+    break;
+  case UO_FunctionId:
+    resultType = Context.getPointerType(Input.get()->IgnoreParens()->getType());
     break;
   case UO_Deref: {
     Input = DefaultFunctionArrayLvalueConversion(Input.get());

@@ -1925,6 +1925,7 @@ bool Expr::isUnusedResultAWarning(const Expr *&WarnE, SourceLocation &Loc,
     case UO_Plus:
     case UO_Minus:
     case UO_AddrOf:
+    case UO_FunctionId:
     case UO_Not:
     case UO_LNot:
     case UO_Deref:

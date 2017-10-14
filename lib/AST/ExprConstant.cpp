@@ -9329,6 +9329,7 @@ static ICEDiag CheckICE(const Expr* E, const ASTContext &Ctx) {
     case UO_PreInc:
     case UO_PreDec:
     case UO_AddrOf:
+    case UO_FunctionId:
     case UO_Deref:
     case UO_Coawait:
       // C99 6.6/3 allows increment and decrement within unevaluated
