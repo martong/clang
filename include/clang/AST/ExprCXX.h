@@ -2479,7 +2479,8 @@ public:
 
     E = E->IgnoreParens();
     if (isa<UnaryOperator>(E)) {
-      assert(cast<UnaryOperator>(E)->getOpcode() == UO_AddrOf);
+      assert(cast<UnaryOperator>(E)->getOpcode() == UO_AddrOf ||
+          cast<UnaryOperator>(E)->getOpcode() == UO_FunctionId);
       E = cast<UnaryOperator>(E)->getSubExpr();
       OverloadExpr *Ovl = cast<OverloadExpr>(E->IgnoreParens());
 

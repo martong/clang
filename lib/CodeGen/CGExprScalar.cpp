@@ -358,6 +358,7 @@ public:
 
 
   Value *VisitUnaryAddrOf(const UnaryOperator *E) {
+    //E->dump();
     if (isa<MemberPointerType>(E->getType())) // never sugared
       return CGF.CGM.getMemberPointerConstant(E);
 
@@ -365,6 +366,7 @@ public:
   }
 
   Value *VisitUnaryFunctionId(const UnaryOperator *E) {
+    E->dump();
     return EmitLValue(E->getSubExpr()).getPointer();
   }
 

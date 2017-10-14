@@ -11307,7 +11307,10 @@ ExprResult Sema::CreateBuiltinUnaryOp(SourceLocation OpLoc,
     RecordModifiableNonNullParam(*this, InputExpr);
     break;
   case UO_FunctionId:
-    resultType = Context.getPointerType(Input.get()->IgnoreParens()->getType());
+    resultType = CheckAddressOfOperand(Input, OpLoc);
+    if (resultType != Context.OverloadTy) {
+      resultType = Context.getPointerType(Input.get()->IgnoreParens()->getType());
+    }
     break;
   case UO_Deref: {
     Input = DefaultFunctionArrayLvalueConversion(Input.get());
@@ -11451,8 +11454,10 @@ ExprResult Sema::CreateBuiltinUnaryOp(SourceLocation OpLoc,
   if (Opc != UO_AddrOf && Opc != UO_Deref)
     CheckArrayAccess(Input.get());
 
-  return new (Context)
+  auto res = new (Context)
       UnaryOperator(Input.get(), Opc, resultType, VK, OK, OpLoc);
+  //res->dump();
+  return res;
 }
 
 /// \brief Determine whether the given expression is a qualified member
@@ -11511,7 +11516,7 @@ ExprResult Sema::BuildUnaryOp(Scope *S, SourceLocation OpLoc,
 
     // & gets special logic for several kinds of placeholder.
     // The builtin code knows what to do.
-    if (Opc == UO_AddrOf &&
+    if ((Opc == UO_AddrOf || Opc == UO_FunctionId) &&
         (pty->getKind() == BuiltinType::Overload ||
          pty->getKind() == BuiltinType::UnknownAny ||
          pty->getKind() == BuiltinType::BoundMember))

@@ -1542,15 +1542,18 @@ static bool IsStandardConversion(Sema &S, Expr* From, QualType ToType,
       if (Method && !Method->isStatic()) {
         assert(isa<UnaryOperator>(From->IgnoreParens()) &&
                "Non-unary operator on non-static member address");
-        assert(cast<UnaryOperator>(From->IgnoreParens())->getOpcode()
-               == UO_AddrOf &&
+        auto Opcode = cast<UnaryOperator>(From->IgnoreParens())->getOpcode();
+        assert((Opcode == UO_AddrOf || Opcode == UO_FunctionId) &&
                "Non-address-of operator on non-static member address");
         const Type *ClassType
           = S.Context.getTypeDeclType(Method->getParent()).getTypePtr();
-        FromType = S.Context.getMemberPointerType(FromType, ClassType);
+        if (Opcode == UO_AddrOf)
+          FromType = S.Context.getMemberPointerType(FromType, ClassType);
+        else if (Opcode == UO_FunctionId)
+          FromType = S.Context.getPointerType(FromType);
       } else if (isa<UnaryOperator>(From->IgnoreParens())) {
-        assert(cast<UnaryOperator>(From->IgnoreParens())->getOpcode() ==
-               UO_AddrOf &&
+        auto Opcode = cast<UnaryOperator>(From->IgnoreParens())->getOpcode();
+        assert((Opcode == UO_AddrOf || Opcode == UO_FunctionId) &&
                "Non-address-of operator for overloaded function expression");
         FromType = S.Context.getPointerType(FromType);
       }
@@ -12943,7 +12946,8 @@ Expr *Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
   }
 
   if (UnaryOperator *UnOp = dyn_cast<UnaryOperator>(E)) {
-    assert(UnOp->getOpcode() == UO_AddrOf &&
+    assert((UnOp->getOpcode() == UO_AddrOf ||
+            UnOp->getOpcode() == UO_FunctionId) &&
            "Can only take the address of an overloaded function");
     if (CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Fn)) {
       if (Method->isStatic()) {
@@ -12971,6 +12975,12 @@ Expr *Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
         QualType MemPtrType
           = Context.getMemberPointerType(Fn->getType(), ClassType.getTypePtr());
 
+        if (UnOp->getOpcode() == UO_FunctionId)
+          return new (Context)
+              UnaryOperator(SubExpr, UO_FunctionId,
+                            Context.getPointerType(SubExpr->getType()),
+                            VK_RValue, OK_Ordinary, UnOp->getOperatorLoc());
+
         return new (Context) UnaryOperator(SubExpr, UO_AddrOf, MemPtrType,
                                            VK_RValue, OK_Ordinary,
                                            UnOp->getOperatorLoc());
@@ -12981,7 +12991,7 @@ Expr *Sema::FixOverloadedFunctionReference(Expr *E, DeclAccessPair Found,
     if (SubExpr == UnOp->getSubExpr())
       return UnOp;
 
-    return new (Context) UnaryOperator(SubExpr, UO_AddrOf,
+    return new (Context) UnaryOperator(SubExpr, UnOp->getOpcode(),
                                      Context.getPointerType(SubExpr->getType()),
                                        VK_RValue, OK_Ordinary,
                                        UnOp->getOperatorLoc());
