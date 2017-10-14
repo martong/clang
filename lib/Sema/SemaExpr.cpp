@@ -10304,7 +10304,8 @@ static void diagnoseAddressOfInvalidType(Sema &S, SourceLocation Loc,
 /// operator (C99 6.3.2.1p[2-4]), and its result is never an lvalue.
 /// In C++, the operand might be an overloaded function name, in which case
 /// we allow the '&' but retain the overloaded-function type.
-QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
+QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc,
+                                     const UnaryOperatorKind* Opc) {
   if (const BuiltinType *PTy = OrigOp.get()->getType()->getAsPlaceholderType()){
     if (PTy->getKind() == BuiltinType::Overload) {
       Expr *E = OrigOp.get()->IgnoreParens();
@@ -10418,9 +10419,14 @@ QualType Sema::CheckAddressOfOperand(ExprResult &OrigOp, SourceLocation OpLoc) {
       }
     }
 
-    // Taking the address of a dtor is illegal per C++ [class.dtor]p2.
-    if (isa<CXXDestructorDecl>(MD))
-      Diag(OpLoc, diag::err_typecheck_addrof_dtor) << op->getSourceRange();
+    if (!Opc || (Opc && *Opc != UO_FunctionId)) {
+      // Taking the address of a dtor is illegal per C++ [class.dtor]p2.
+      if (isa<CXXDestructorDecl>(MD))
+        Diag(OpLoc, diag::err_typecheck_addrof_dtor) << op->getSourceRange();
+    }
+    if (Opc && *Opc == UO_FunctionId) {
+      return Context.getPointerType(op->getType());
+    }
 
     QualType MPTy = Context.getMemberPointerType(
         op->getType(), Context.getTypeDeclType(MD->getParent()).getTypePtr());
@@ -11302,15 +11308,10 @@ ExprResult Sema::CreateBuiltinUnaryOp(SourceLocation OpLoc,
                                                 Opc == UO_PreInc ||
                                                 Opc == UO_PreDec);
     break;
-  case UO_AddrOf:
-    resultType = CheckAddressOfOperand(Input, OpLoc);
-    RecordModifiableNonNullParam(*this, InputExpr);
-    break;
   case UO_FunctionId:
-    resultType = CheckAddressOfOperand(Input, OpLoc);
-    if (resultType != Context.OverloadTy) {
-      resultType = Context.getPointerType(Input.get()->IgnoreParens()->getType());
-    }
+  case UO_AddrOf:
+    resultType = CheckAddressOfOperand(Input, OpLoc, &Opc);
+    RecordModifiableNonNullParam(*this, InputExpr);
     break;
   case UO_Deref: {
     Input = DefaultFunctionArrayLvalueConversion(Input.get());

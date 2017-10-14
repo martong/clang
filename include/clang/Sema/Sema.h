@@ -3884,7 +3884,8 @@ public:
   ExprResult ActOnUnaryOp(Scope *S, SourceLocation OpLoc,
                           tok::TokenKind Op, Expr *Input);
 
-  QualType CheckAddressOfOperand(ExprResult &Operand, SourceLocation OpLoc);
+  QualType CheckAddressOfOperand(ExprResult &Operand, SourceLocation OpLoc,
+                                 const UnaryOperatorKind* Opc = nullptr);
 
   ExprResult CreateUnaryExprOrTypeTraitExpr(TypeSourceInfo *TInfo,
                                             SourceLocation OpLoc,
