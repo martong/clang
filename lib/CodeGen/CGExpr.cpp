@@ -2001,7 +2001,12 @@ static LValue EmitGlobalVarDeclLValue(CodeGenFunction &CGF,
 
 static LValue EmitFunctionDeclLValue(CodeGenFunction &CGF,
                                      const Expr *E, const FunctionDecl *FD) {
-  llvm::Value *V = CGF.CGM.GetAddrOfFunction(FD);
+  llvm::Value *V = nullptr;
+  if (const CXXDestructorDecl* CD = dyn_cast<CXXDestructorDecl>(FD)) {
+    V = CGF.CGM.GetAddrOfFunction(GlobalDecl(CD, Dtor_Base));
+  } else {
+    V = CGF.CGM.GetAddrOfFunction(FD);
+  }
   if (!FD->hasPrototype()) {
     if (const FunctionProtoType *Proto =
             FD->getType()->getAs<FunctionProtoType>()) {
