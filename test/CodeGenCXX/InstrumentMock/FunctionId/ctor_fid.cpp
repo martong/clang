@@ -6,5 +6,5 @@ struct X {
 };
 
 int main(){
-    //void* y = (void*)__function_id X::X;
+    void* y = (void*)__function_id X::X;
 }
