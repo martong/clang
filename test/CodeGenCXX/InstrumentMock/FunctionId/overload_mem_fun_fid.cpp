@@ -6,6 +6,6 @@ struct Foo {
 };
 
 void bar(){
-    // CHECK: store i8* bitcast
+    // CHECK: store i32 (i32)* bitcast (i32 (%struct.Foo*, i32)* @_ZN3Foo2mfEi to i32 (i32)*), i32 (i32)** %mpf
     int (*mpf)(int) = __function_id Foo::mf; // selects int mf(int)
 }

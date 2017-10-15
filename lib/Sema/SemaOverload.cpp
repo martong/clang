@@ -10393,15 +10393,19 @@ private:
   // return true if any matching specializations were found
   bool AddMatchingTemplateFunction(FunctionTemplateDecl* FunctionTemplate, 
                                    const DeclAccessPair& CurAccessFunPair) {
-    if (CXXMethodDecl *Method
-              = dyn_cast<CXXMethodDecl>(FunctionTemplate->getTemplatedDecl())) {
-      // Skip non-static function templates when converting to pointer, and
-      // static when converting to member pointer.
-      if (Method->isStatic() == TargetTypeIsNonStaticMemberFunction)
+
+    UnaryOperator *UO = dyn_cast<UnaryOperator>(this->SourceExpr);
+    if (UO && UO->getOpcode() == UO_FunctionId) {
+    } else {
+      if (CXXMethodDecl *Method =
+              dyn_cast<CXXMethodDecl>(FunctionTemplate->getTemplatedDecl())) {
+        // Skip non-static function templates when converting to pointer, and
+        // static when converting to member pointer.
+        if (Method->isStatic() == TargetTypeIsNonStaticMemberFunction)
+          return false;
+      } else if (TargetTypeIsNonStaticMemberFunction)
         return false;
-    } 
-    else if (TargetTypeIsNonStaticMemberFunction)
-      return false;
+    }
 
     // C++ [over.over]p2:
     //   If the name is a function template, template argument deduction is
@@ -10439,14 +10443,19 @@ private:
   
   bool AddMatchingNonTemplateFunction(NamedDecl* Fn, 
                                       const DeclAccessPair& CurAccessFunPair) {
-    if (CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Fn)) {
-      // Skip non-static functions when converting to pointer, and static
-      // when converting to member pointer.
-      if (Method->isStatic() == TargetTypeIsNonStaticMemberFunction)
+
+    // FunctionId should match the candidate
+    UnaryOperator *UO = dyn_cast<UnaryOperator>(this->SourceExpr);
+    if (UO && UO->getOpcode() == UO_FunctionId) {
+    } else {
+      if (CXXMethodDecl *Method = dyn_cast<CXXMethodDecl>(Fn)) {
+        // Skip non-static functions when converting to pointer, and static
+        // when converting to member pointer.
+        if (Method->isStatic() == TargetTypeIsNonStaticMemberFunction)
+          return false;
+      } else if (TargetTypeIsNonStaticMemberFunction)
         return false;
-    } 
-    else if (TargetTypeIsNonStaticMemberFunction)
-      return false;
+    }
 
     if (FunctionDecl *FunDecl = dyn_cast<FunctionDecl>(Fn)) {
       if (S.getLangOpts().CUDA)
