@@ -200,6 +200,7 @@ bool Parser::ParseOptionalCXXScopeSpecifier(CXXScopeSpec &SS,
                                                  Tok.getAnnotationRange(),
                                                  SS);
     ConsumeToken();
+    //Tok.getLocation().dump(PP.getSourceManager());
     return false;
   }
 
@@ -664,6 +665,7 @@ ExprResult Parser::ParseCXXIdExpression(bool isAddressOfOperand) {
   Token Replacement;
   ExprResult Result =
       tryParseCXXIdExpression(SS, isAddressOfOperand, Replacement);
+  Result.get()->dump();
   if (Result.isUnset()) {
     // If the ExprResult is valid but null, then typo correction suggested a
     // keyword replacement that needs to be reparsed.
@@ -2481,7 +2483,7 @@ bool Parser::ParseUnqualifiedId(CXXScopeSpec &SS, bool EnteringContext,
     if (AllowConstructorName && 
         Actions.isCurrentClassName(*Id, getCurScope(), &SS)) {
       // We have parsed a constructor name.
-      ParsedType Ty = Actions.getTypeName(*Id, IdLoc, getCurScope(), &SS, false,
+      ParsedType Ty = Actions.getTypeName(*Id, IdLoc, getCurScope(), &SS, false, // hehh!!
                                           false, nullptr,
                                           /*IsCtorOrDtorName=*/true,
                                           /*NonTrivialTypeSourceInfo=*/true);

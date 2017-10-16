@@ -1684,6 +1684,9 @@ bool Parser::TryAnnotateTypeOrScopeTokenAfterScopeSpec(bool EnteringContext,
                                                        bool IsNewScope) {
   if (Tok.is(tok::identifier)) {
     IdentifierInfo *CorrectedII = nullptr;
+    // Parsing __function_id X::X fails atm, because it will successfully parse a type here
+    // temporarirly disabling type parsing here (for debug)
+    if (false) {
     // Determine whether the identifier is a type name.
     if (ParsedType Ty = Actions.getTypeName(
             *Tok.getIdentifierInfo(), Tok.getLocation(), getCurScope(), &SS,
@@ -1726,6 +1729,7 @@ bool Parser::TryAnnotateTypeOrScopeTokenAfterScopeSpec(bool EnteringContext,
       // them with the annotation token.
       PP.AnnotateCachedTokens(Tok);
       return false;
+    }
     }
 
     if (!getLangOpts().CPlusPlus) {

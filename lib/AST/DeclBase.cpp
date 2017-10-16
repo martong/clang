@@ -1457,6 +1457,7 @@ DeclContext::lookup(DeclarationName Name) const {
     return lookup_result();
 
   StoredDeclsMap::iterator I = Map->find(Name);
+  for (const auto& e : *Map) e.getFirst().dump();
   if (I == Map->end())
     return lookup_result();
 

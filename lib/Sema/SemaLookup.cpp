@@ -2227,7 +2227,7 @@ bool Sema::LookupParsedName(LookupResult &R, Scope *S, CXXScopeSpec *SS,
     if (NNS->getKind() == NestedNameSpecifier::Super)
       return LookupInSuper(R, NNS->getAsRecordDecl());
 
-    if (DeclContext *DC = computeDeclContext(*SS, EnteringContext)) {
+    if (DeclContext *DC = computeDeclContext(*SS, EnteringContext)) { //DC->dumpLookups();
       // We have resolved the scope specifier to a particular declaration
       // contex, and will perform name lookup in that context.
       if (!DC->isDependentContext() && RequireCompleteDeclContext(*SS, DC))

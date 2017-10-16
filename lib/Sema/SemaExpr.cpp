@@ -2805,6 +2805,10 @@ static bool CheckDeclInExpr(Sema &S, SourceLocation Loc, NamedDecl *D) {
 ExprResult Sema::BuildDeclarationNameExpr(const CXXScopeSpec &SS,
                                           LookupResult &R, bool NeedsADL,
                                           bool AcceptInvalidDecl) {
+  llvm::errs() << "TU:" << "\n";
+  R.getFoundDecl()->getTranslationUnitDecl()->dump();
+  llvm::errs() << "Found:" << "\n";
+  R.getFoundDecl()->dump();
   // If this is a single, fully-resolved result and we don't need ADL,
   // just build an ordinary singleton decl ref.
   if (!NeedsADL && R.isSingleResult() && !R.getAsSingle<FunctionTemplateDecl>())
@@ -2855,6 +2859,25 @@ ExprResult Sema::BuildDeclarationNameExpr(
     Diag(Template->getLocation(), diag::note_template_decl_here);
     return ExprError();
   }
+
+  // The below Diag is where we currently fail.  Lookup is wrong in this case
+  // (Sema::LookupParsedName, LookupDirect, DeclContext::lookup). Here D refers
+  // to the CXXRecordDecl ... implicit referenced struct.  In case of a simple
+  // member function (even in dtor) it refers to the specific CXXMethodDecl.
+  //
+  // We could maybe create an DeclRefExpr with an OverloadedTy from the
+  // CXXRecordDecl.
+  //
+  // We could use this info similarly as it is used during parsing a function
+  // declarator (e.g. X::X() {} ) See in Parser::ParseUnqualifiedId() the
+  // Actions.getTypeName() finds with lookup the Type (CXXRecordDecl) as well,
+  // but from there the ctor definition is built up.
+  //
+  // Of course the overload resolution will be much harder to implement.
+  // Therefore we should first implement it by supporting classes with one ctor
+  // only by directly adding a DeclRefExpr to the only one CXXConstructorDecl [
+  // under the UnaryOperator Expr (subexpr) ].  As a second step we could
+  // implement the overload resolution.
 
   // Make sure that we're referring to a value.
   ValueDecl *VD = dyn_cast<ValueDecl>(D);
