@@ -617,6 +617,9 @@ def fdefault_calling_conv_EQ : Joined<["-"], "fdefault-calling-conv=">,
 def fcoroutines : Flag<["-"], "fcoroutines">,
   HelpText<"Enable support for the C++ Coroutines TS">;
 
+def ffunction_id : Flag<["-"], "ffunction-id">,
+  HelpText<"enable experimental support for unique function identification">;
+
 //===----------------------------------------------------------------------===//
 // Header Search Options
 //===----------------------------------------------------------------------===//

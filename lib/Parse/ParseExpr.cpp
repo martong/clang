@@ -1040,7 +1040,8 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
     return Res;
   }
   case tok::kw___function_id:
-    if (!getLangOpts().Sanitize.has(SanitizerKind::Mock)) {
+    if (!getLangOpts().Sanitize.has(SanitizerKind::Mock) &&
+        !getLangOpts().FunctionId) {
       return ExprError(Diag(Tok, diag::err_invalid_function_id_keyword));
     }
   case tok::amp: {         // unary-expression: '&' cast-expression
