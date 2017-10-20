@@ -1040,6 +1040,9 @@ ExprResult Parser::ParseCastExpression(bool isUnaryExpression,
     return Res;
   }
   case tok::kw___function_id:
+    if (!getLangOpts().Sanitize.has(SanitizerKind::Mock)) {
+      return ExprError(Diag(Tok, diag::err_invalid_function_id_keyword));
+    }
   case tok::amp: {         // unary-expression: '&' cast-expression
     // Special treatment because of member pointers
     SourceLocation SavedLoc = ConsumeToken();

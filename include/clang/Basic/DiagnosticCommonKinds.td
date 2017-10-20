@@ -69,6 +69,8 @@ def warn_method_param_declaration : Warning<"redeclaration of method parameter %
   InGroup<DuplicateArgDecl>, DefaultIgnore;
 def err_invalid_storage_class_in_func_decl : Error<
   "invalid storage class specifier in function declarator">;
+def err_invalid_function_id_keyword : Error<
+  "invalid use of '__function_id' intrinsic">;
 def err_expected_namespace_name : Error<"expected namespace name">;
 def ext_variadic_templates : ExtWarn<
   "variadic templates are a C++11 extension">, InGroup<CXX11>;
