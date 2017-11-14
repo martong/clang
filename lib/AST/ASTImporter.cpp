@@ -931,8 +931,27 @@ bool ASTNodeImporter::ImportDeclParts(NamedDecl *D, DeclContext *&DC,
                                       DeclarationName &Name, 
                                       NamedDecl *&ToD,
                                       SourceLocation &Loc) {
+  // Check if RecordDecl is in FunctionDecl parameters to avoid infinite loop.
+  DeclContext *OrigDC = D->getDeclContext();
+  if(isa<RecordDecl>(D) && OrigDC->isFunctionOrMethod()) {
+    FunctionDecl *FunDecl = dyn_cast<FunctionDecl>(OrigDC);
+    if (FunDecl && FunDecl->hasBody()) {
+      SourceRange RecR = D->getSourceRange();
+      SourceRange BodyR = FunDecl->getBody()->getSourceRange();
+      // If RecordDecl is not in Body (it is a param), we bail out.
+      if (RecR.isValid() && BodyR.isValid() &&
+            (RecR.getBegin() < BodyR.getBegin() ||
+             BodyR.getEnd() < RecR.getEnd())) {
+        Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
+              << D->getDeclKindName();
+        Importer.setEncounteredUnsupportedNode(true);
+        return true;
+      }
+    }
+  }
+
   // Import the context of this declaration.
-  DC = Importer.ImportContext(D->getDeclContext());
+  DC = Importer.ImportContext(OrigDC);
   if (!DC)
     return true;
   

@@ -625,6 +625,16 @@ TEST(ImportExpr, ImportTypeTraitExprValDep) {
                                            )))))))))));
 }
 
+TEST(ImportDecl, ImportRecordDeclInFuncParams) {
+  MatchVerifier<Decl> Verifier;
+  EXPECT_TRUE(
+        testImport(
+          "int declToImport(struct data_t{int a;int b;} *d){ return 0; }",
+          Lang_CXX, "", Lang_CXX, Verifier,
+          functionDecl()));
+}
+
+
 TEST(ImportDecl, ImportFunctionTemplateDecl) {
   MatchVerifier<Decl> Verifier;
   EXPECT_TRUE(
