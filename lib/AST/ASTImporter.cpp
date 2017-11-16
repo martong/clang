@@ -141,6 +141,7 @@ namespace clang {
                            bool Complain = true);
     bool IsStructuralMatch(EnumDecl *FromEnum, EnumDecl *ToRecord,
                            bool Complain = true);
+    bool IsStructuralMatch(FunctionDecl *From, FunctionDecl *To);
     bool IsStructuralMatch(FunctionTemplateDecl *From, FunctionTemplateDecl *To);
     bool IsStructuralMatch(EnumConstantDecl *FromEC, EnumConstantDecl *ToEC);
     bool IsStructuralMatch(ClassTemplateDecl *From, ClassTemplateDecl *To);
@@ -1356,6 +1357,13 @@ bool ASTNodeImporter::IsStructuralMatch(FunctionTemplateDecl *From,
   return Ctx.IsStructurallyEquivalent(From, To);
 }
 
+bool ASTNodeImporter::IsStructuralMatch(FunctionDecl *From, FunctionDecl *To) {
+  StructuralEquivalenceContext Ctx(
+      Importer.getFromContext(), Importer.getToContext(),
+      Importer.getNonEquivalentDecls(), false, false);
+  return Ctx.IsStructurallyEquivalent(From, To);
+}
+
 bool ASTNodeImporter::IsStructuralMatch(EnumConstantDecl *FromEC,
                                         EnumConstantDecl *ToEC)
 {
@@ -2138,8 +2146,7 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
       if (FunctionDecl *FoundFunction = dyn_cast<FunctionDecl>(FoundDecls[I])) {
         if (FoundFunction->hasExternalFormalLinkage() &&
             D->hasExternalFormalLinkage()) {
-          if (Importer.IsStructurallyEquivalent(D->getType(), 
-                                                FoundFunction->getType())) {
+          if (IsStructuralMatch(D, FoundFunction)) {
             // FIXME: Actually try to merge the body and other attributes.
             const FunctionDecl *FromBodyDecl = nullptr;
             D->hasBody(FromBodyDecl);
