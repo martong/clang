@@ -2319,6 +2319,12 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     ToFunction->setType(T);
   }
 
+  // Import the describing template function, if any.
+  if (FunctionTemplateDecl *FromFT = D->getDescribedFunctionTemplate())
+    if (auto *ToFT = dyn_cast<FunctionTemplateDecl>(Importer.Import(FromFT))) {
+      ToFunction->setDescribedFunctionTemplate(ToFT);
+    }
+
   // Import the body, if any.
   if (Stmt *FromBody = D->getBody()) {
     if (Stmt *ToBody = Importer.Import(FromBody)) {
@@ -4323,6 +4329,11 @@ Decl *ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
   if (ToD)
       return ToD;
 
+  FunctionDecl *TemplatedFD =
+      cast_or_null<FunctionDecl>(Importer.Import(D->getTemplatedDecl()));
+  if (!TemplatedFD)
+    return nullptr;
+
   // Try to find a function in our own ("to") context with the same name, same
   // type, and in the same context as the function we're importing.
   if (!LexicalDC->isFunctionOrMethod()) {
@@ -4350,11 +4361,6 @@ Decl *ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
   TemplateParameterList *Params = ImportTemplateParameterList(
                                     D->getTemplateParameters());
   if (!Params)
-    return nullptr;
-
-  FunctionDecl *TemplatedFD = cast_or_null<FunctionDecl>(
-		                 Importer.Import(D->getTemplatedDecl()));
-  if (!TemplatedFD)
     return nullptr;
 
   FunctionTemplateDecl *ToFunc = FunctionTemplateDecl::Create(
