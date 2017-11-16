@@ -536,6 +536,22 @@ TEST(ImportDecl, ImportFunctionTemplateDecl) {
           "template <typename T> void declToImport() { };",
           Lang_CXX, "", Lang_CXX, Verifier,
           functionTemplateDecl()));
+  EXPECT_TRUE(testImport(
+      "template<typename Y> int a() { return 1; }"
+      "template<typename Y, typename D> int a(){ return 2; }"
+      "void declToImport() { a<void>(); }",
+      Lang_CXX, "", Lang_CXX, Verifier,
+      functionDecl(has(compoundStmt(has(callExpr(has(ignoringParenImpCasts(
+          declRefExpr(to(functionDecl(hasBody(compoundStmt(
+              has(returnStmt(has(integerLiteral(equals(1)))))))))))))))))));
+  EXPECT_TRUE(testImport(
+      "template<typename Y> int a() { return 1; }"
+      "template<typename Y, typename D> int a() { return 2; }"
+      "void declToImport() { a<void,void>(); }",
+      Lang_CXX, "", Lang_CXX, Verifier,
+      functionDecl(has(compoundStmt(has(callExpr(has(ignoringParenImpCasts(
+          declRefExpr(to(functionDecl(hasBody(compoundStmt(
+              has(returnStmt(has(integerLiteral(equals(2)))))))))))))))))));
 }
 
 TEST(ImportExpr, ImportUnresolvedLookupExpr) {

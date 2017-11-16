@@ -4993,8 +4993,8 @@ Expr *ASTNodeImporter::VisitDeclRefExpr(DeclRefExpr *E) {
   if (T.isNull())
     return nullptr;
 
-
-  TemplateArgumentListInfo ToTAInfo;
+  TemplateArgumentListInfo ToTAInfo(Importer.Import(E->getLAngleLoc()),
+                                    Importer.Import(E->getRAngleLoc()));
   TemplateArgumentListInfo *ResInfo = nullptr;
   if (E->hasExplicitTemplateArgs()) {
     for (const auto &FromLoc : E->template_arguments()) {
@@ -5924,18 +5924,25 @@ Expr *ASTNodeImporter::VisitMemberExpr(MemberExpr *E) {
     Importer.Import(E->getMemberNameInfo().getName()),
     Importer.Import(E->getMemberNameInfo().getLoc()));
 
+  TemplateArgumentListInfo ToTAInfo(Importer.Import(E->getLAngleLoc()),
+                                    Importer.Import(E->getRAngleLoc()));
+  TemplateArgumentListInfo *ResInfo = nullptr;
   if (E->hasExplicitTemplateArgs()) {
-    return nullptr; // FIXME: handle template arguments
+    for (const auto &FromLoc : E->template_arguments()) {
+      if (auto ToTALoc = ImportTemplateArgumentLoc(FromLoc)) {
+        ToTAInfo.addArgument(*ToTALoc);
+      } else
+        return nullptr;
+    }
+    ResInfo = &ToTAInfo;
   }
 
-  return MemberExpr::Create(Importer.getToContext(), ToBase,
-                            E->isArrow(),
+  return MemberExpr::Create(Importer.getToContext(), ToBase, E->isArrow(),
                             Importer.Import(E->getOperatorLoc()),
                             Importer.Import(E->getQualifierLoc()),
                             Importer.Import(E->getTemplateKeywordLoc()),
-                            ToMember, ToFoundDecl, ToMemberNameInfo,
-                            nullptr, T, E->getValueKind(),
-                            E->getObjectKind());
+                            ToMember, ToFoundDecl, ToMemberNameInfo, ResInfo, T,
+                            E->getValueKind(), E->getObjectKind());
 }
 
 Expr *ASTNodeImporter::VisitCXXDependentScopeMemberExpr(
@@ -5949,7 +5956,8 @@ Expr *ASTNodeImporter::VisitCXXDependentScopeMemberExpr(
   if (!E->getBaseType().isNull() && BaseType.isNull())
     return nullptr;
 
-  TemplateArgumentListInfo ToTAInfo;
+  TemplateArgumentListInfo ToTAInfo(Importer.Import(E->getLAngleLoc()),
+                                    Importer.Import(E->getRAngleLoc()));
   TemplateArgumentListInfo *ResInfo = nullptr;
   if (E->hasExplicitTemplateArgs()) {
     for (const auto &FromLoc : E->template_arguments()) {
@@ -5989,7 +5997,8 @@ ASTNodeImporter::VisitDependentScopeDeclRefExpr(DependentScopeDeclRefExpr *E) {
 
   ImportDeclarationNameLoc(E->getNameInfo(), NameInfo);
 
-  TemplateArgumentListInfo ToTAInfo;
+  TemplateArgumentListInfo ToTAInfo(Importer.Import(E->getLAngleLoc()),
+                                    Importer.Import(E->getRAngleLoc()));
   TemplateArgumentListInfo *ResInfo = nullptr;
   if (E->hasExplicitTemplateArgs()) {
     for (const auto &FromLoc : E->template_arguments()) {
@@ -6055,7 +6064,8 @@ Expr *ASTNodeImporter::VisitUnresolvedLookupExpr(UnresolvedLookupExpr *E) {
       return nullptr;
   }
 
-  TemplateArgumentListInfo ToTAInfo;
+  TemplateArgumentListInfo ToTAInfo(Importer.Import(E->getLAngleLoc()),
+                                    Importer.Import(E->getRAngleLoc()));
   TemplateArgumentListInfo *ResInfo = nullptr;
   if (E->hasExplicitTemplateArgs()) {
     for (const auto &FromLoc : E->template_arguments()) {
