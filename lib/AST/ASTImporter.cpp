@@ -5253,31 +5253,6 @@ Expr *ASTNodeImporter::VisitUnaryExprOrTypeTraitExpr(
                                           Importer.Import(E->getRParenLoc()));
 }
 
-Expr *ASTNodeImporter::VisitTypeTraitExpr(TypeTraitExpr *E) {
-  QualType T = Importer.Import(E->getType());
-  if (T.isNull())
-    return nullptr;
-
-  unsigned NumArgs = E->getNumArgs();
-  llvm::SmallVector<TypeSourceInfo *, 2> ToArgTypes(NumArgs);
-  for (unsigned AI = 0; AI != NumArgs; ++AI) {
-    TypeSourceInfo *FromArgType = E->getArg(AI);
-    TypeSourceInfo *ToArgType = Importer.Import(FromArgType);
-    if (!ToArgType && FromArgType)
-      return nullptr;
-    ToArgTypes[AI] = ToArgType;
-  }
-  TypeSourceInfo **ToArgTypesArray = new (Importer.getToContext())
-      TypeSourceInfo*[NumArgs];
-  for (unsigned AI = 0; AI != NumArgs; ++AI)
-    ToArgTypesArray[AI] = ToArgTypes[AI];
-
-  return TypeTraitExpr::Create(Importer.getToContext(), T,
-        Importer.Import(E->getLocStart()), E->getTrait(),
-        llvm::makeArrayRef(ToArgTypesArray, NumArgs),
-        Importer.Import(E->getLocEnd()), E->getValue());
-}
-
 Expr *ASTNodeImporter::VisitBinaryOperator(BinaryOperator *E) {
   QualType T = Importer.Import(E->getType());
   if (T.isNull())
@@ -6332,6 +6307,26 @@ Expr *ASTNodeImporter::VisitSubstNonTypeTemplateParmExpr(
   return new (Importer.getToContext()) SubstNonTypeTemplateParmExpr(
         T, E->getValueKind(), Importer.Import(E->getExprLoc()), Param,
         Replacement);
+}
+
+Expr *ASTNodeImporter::VisitTypeTraitExpr(TypeTraitExpr *E) {
+  QualType ToType = Importer.Import(E->getType());
+  if (ToType.isNull())
+    return nullptr;
+
+  SmallVector<TypeSourceInfo *, 4> ToArgs(E->getNumArgs());
+  if (ImportContainerChecked(E->getArgs(), ToArgs))
+    return nullptr;
+
+  // According to Sema::BuildTypeTrait(), if E is value-dependent,
+  // Value is always false.
+  bool ToValue = false;
+  if (!E->isValueDependent())
+    ToValue = E->getValue();
+
+  return TypeTraitExpr::Create(
+      Importer.getToContext(), ToType, Importer.Import(E->getLocStart()),
+      E->getTrait(), ToArgs, Importer.Import(E->getLocEnd()), ToValue);
 }
 
 void ASTNodeImporter::ImportOverrides(CXXMethodDecl *ToMethod,
