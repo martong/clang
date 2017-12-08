@@ -598,6 +598,22 @@ TEST(ImportExpr, ImportClassTemplatePartialSpecialization) {
   MatchVerifier<Decl> Verifier;
   EXPECT_TRUE(testImport(
       R"s(
+struct declToImport {
+  template <typename T0>
+  struct X;
+
+  template <typename T0>
+  struct X<T0*> {};
+};
+          )s",
+      Lang_CXX, "",
+      Lang_CXX, Verifier, recordDecl()));
+}
+
+TEST(ImportExpr, ImportClassTemplatePartialSpecializationComplex) {
+  MatchVerifier<Decl> Verifier;
+  EXPECT_TRUE(testImport(
+      R"s(
 // excerpt from <functional>
 
 namespace declToImport {
