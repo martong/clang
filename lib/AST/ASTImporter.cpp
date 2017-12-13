@@ -932,6 +932,7 @@ bool ASTNodeImporter::ImportDeclParts(NamedDecl *D, DeclContext *&DC,
                                       NamedDecl *&ToD,
                                       SourceLocation &Loc) {
   // Check if RecordDecl is in FunctionDecl parameters to avoid infinite loop.
+  // example: int struct_in_proto(struct data_t{int a;int b;} *d);
   DeclContext *OrigDC = D->getDeclContext();
   if(isa<RecordDecl>(D) && OrigDC->isFunctionOrMethod()) {
     FunctionDecl *FunDecl = dyn_cast<FunctionDecl>(OrigDC);
