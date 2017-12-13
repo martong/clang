@@ -183,6 +183,16 @@ const FunctionDecl *CrossTranslationUnit::getCrossTUDefinition(
                      << SourceFileName << "\n";
       }
 
+      // The imported AST had been generated for a different target
+      if (Context.getTargetInfo().getTriple() !=
+          Unit->getASTContext().getTargetInfo().getTriple()) {
+        // TODO pass the SourceLocation of the CallExpression for more precise
+        // diagnostics
+        Context.getDiagnostics().Report(diag::err_ctu_incompat_triple)
+            << ASTFileName;
+        return nullptr;
+      }
+
     } else {
       Unit = ASTCacheEntry->second.get();
     }
