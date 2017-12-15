@@ -48,9 +48,6 @@
 #include <queue>
 #include <utility>
 #include <fstream>
-#include <fcntl.h>
-#include <sys/file.h>
-#include <unistd.h>
 
 using namespace clang;
 using namespace ento;
@@ -422,18 +419,6 @@ void AnalysisConsumer::storeTopLevelDecls(DeclGroupRef DG) {
 
     LocalTUDecls.push_back(*I);
   }
-}
-
-void lockedWrite(const std::string &fileName, const std::string &content) {
-  if (content.empty()) 
-    return;
-  int fd = open(fileName.c_str(), O_CREAT|O_WRONLY|O_APPEND, 0666);
-  flock(fd, LOCK_EX);
-  ssize_t written = write(fd, content.c_str(), content.length());
-  assert(written == content.length());
-  (void)written;
-  flock(fd, LOCK_UN);
-  close(fd);
 }
 
 static bool shouldSkipFunction(const Decl *D,
