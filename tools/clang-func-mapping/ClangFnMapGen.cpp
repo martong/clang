@@ -71,11 +71,10 @@ void MapFunctionNamesConsumer::handleDecl(const Decl *D) {
         (void)Res;
         const SourceManager &SM = Ctx.getSourceManager();
         if (CurrentFileName.empty()) {
-          StringRef SMgrName =
-              SM.getFileEntryForID(SM.getMainFileID())->getName();
-          char *Path = realpath(SMgrName.str().c_str(), nullptr);
-          CurrentFileName = Path;
-          free(Path);
+          CurrentFileName =
+              SM.getFileEntryForID(SM.getMainFileID())->tryGetRealPathName();
+          if (CurrentFileName.empty())
+            CurrentFileName = "invalid_file";
         }
 
         switch (FD->getLinkageInternal()) {
