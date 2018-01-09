@@ -861,5 +861,40 @@ TEST(ImportExpr, CXXOperatorCallExpr) {
                                  has(cxxOperatorCallExpr()))))))))));
 }
 
+TEST(ImportExpr, ImportUnresolvedLookupExpr) {
+  MatchVerifier<Decl> Verifier;
+  testImport("template<typename T> int foo();"
+             "template <typename T> void declToImport() {"
+             "  ::foo<T>;"
+             "  ::template foo<T>;"
+             "}"
+             "void instantiate() { declToImport<int>(); }",
+             Lang_CXX, "", Lang_CXX, Verifier,
+             functionTemplateDecl(has(functionDecl(has(
+                 compoundStmt(has(unresolvedLookupExpr())))))));
+}
+
+TEST(ImportExpr, ImportCXXUnresolvedConstructExpr) {
+  MatchVerifier<Decl> Verifier;
+  testImport("template <typename T> class C { T t; };"
+             "template <typename T> void declToImport() {"
+             "  C<T> d;"
+             "  d.t = T();"
+             "}"
+             "void instantiate() { declToImport<int>(); }",
+             Lang_CXX, "", Lang_CXX, Verifier,
+             functionTemplateDecl(has(functionDecl(has(compoundStmt(has(
+                 binaryOperator(has(cxxUnresolvedConstructExpr())))))))));
+  testImport("template <typename T> class C { T t; };"
+             "template <typename T> void declToImport() {"
+             "  C<T> d;"
+             "  (&d)->t = T();"
+             "}"
+             "void instantiate() { declToImport<int>(); }",
+             Lang_CXX, "", Lang_CXX, Verifier,
+             functionTemplateDecl(has(functionDecl(has(compoundStmt(has(
+                 binaryOperator(has(cxxUnresolvedConstructExpr())))))))));
+}
+
 } // end namespace ast_matchers
 } // end namespace clang
