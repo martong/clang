@@ -528,6 +528,33 @@ TEST(ImportType, ImportPackExpansion) {
                                          declRefExpr()))))))))));
 }
 
+const internal::VariadicDynCastAllOfMatcher<Stmt, SizeOfPackExpr>
+    sizeOfPackExpr;
+
+TEST(ImportExpr, ImportSizeOfPackExpr) {
+  MatchVerifier<Decl> Verifier;
+  EXPECT_TRUE(
+      testImport("template <typename... Ts>"
+                 "void declToImport() {"
+                 "  const int i = sizeof...(Ts);"
+                 "};",
+                 Lang_CXX11, "", Lang_CXX11, Verifier,
+                 functionTemplateDecl(has(functionDecl(hasBody(
+                     compoundStmt(has(declStmt(has(varDecl(hasInitializer(
+                         implicitCastExpr(has(sizeOfPackExpr()))))))))))))));
+  EXPECT_TRUE(testImport(
+      "template <typename... Ts>"
+      "using X = int[sizeof...(Ts)];"
+      "template <typename... Us>"
+      "struct Y {"
+      "  X<Us..., int, double, int, Us...> f;"
+      "};"
+      "Y<float, int> declToImport;",
+      Lang_CXX11, "", Lang_CXX11, Verifier,
+      varDecl(hasType(classTemplateSpecializationDecl(has(fieldDecl(hasType(
+          hasUnqualifiedDesugaredType(constantArrayType(hasSize(7)))))))))));
+}
+
 /// \brief Matches __builtin_types_compatible_p:
 /// GNU extension to check equivalent types
 /// Given
