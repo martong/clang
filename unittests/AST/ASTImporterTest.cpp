@@ -528,6 +528,24 @@ TEST(ImportType, ImportPackExpansion) {
                                          declRefExpr()))))))))));
 }
 
+const internal::VariadicDynCastAllOfMatcher<Type,
+                                            DependentTemplateSpecializationType>
+    dependentTemplateSpecializationType;
+
+TEST(ImportType, ImportDependentTemplateSpecialization) {
+  MatchVerifier<Decl> Verifier;
+  EXPECT_TRUE(testImport(
+      "template<typename T>"
+      "struct A;"
+      "template<typename T>"
+      "struct declToImport {"
+      "  typename A<T>::template B<T> a;"
+      "};",
+      Lang_CXX, "", Lang_CXX, Verifier,
+      classTemplateDecl(has(cxxRecordDecl(
+          has(fieldDecl(hasType(dependentTemplateSpecializationType()))))))));
+}
+
 const internal::VariadicDynCastAllOfMatcher<Stmt, SizeOfPackExpr>
     sizeOfPackExpr;
 

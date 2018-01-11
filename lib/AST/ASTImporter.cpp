@@ -78,7 +78,8 @@ namespace clang {
     QualType VisitElaboratedType(const ElaboratedType *T);
     QualType VisitDependentNameType(const DependentNameType *T);
     QualType VisitPackExpansionType(const PackExpansionType *T);
-    // FIXME: DependentTemplateSpecializationType
+    QualType VisitDependentTemplateSpecializationType(
+        const DependentTemplateSpecializationType *T);
     QualType VisitObjCInterfaceType(const ObjCInterfaceType *T);
     QualType VisitObjCObjectType(const ObjCObjectType *T);
     QualType VisitObjCObjectPointerType(const ObjCObjectPointerType *T);
@@ -854,6 +855,25 @@ QualType ASTNodeImporter::VisitPackExpansionType(const PackExpansionType *T) {
 
   return Importer.getToContext().getPackExpansionType(Pattern,
                                                       T->getNumExpansions());
+}
+
+QualType ASTNodeImporter::VisitDependentTemplateSpecializationType(
+    const DependentTemplateSpecializationType *T) {
+  NestedNameSpecifier *Qualifier = Importer.Import(T->getQualifier());
+  if (!Qualifier && T->getQualifier())
+    return QualType();
+
+  IdentifierInfo *Name = Importer.Import(T->getIdentifier());
+  if (!Name && T->getIdentifier())
+    return QualType();
+
+  SmallVector<TemplateArgument, 2> ToPack;
+  ToPack.reserve(T->getNumArgs());
+  if (ImportTemplateArguments(T->getArgs(), T->getNumArgs(), ToPack))
+    return QualType();
+
+  return Importer.getToContext().getDependentTemplateSpecializationType(
+        T->getKeyword(), Qualifier, Name, ToPack);
 }
 
 QualType ASTNodeImporter::VisitObjCInterfaceType(const ObjCInterfaceType *T) {
