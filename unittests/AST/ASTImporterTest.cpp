@@ -473,6 +473,17 @@ TEST(ImportExpr, ImportVAArgExpr) {
                       vaArgExpr()))))))));
 }
 
+TEST(ImportExpr, CXXTemporaryObjectExpr) {
+  MatchVerifier<Decl> Verifier;
+  EXPECT_TRUE(testImport(
+      "struct C {};"
+      "void declToImport() { C c = C(); }",
+      Lang_CXX, "", Lang_CXX, Verifier,
+      functionDecl(hasBody(compoundStmt(
+          has(declStmt(has(varDecl(has(exprWithCleanups(has(cxxConstructExpr(
+              has(materializeTemporaryExpr(has(implicitCastExpr(
+                  has(cxxTemporaryObjectExpr()))))))))))))))))));
+}
 
 TEST(ImportType, ImportAtomicType) {
   MatchVerifier<Decl> Verifier;
