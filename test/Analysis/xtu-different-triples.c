@@ -4,7 +4,7 @@
 // RUN: %clang_cc1 -triple powerpc64-montavista-linux-gnu -fsyntax-only -std=c89 -analyze -analyzer-checker=core,debug.ExprInspection -analyzer-config xtu-dir=%T/xtudir3 -verify %s
 
 // We expect an error in this file, but without a location.
-// expected-error-re@./xtu-different-triples.c:*{{imported AST from {{.*}} had been generated for a different target}}
+// expected-error-re@./xtu-different-triples.c:*{{imported AST from {{.*}} had been generated for a different target, current: powerpc64-montavista-linux-gnu, imported: x86_64-pc-linux-gnu}}
 
 int f(int);
 

@@ -235,5 +235,5 @@ def err_fnmap_absolute : Error<
   "error parsing CrossTU index file: '%0' line: %1 Path needs to be absolute "
   "in reparse mode">;
 def err_ctu_incompat_triple : Error<
-  "imported AST from '%0' had been generated for a different target">;
+  "imported AST from '%0' had been generated for a different target, current: %1, imported: %2">;
 }

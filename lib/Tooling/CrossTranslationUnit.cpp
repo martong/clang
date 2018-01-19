@@ -43,6 +43,36 @@ STATISTIC(NumUnsupportedNodeFound, "The # of imports when the ASTImporter "
                                    "encountered an unsupported AST Node");
 }
 
+namespace llvm {
+// Same as Triple's equality operator, but we check a field only if that is
+// known in both instances.
+bool hasEqualKnownFields(const Triple &Lhs, const Triple &Rhs) {
+  return ((Lhs.getArch() != Triple::UnknownArch &&
+           Rhs.getArch() != Triple::UnknownArch)
+              ? Lhs.getArch() == Rhs.getArch()
+              : true) &&
+         ((Lhs.getSubArch() != Triple::NoSubArch &&
+           Rhs.getSubArch() != Triple::NoSubArch)
+              ? Lhs.getSubArch() == Rhs.getSubArch()
+              : true) &&
+         ((Lhs.getVendor() != Triple::UnknownVendor &&
+           Rhs.getVendor() != Triple::UnknownVendor)
+              ? Lhs.getVendor() == Rhs.getVendor()
+              : true) &&
+         ((Lhs.getOS() != Triple::UnknownOS && Rhs.getOS() != Triple::UnknownOS)
+              ? Lhs.getOS() == Rhs.getOS()
+              : true) &&
+         ((Lhs.getEnvironment() != Triple::UnknownEnvironment &&
+           Rhs.getEnvironment() != Triple::UnknownEnvironment)
+              ? Lhs.getEnvironment() == Rhs.getEnvironment()
+              : true) &&
+         ((Lhs.getObjectFormat() != Triple::UnknownObjectFormat &&
+           Rhs.getObjectFormat() != Triple::UnknownObjectFormat)
+              ? Lhs.getObjectFormat() == Rhs.getObjectFormat()
+              : true);
+}
+}
+
 namespace clang {
 namespace tooling {
 
@@ -183,13 +213,19 @@ const FunctionDecl *CrossTranslationUnit::getCrossTUDefinition(
                      << SourceFileName << "\n";
       }
 
+      const auto& TripleTo = Context.getTargetInfo().getTriple();
+      const auto& TripleFrom = Unit->getASTContext().getTargetInfo().getTriple();
       // The imported AST had been generated for a different target
-      if (Context.getTargetInfo().getTriple() !=
-          Unit->getASTContext().getTargetInfo().getTriple()) {
+      // TODO use equality operator. Note, for some unknown reason when we do
+      // in-memory/on-the-fly CTU (i.e when the compilation db is given) some
+      // parts of the triple in the loaded ASTContext can be unknown while the
+      // very same parts in the target ASTContext are known. Thus we check for
+      // the known parts only.
+      if (!hasEqualKnownFields(TripleTo, TripleFrom)) {
         // TODO pass the SourceLocation of the CallExpression for more precise
         // diagnostics
         Context.getDiagnostics().Report(diag::err_ctu_incompat_triple)
-            << ASTFileName;
+            << ASTFileName << TripleTo.str() << TripleFrom.str();
         return nullptr;
       }
 
