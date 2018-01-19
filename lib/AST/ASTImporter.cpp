@@ -5691,6 +5691,11 @@ Expr *ASTNodeImporter::VisitCXXTemporaryObjectExpr(CXXTemporaryObjectExpr *CE) {
   if (T.isNull())
     return nullptr;
 
+
+  TypeSourceInfo *TInfo = Importer.Import(CE->getTypeSourceInfo());
+  if (!TInfo)
+    return nullptr;
+
   SmallVector<Expr *, 8> Args(CE->getNumArgs());
   if (ImportContainerChecked(CE->arguments(), Args))
     return nullptr;
@@ -5700,18 +5705,11 @@ Expr *ASTNodeImporter::VisitCXXTemporaryObjectExpr(CXXTemporaryObjectExpr *CE) {
   if (!Ctor)
     return nullptr;
 
-  return CXXTemporaryObjectExpr::Create(
-        Importer.getToContext(), T,
-        Importer.Import(CE->getLocStart()),
-        Ctor,
-        CE->isElidable(),
-        Args,
-        CE->hadMultipleCandidates(),
-        CE->isListInitialization(),
-        CE->isStdInitListInitialization(),
-        CE->requiresZeroInitialization(),
-        CE->getConstructionKind(),
-        Importer.Import(CE->getParenOrBraceRange()));
+  return new (Importer.getToContext()) CXXTemporaryObjectExpr(
+      Importer.getToContext(), Ctor, T, TInfo, Args,
+      Importer.Import(CE->getParenOrBraceRange()), CE->hadMultipleCandidates(),
+      CE->isListInitialization(), CE->isStdInitListInitialization(),
+      CE->requiresZeroInitialization());
 }
 
 Expr *
