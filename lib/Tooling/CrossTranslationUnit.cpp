@@ -207,8 +207,11 @@ const FunctionDecl *CrossTranslationUnit::getCrossTUDefinition(
       FileASTUnitMap[ASTFileName] = std::move(LoadedUnit);
 
       if (DisplayCtuProgress) {
-        // Drop the '.ast' extension
-        StringRef SourceFileName = ASTFileName.drop_back(4);
+        StringRef SourceFileName = ASTFileName;
+        if (CompilationDatabase.empty()) {
+          // Drop the '.ast' extension
+          SourceFileName = ASTFileName.drop_back(4);
+        }
         llvm::errs() << "ANALYZE (CTU loaded AST for source file): "
                      << SourceFileName << "\n";
       }
