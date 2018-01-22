@@ -499,12 +499,6 @@ TEST(ImportType, ImportAtomicType) {
                                        has(atomicType()))))))))));
 }
 
-TEST(ImportDecl, ImportFunctionTemplateDecl) {
-  MatchVerifier<Decl> Verifier;
-  testImport("template <typename T> void declToImport() { };", Lang_CXX, "",
-             Lang_CXX, Verifier, functionTemplateDecl());
-}
-
 const internal::VariadicDynCastAllOfMatcher<Expr, CXXDependentScopeMemberExpr>
     cxxDependentScopeMemberExpr;
 
@@ -726,56 +720,6 @@ class _Mem_fn<_Res _Class::*> {
           )s",
       Lang_CXX, "",
       Lang_CXX, Verifier, namespaceDecl()));
-}
-
-TEST(ImportExpr, ImportUnresolvedLookupExpr) {
-MatchVerifier<Decl> Verifier;
-EXPECT_TRUE(
-        testImport(
-        "template<typename T> int foo();"
-                "template <typename T> void declToImport() {"
-                "  ::foo<T>;"
-                "  ::template foo<T>;"
-                "}",
-        Lang_CXX, "", Lang_CXX, Verifier,
-        functionTemplateDecl(
-                has(functionDecl(
-                        has(compoundStmt(has(unresolvedLookupExpr()))))))));
-}
-
-
-TEST(ImportExpr, ImportCXXDependentScopeMemberExpr) {
-  MatchVerifier<Decl> Verifier;
-  EXPECT_TRUE(
-        testImport(
-          "template <typename T> class C { T t; };"
-          "template <typename T> void declToImport() {"
-            "C<T> d;"
-            "d.t = T();"
-          "}",
-          Lang_CXX, "", Lang_CXX, Verifier,
-          functionTemplateDecl(
-            has(
-              functionDecl(
-                has(
-                  compoundStmt(
-                    has(
-                      binaryOperator()))))))));
-  EXPECT_TRUE(
-        testImport(
-          "template <typename T> class C { T t; };"
-          "template <typename T> void declToImport() {"
-            "C<T> d;"
-            "(&d)->t = T();"
-          "}",
-          Lang_CXX, "", Lang_CXX, Verifier,
-          functionTemplateDecl(
-            has(
-              functionDecl(
-                has(
-                  compoundStmt(
-                    has(
-                      binaryOperator()))))))));
 }
 
 const internal::VariadicDynCastAllOfMatcher<Expr, UnresolvedMemberExpr>

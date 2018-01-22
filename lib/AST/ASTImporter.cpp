@@ -146,7 +146,6 @@ namespace clang {
     bool IsStructuralMatch(EnumDecl *FromEnum, EnumDecl *ToRecord,
                            bool Complain = true);
     bool IsStructuralMatch(FunctionDecl *From, FunctionDecl *To);
-    bool IsStructuralMatch(FunctionTemplateDecl *From, FunctionTemplateDecl *To);
     bool IsStructuralMatch(EnumConstantDecl *FromEC, EnumConstantDecl *ToEC);
     bool IsStructuralMatch(FunctionTemplateDecl *From,
                            FunctionTemplateDecl *To);
