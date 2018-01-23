@@ -1028,18 +1028,43 @@ void ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport,
     Importer.ImportContext(FromDC);
     return;
   }
-  llvm::SmallVector<Decl*, 8> Decls;
-  for (auto *From : FromDC->decls())
-    Decls.push_back(Importer.Import(From));
-  if (ToDC) {
-    // Restore the order.
-    for (auto *D : Decls) {
-      if (D && D->getLexicalDeclContext() == ToDC)
-        ToDC->removeDecl(D);
+  llvm::SmallVector<Decl*, 8> ImportedDecls;
+  for (Decl *From : FromDC->decls())
+    ImportedDecls.push_back(Importer.Import(From));
+
+  if (ToDC) { // Restore the order. O(n*n) in worst case, because the remove.
+
+    llvm::SmallDenseSet<Decl *, 2> MissingDecls;
+
+    // Frist, remove all declarations, which may be in wrong order in the
+    // lexical DeclContext.
+    for (Decl *ToD : ImportedDecls) { // O(n)
+      if (ToD && ToD->getLexicalDeclContext() == ToDC) {
+        if (ToDC->containsDecl(ToD)) { // containsDecl is O(1)
+          ToDC->removeDecl(ToD);       // O(n)
+        } else {
+          MissingDecls.insert(ToD);
+
+          const SourceLocation &Loc = ToD->getLocation();
+          const SourceManager &SM = ToD->getASTContext().getSourceManager();
+          SourceLocation SpellingLoc = SM.getSpellingLoc(Loc);
+          PresumedLoc PLoc = SM.getPresumedLoc(SpellingLoc);
+
+          FromDC->getParentASTContext().getDiagnostics().Report(
+              diag::warn_ast_importer_missing_decl_in_decl_context)
+              << ToD->getDeclKindName() << PLoc.getFilename() << PLoc.getLine()
+              << PLoc.getColumn();
+        }
+      }
     }
-    for (auto *D : Decls) {
-      if (D && D->getLexicalDeclContext() == ToDC)
-        ToDC->addDeclInternal(D);
+    // Add the declarations, but this time in the correct order.
+    for (Decl *ToD : ImportedDecls) {
+      if (ToD && ToD->getLexicalDeclContext() == ToDC) {
+        // FIXME remove this if, when all Decls are properly imported
+        if (MissingDecls.count(ToD) == 0) {
+          ToDC->addDeclInternal(ToD);
+        }
+      }
     }
   }
 }
