@@ -1764,7 +1764,8 @@ Decl *ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
   ToTypedef->setAccess(D->getAccess());
   ToTypedef->setLexicalDeclContext(LexicalDC);
   Importer.Imported(D, ToTypedef);
-  LexicalDC->addDeclInternal(ToTypedef);
+  if (D->getDescribedTemplate())
+    LexicalDC->addDeclInternal(ToTypedef);
 
   return ToTypedef;
 }
@@ -1831,7 +1832,7 @@ Decl *ASTNodeImporter::VisitTypeAliasTemplateDecl(TypeAliasTemplateDecl *D) {
   ToAlias->setLexicalDeclContext(LexicalDC);
   Importer.Imported(D, ToAlias);
   LexicalDC->addDeclInternal(ToAlias);
-  return ToD;
+  return ToAlias;
 }
 
 Decl *ASTNodeImporter::VisitLabelDecl(LabelDecl *D) {
