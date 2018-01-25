@@ -1764,7 +1764,7 @@ Decl *ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
   ToTypedef->setAccess(D->getAccess());
   ToTypedef->setLexicalDeclContext(LexicalDC);
   Importer.Imported(D, ToTypedef);
-  if (D->getDescribedTemplate())
+  if (!D->getDescribedTemplate())
     LexicalDC->addDeclInternal(ToTypedef);
 
   return ToTypedef;
