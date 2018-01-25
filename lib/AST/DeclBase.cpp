@@ -215,6 +215,8 @@ TemplateDecl *Decl::getDescribedTemplate() const {
     return RD->getDescribedClassTemplate();
   else if (auto *VD = dyn_cast<VarDecl>(this))
     return VD->getDescribedVarTemplate();
+  else if (auto *AD = dyn_cast<TypeAliasDecl>(this))
+    return AD->getDescribedAliasTemplate();
 
   return nullptr;
 }
