@@ -11,9 +11,9 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "MatchVerifier.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTImporter.h"
-#include "MatchVerifier.h"
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Tooling/Tooling.h"
@@ -87,7 +87,11 @@ testImport(const std::string &FromCode, Language FromLang,
   if (FoundDecls.size() != 1)
     return testing::AssertionFailure() << "Multiple declarations were found!";
 
-  auto Imported = Importer.Import(*FoundDecls.begin());
+  // Sanity check: the node being imported should match in the same way as
+  // the result node.
+  EXPECT_TRUE(Verifier.match(FoundDecls.front(), AMatcher));
+
+  auto Imported = Importer.Import(FoundDecls.front());
   if (!Imported)
     return testing::AssertionFailure() << "Import failed, nullptr returned!";
 
@@ -99,6 +103,53 @@ testImport(const std::string &FromCode, Language FromLang,
 
   return Verifier.match(Imported, AMatcher);
 }
+
+struct Fixture : ::testing::Test {
+
+  std::unique_ptr<ASTUnit> FromAST, ToAST;
+
+  std::tuple<Decl*, Decl*> getImportedDecl(const std::string &FromCode, Language FromLang,
+                        const std::string &ToCode, Language ToLang) {
+    StringVector FromArgs, ToArgs;
+    getLangArgs(FromLang, FromArgs);
+    getLangArgs(ToLang, ToArgs);
+
+    const char *const InputFileName = "input.cc";
+    const char *const OutputFileName = "output.cc";
+
+    FromAST =
+        tooling::buildASTFromCodeWithArgs(FromCode, FromArgs, InputFileName),
+    ToAST = tooling::buildASTFromCodeWithArgs(ToCode, ToArgs, OutputFileName);
+
+    ASTContext &FromCtx = FromAST->getASTContext(),
+               &ToCtx = ToAST->getASTContext();
+
+    // Add input.cc to virtual file system so importer can 'find' it
+    // while importing SourceLocations.
+    vfs::OverlayFileSystem *OFS = static_cast<vfs::OverlayFileSystem *>(
+        ToCtx.getSourceManager().getFileManager().getVirtualFileSystem().get());
+    vfs::InMemoryFileSystem *MFS =
+        static_cast<vfs::InMemoryFileSystem *>(OFS->overlays_begin()->get());
+    MFS->addFile(InputFileName, 0, llvm::MemoryBuffer::getMemBuffer(FromCode));
+
+    ASTImporter Importer(ToCtx, ToAST->getFileManager(), FromCtx,
+                         FromAST->getFileManager(), false);
+
+    IdentifierInfo *ImportedII = &FromCtx.Idents.get("declToImport");
+    assert(ImportedII && "Declaration with 'declToImport' name"
+                         "should be specified in test!");
+    DeclarationName ImportDeclName(ImportedII);
+    SmallVector<NamedDecl *, 4> FoundDecls;
+    FromCtx.getTranslationUnitDecl()->localUncachedLookup(ImportDeclName,
+                                                          FoundDecls);
+
+    assert(FoundDecls.size() == 1);
+
+    Decl *Imported = Importer.Import(*FoundDecls.begin());
+    assert(Imported);
+    return {*FoundDecls.begin(), Imported};
+  }
+};
 
 TEST(ImportExpr, ImportStringLiteral) {
   MatchVerifier<Decl> Verifier;
@@ -814,13 +865,13 @@ TEST(ImportExpr, ImportUnresolvedLookupExpr) {
              "}"
              "void instantiate() { declToImport<int>(); }",
              Lang_CXX, "", Lang_CXX, Verifier,
-             functionTemplateDecl(has(functionDecl(has(
-                 compoundStmt(has(unresolvedLookupExpr())))))));
+             functionTemplateDecl(has(functionDecl(
+                 has(compoundStmt(has(unresolvedLookupExpr())))))));
 }
 
 TEST(ImportExpr, ImportCXXUnresolvedConstructExpr) {
   MatchVerifier<Decl> Verifier;
-  testImport("template <typename T> class C { T t; };"
+  testImport("template <typename T> struct C { T t; };"
              "template <typename T> void declToImport() {"
              "  C<T> d;"
              "  d.t = T();"
@@ -829,7 +880,7 @@ TEST(ImportExpr, ImportCXXUnresolvedConstructExpr) {
              Lang_CXX, "", Lang_CXX, Verifier,
              functionTemplateDecl(has(functionDecl(has(compoundStmt(has(
                  binaryOperator(has(cxxUnresolvedConstructExpr())))))))));
-  testImport("template <typename T> class C { T t; };"
+  testImport("template <typename T> struct C { T t; };"
              "template <typename T> void declToImport() {"
              "  C<T> d;"
              "  (&d)->t = T();"
@@ -838,6 +889,106 @@ TEST(ImportExpr, ImportCXXUnresolvedConstructExpr) {
              Lang_CXX, "", Lang_CXX, Verifier,
              functionTemplateDecl(has(functionDecl(has(compoundStmt(has(
                  binaryOperator(has(cxxUnresolvedConstructExpr())))))))));
+}
+
+/// Check that function "declToImport()" (which is the templated function
+/// for corresponding FunctionTemplateDecl) is not added into DeclContext.
+/// Same for class template declarations.
+TEST(ImportDecl, ImportTemplatedDeclForTemplate) {
+  MatchVerifier<Decl> Verifier;
+  testImport("template <typename T> void declToImport() { T a = 1; }"
+             "void instantiate() { declToImport<int>(); }",
+             Lang_CXX, "", Lang_CXX, Verifier,
+             functionTemplateDecl(hasAncestor(translationUnitDecl(
+                 unless(has(functionDecl(hasName("declToImport"))))))));
+  testImport("template <typename T> struct declToImport { T t; };"
+             "void instantiate() { declToImport<int>(); }",
+             Lang_CXX, "", Lang_CXX, Verifier,
+             classTemplateDecl(hasAncestor(translationUnitDecl(
+                 unless(has(cxxRecordDecl(hasName("declToImport"))))))));
+}
+
+TEST_F(Fixture, TUshouldNotContainTemplatedDeclOfFunctionTemplates) {
+
+  Decl *From, *To;
+  std::tie(From, To) =
+      getImportedDecl("template <typename T> void declToImport() { T a = 1; }"
+                      "void instantiate() { declToImport<int>(); }",
+                      Lang_CXX, "", Lang_CXX);
+
+  auto Check = [](Decl *D) -> bool {
+    auto TU = D->getTranslationUnitDecl();
+    for (auto Child : TU->decls()) {
+      if (FunctionDecl *FD = dyn_cast<FunctionDecl>(Child)) {
+        if (FD->getNameAsString() == "declToImport") {
+          GTEST_NONFATAL_FAILURE_(
+              "TU should not contain any FunctionDecl with name declToImport");
+          TU->dump();
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  assert(Check(From));
+  Check(To);
+}
+
+TEST_F(Fixture, TUshouldNotContainTemplatedDeclOfClassTemplates) {
+
+  Decl *From, *To;
+  std::tie(From, To) =
+      getImportedDecl("template <typename T> struct declToImport { T t; };"
+                      "void instantiate() { declToImport<int>(); }",
+                      Lang_CXX, "", Lang_CXX);
+
+  auto Check = [](Decl *D) -> bool {
+    auto TU = D->getTranslationUnitDecl();
+    for (auto Child : TU->decls()) {
+      if (CXXRecordDecl *RD = dyn_cast<CXXRecordDecl>(Child)) {
+        if (RD->getNameAsString() == "declToImport") {
+          GTEST_NONFATAL_FAILURE_(
+              "TU should not contain any CXXRecordDecl with name declToImport");
+          TU->dump();
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  assert(Check(From));
+  Check(To);
+}
+
+TEST_F(Fixture, TUshouldNotContainTemplatedDeclOfTypeAlias) {
+
+  Decl *From, *To;
+  std::tie(From, To) =
+      getImportedDecl(
+          "template <typename T> struct X {};"
+          "template <typename T> using declToImport = X<T>;"
+          "void instantiate() { declToImport<int> a; }",
+                      Lang_CXX11, "", Lang_CXX11);
+
+  auto Check = [](Decl *D) -> bool {
+    auto TU = D->getTranslationUnitDecl();
+    for (auto Child : TU->decls()) {
+      if (TypeAliasDecl *AD = dyn_cast<TypeAliasDecl>(Child)) {
+        if (AD->getNameAsString() == "declToImport") {
+          GTEST_NONFATAL_FAILURE_(
+              "TU should not contain any TypeAliasDecl with name declToImport");
+          TU->dump();
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  assert(Check(From));
+  Check(To);
 }
 
 } // end namespace ast_matchers

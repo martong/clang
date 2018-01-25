@@ -1354,6 +1354,17 @@ bool StructuralEquivalenceContext::IsStructurallyEquivalent(QualType T1,
   return !Finish();
 }
 
+static bool IsTemplateDeclStructurallyEquivalent(
+    StructuralEquivalenceContext &Ctx, TemplateDecl *D1, TemplateDecl *D2) {
+  if (!IsStructurallyEquivalent(D1->getIdentifier(), D2->getIdentifier()))
+    return false;
+  if (!D1->getIdentifier()) // Special name
+    if (D1->getNameAsString() != D2->getNameAsString())
+      return false;
+  return IsStructurallyEquivalent(Ctx, D1->getTemplateParameters(),
+                                  D2->getTemplateParameters());
+}
+
 bool StructuralEquivalenceContext::Finish() {
   while (!DeclsToCheck.empty()) {
     // Check the next declaration.
@@ -1413,9 +1424,29 @@ bool StructuralEquivalenceContext::Finish() {
     } else if (ClassTemplateDecl *ClassTemplate1 =
                    dyn_cast<ClassTemplateDecl>(D1)) {
       if (ClassTemplateDecl *ClassTemplate2 = dyn_cast<ClassTemplateDecl>(D2)) {
-        if (!::IsStructurallyEquivalent(ClassTemplate1->getIdentifier(),
-                                        ClassTemplate2->getIdentifier()) ||
-            !::IsStructurallyEquivalent(*this, ClassTemplate1, ClassTemplate2))
+        if (!::IsTemplateDeclStructurallyEquivalent(*this, ClassTemplate1,
+                                                    ClassTemplate2) ||
+            !::IsStructurallyEquivalent(*this, ClassTemplate1,
+                                        ClassTemplate2) ||
+            !::IsStructurallyEquivalent(
+              *this, ClassTemplate1->getTemplatedDecl(),
+              ClassTemplate2->getTemplatedDecl()))
+          Equivalent = false;
+      } else {
+        // Class template/non-class-template mismatch.
+        Equivalent = false;
+      }
+    } else if (FunctionTemplateDecl *FunctionTemplate1 =
+               dyn_cast<FunctionTemplateDecl>(D1)) {
+      if (FunctionTemplateDecl *FunctionTemplate2 =
+          dyn_cast<FunctionTemplateDecl>(D2)) {
+        if (!::IsTemplateDeclStructurallyEquivalent(*this, FunctionTemplate1,
+                                                    FunctionTemplate2) ||
+            !::IsStructurallyEquivalent(*this, FunctionTemplate1,
+                                        FunctionTemplate2) ||
+            !::IsStructurallyEquivalent(
+              *this, FunctionTemplate1->getTemplatedDecl()->getType(),
+              FunctionTemplate2->getTemplatedDecl()->getType()))
           Equivalent = false;
       } else {
         // Class template/non-class-template mismatch.
