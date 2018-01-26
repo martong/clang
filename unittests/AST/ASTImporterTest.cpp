@@ -1066,5 +1066,21 @@ TEST_F(Fixture,
   Check(To);
 }
 
+TEST_F(Fixture, ShouldImportImplicitCXXRecordDecl) {
+  Decl *From, *To;
+  std::tie(From, To) = getImportedDecl(
+    R"(
+    template <typename U>
+    struct declToImport {
+    };
+    )",Lang_CXX, "", Lang_CXX);
+
+  MatchVerifier<Decl> Verifier;
+  // matches the implicit decl
+  auto Matcher = classTemplateDecl(has(cxxRecordDecl(has(cxxRecordDecl()))));
+  ASSERT_TRUE(Verifier.match(From, Matcher));
+  EXPECT_TRUE(Verifier.match(To, Matcher));
+}
+
 } // end namespace ast_matchers
 } // end namespace clang

@@ -2103,7 +2103,7 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
       D2 = D2CXX;
       D2->setAccess(D->getAccess());
       D2->setLexicalDeclContext(LexicalDC);
-      if (!DCXX->getDescribedClassTemplate())
+      if (!DCXX->getDescribedClassTemplate() || DCXX->isImplicit())
         LexicalDC->addDeclInternal(D2);
 
       Importer.Imported(D, D2);
@@ -4171,6 +4171,7 @@ Decl *ASTNodeImporter::VisitClassTemplateDecl(ClassTemplateDecl *D) {
   
   D2->setAccess(D->getAccess());
   D2->setLexicalDeclContext(LexicalDC);
+  ToTemplated->setLexicalDeclContext(LexicalDC);
   LexicalDC->addDeclInternal(D2);
   
   // Note the relationship between the class templates.
