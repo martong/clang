@@ -991,5 +991,80 @@ TEST_F(Fixture, TUshouldNotContainTemplatedDeclOfTypeAlias) {
   Check(To);
 }
 
+TEST_F(Fixture, CXXRecordDeclFieldsShouldBeInCorrectOrder) {
+
+
+  Decl *From, *To;
+  std::tie(From, To) =
+      getImportedDecl(
+          "struct declToImport { int a; int b; };",
+                      Lang_CXX11, "", Lang_CXX11);
+
+  MatchVerifier<Decl> Verifier;
+  ASSERT_TRUE(Verifier.match(From, cxxRecordDecl(has(fieldDecl()))));
+  ASSERT_TRUE(Verifier.match(To, cxxRecordDecl(has(fieldDecl()))));
+
+  auto Check = [](Decl *D) -> bool {
+    std::array<const char*, 2> FieldNamesInOrder{{"a", "b"}};
+    int i = 0;
+    for (auto Child : cast<DeclContext>(D)->decls()) {
+      if (FieldDecl *FD = dyn_cast<FieldDecl>(Child)) {
+        if (FD->getNameAsString() != FieldNamesInOrder[i++]) {
+          GTEST_NONFATAL_FAILURE_(
+              "Fields are in wrong order");
+          cast<DeclContext>(D)->dumpDeclContext();
+          D->dump();
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  assert(Check(From));
+  Check(To);
+}
+
+TEST_F(Fixture,
+    CXXRecordDeclFieldsShouldBeInCorrectOrderEvenWhenWeImportFirstTheLastDecl) {
+
+  Decl *From, *To;
+  std::tie(From, To) = getImportedDecl(
+      // The original recursive algorithm of ASTImporter first imports 'c' then
+      // 'b' and lastly 'a'.  Therefore we must restore the order somehow.
+      R"s(
+      struct declToImport {
+          int a = c + b;
+          int b = 1;
+          int c = 2;
+      };
+      )s",
+      Lang_CXX11, "", Lang_CXX11);
+
+  MatchVerifier<Decl> Verifier;
+  ASSERT_TRUE(Verifier.match(From, cxxRecordDecl(has(fieldDecl()))));
+  ASSERT_TRUE(Verifier.match(To, cxxRecordDecl(has(fieldDecl()))));
+
+  auto Check = [](Decl *D) -> bool {
+    std::array<const char*, 3> FieldNamesInOrder{{"a", "b", "c"}};
+    int i = 0;
+    for (auto Child : cast<DeclContext>(D)->decls()) {
+      if (FieldDecl *FD = dyn_cast<FieldDecl>(Child)) {
+        if (FD->getNameAsString() != FieldNamesInOrder[i++]) {
+          GTEST_NONFATAL_FAILURE_(
+              "Fields are in wrong order");
+          cast<DeclContext>(D)->dumpDeclContext();
+          D->dump();
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  assert(Check(From));
+  Check(To);
+}
+
 } // end namespace ast_matchers
 } // end namespace clang
