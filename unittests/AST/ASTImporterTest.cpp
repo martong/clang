@@ -107,15 +107,16 @@ testImport(const std::string &FromCode, Language FromLang,
 struct Fixture : ::testing::Test {
 
   std::unique_ptr<ASTUnit> FromAST, ToAST;
+  const char *const InputFileName = "input.cc";
+  const char *const OutputFileName = "output.cc";
 
-  std::tuple<Decl*, Decl*> getImportedDecl(const std::string &FromCode, Language FromLang,
-                        const std::string &ToCode, Language ToLang) {
+  std::tuple<Decl *, Decl *>
+  getImportedDecl(const std::string &FromCode, Language FromLang,
+                  const std::string &ToCode, Language ToLang,
+                  const char *const Identifier = "declToImport") {
     StringVector FromArgs, ToArgs;
     getLangArgs(FromLang, FromArgs);
     getLangArgs(ToLang, ToArgs);
-
-    const char *const InputFileName = "input.cc";
-    const char *const OutputFileName = "output.cc";
 
     FromAST =
         tooling::buildASTFromCodeWithArgs(FromCode, FromArgs, InputFileName),
@@ -135,8 +136,8 @@ struct Fixture : ::testing::Test {
     ASTImporter Importer(ToCtx, ToAST->getFileManager(), FromCtx,
                          FromAST->getFileManager(), false);
 
-    IdentifierInfo *ImportedII = &FromCtx.Idents.get("declToImport");
-    assert(ImportedII && "Declaration with 'declToImport' name"
+    IdentifierInfo *ImportedII = &FromCtx.Idents.get(Identifier);
+    assert(ImportedII && "Declaration with the given identifier "
                          "should be specified in test!");
     DeclarationName ImportDeclName(ImportedII);
     SmallVector<NamedDecl *, 4> FoundDecls;
@@ -148,6 +149,26 @@ struct Fixture : ::testing::Test {
     Decl *Imported = Importer.Import(*FoundDecls.begin());
     assert(Imported);
     return std::make_tuple(*FoundDecls.begin(), Imported);
+  }
+
+  TranslationUnitDecl *getTuDecl(const std::string &Code, Language Lang) {
+    StringVector Args;
+    getLangArgs(Lang, Args);
+    FromAST = tooling::buildASTFromCodeWithArgs(Code, Args, InputFileName);
+    return FromAST->getASTContext().getTranslationUnitDecl();
+  }
+
+  Decl *Import(Decl *From, Language ToLang) {
+    assert(FromAST);
+    StringVector ToArgs;
+    getLangArgs(ToLang, ToArgs);
+    ToAST = tooling::buildASTFromCodeWithArgs("", ToArgs, OutputFileName);
+
+    ASTContext &FromCtx = FromAST->getASTContext(),
+               &ToCtx = ToAST->getASTContext();
+    ASTImporter Importer(ToCtx, ToAST->getFileManager(), FromCtx,
+                         FromAST->getFileManager(), false);
+    return Importer.Import(From);
   }
 };
 
@@ -1080,6 +1101,51 @@ TEST_F(Fixture, ShouldImportImplicitCXXRecordDecl) {
   auto Matcher = classTemplateDecl(has(cxxRecordDecl(has(cxxRecordDecl()))));
   ASSERT_TRUE(Verifier.match(From, Matcher));
   EXPECT_TRUE(Verifier.match(To, Matcher));
+}
+
+TEST_F(Fixture, IDNSOrdinary) {
+  Decl *From, *To;
+  std::tie(From, To) = getImportedDecl(
+    R"(
+    void declToImport() {}
+    )",Lang_CXX, "", Lang_CXX);
+
+  MatchVerifier<Decl> Verifier;
+  auto Matcher = functionDecl();
+  ASSERT_TRUE(Verifier.match(From, Matcher));
+  EXPECT_TRUE(Verifier.match(To, Matcher));
+  EXPECT_EQ(From->getIdentifierNamespace(), To->getIdentifierNamespace());
+}
+
+// Matcher class to retrieve the last matched node under a given AST.
+template <typename NodeType>
+class LastDeclMatcher : public MatchFinder::MatchCallback {
+  NodeType *Node = nullptr;
+  void run(const MatchFinder::MatchResult &Result) override {
+    Node = const_cast<NodeType *>(Result.Nodes.getNodeAs<NodeType>(""));
+  }
+
+public:
+  // Returns the last matched node under the tree rooted in `D`.
+  template <typename MatcherType>
+  NodeType *match(const Decl *D, const MatcherType &AMatcher) {
+    MatchFinder Finder;
+    Finder.addMatcher(AMatcher.bind(""), this);
+    Finder.matchAST(D->getASTContext());
+    assert(Node);
+    return Node;
+  }
+};
+
+TEST_F(Fixture, IDNSOfNonmemberOperator) {
+  Decl *FromTU = getTuDecl(
+    R"(
+    struct X {};
+    void operator<<(int, X);
+    )",Lang_CXX);
+  Decl* From = LastDeclMatcher<Decl>{}.match(FromTU, functionDecl());
+  const Decl* To = Import(From, Lang_CXX);
+  EXPECT_EQ(From->getIdentifierNamespace(), To->getIdentifierNamespace());
 }
 
 } // end namespace ast_matchers
