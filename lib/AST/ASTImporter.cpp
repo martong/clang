@@ -2747,11 +2747,8 @@ Decl *ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
   FriendDecl::FriendUnion ToFU;
   if (NamedDecl *FriendD = D->getFriendDecl()) {
     auto ToFriendD = cast_or_null<NamedDecl>(Importer.Import(FriendD));
-    if (ToFriendD && FriendD->getFriendObjectKind())
-      ToFriendD->setObjectOfFriendDecl();
-     ToFU = ToFriendD;
-  }
-  else
+    ToFU = ToFriendD;
+  } else
     ToFU = Importer.Import(D->getFriendType());
   if (!ToFU)
     return nullptr;
@@ -6734,7 +6731,8 @@ Decl *ASTImporter::Import(Decl *FromD) {
       }
     }
   }
-  
+
+  ToD->IdentifierNamespace = FromD->IdentifierNamespace;
   return ToD;
 }
 
