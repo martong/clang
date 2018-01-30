@@ -26,5 +26,5 @@ static_assert(sizeof(X0<int>().getValue(1)) == sizeof(int));
 // CHECK: class-template1.cpp:36:7: note: field 'member' has type 'int' here
 // CHECK: class-template2.cpp:36:9: note: field 'member' has type 'float' here
 
-// CHECK: 7 warnings generated.
+// CHECK: 6 warnings generated.
 // CHECK-NOT: static_assert
