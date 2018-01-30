@@ -147,7 +147,7 @@ struct Fixture : ::testing::Test {
 
     Decl *Imported = Importer.Import(*FoundDecls.begin());
     assert(Imported);
-    return {*FoundDecls.begin(), Imported};
+    return std::make_tuple(*FoundDecls.begin(), Imported);
   }
 };
 
