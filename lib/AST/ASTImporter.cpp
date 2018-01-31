@@ -313,6 +313,7 @@ namespace clang {
     Expr *VisitExprWithCleanups(ExprWithCleanups *EWC);
     Expr *VisitCXXThisExpr(CXXThisExpr *E);
     Expr *VisitCXXBoolLiteralExpr(CXXBoolLiteralExpr *E);
+    Expr *VisitCXXTypeidExpr(CXXTypeidExpr *E);
     Expr *VisitCXXPseudoDestructorExpr(CXXPseudoDestructorExpr *E);
     Expr *VisitMemberExpr(MemberExpr *E);
     Expr *VisitCallExpr(CallExpr *E);
@@ -6120,6 +6121,28 @@ Expr *ASTNodeImporter::VisitCXXBoolLiteralExpr(CXXBoolLiteralExpr *E) {
   
   return new (Importer.getToContext())
   CXXBoolLiteralExpr(E->getValue(), T, Importer.Import(E->getLocation()));
+}
+
+Expr *ASTNodeImporter::VisitCXXTypeidExpr(CXXTypeidExpr *E) {
+  QualType T = Importer.Import(E->getType());
+  if (T.isNull())
+    return nullptr;
+  
+  if (E->isTypeOperand()) {
+    TypeSourceInfo *Operand = Importer.Import(E->getTypeOperandSourceInfo());
+    if (!Operand)
+      return nullptr;
+
+    return new (Importer.getToContext())
+    CXXTypeidExpr(T, Operand, Importer.Import(E->getSourceRange()));
+  } else {
+    Expr *Operand = Importer.Import(E->getExprOperand());
+    if (!Operand)
+      return nullptr;
+
+    return new (Importer.getToContext())
+    CXXTypeidExpr(T, Operand, Importer.Import(E->getSourceRange()));
+  }
 }
 
 

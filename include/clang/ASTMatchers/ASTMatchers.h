@@ -5700,6 +5700,20 @@ AST_MATCHER(NamedDecl, hasExternalFormalLinkage) {
   return Node.hasExternalFormalLinkage();
 }
 
+/// \brief Matches implicit and explicit this expressions.
+///
+/// Example matches both "typeid Foo" and "typeid f".
+///     (matcher = cxxTypeidExpr())
+/// \code
+/// class Foo {} f;
+///
+/// void f() {
+///   typeid Foo;
+///   typeid f;
+/// }
+/// \endcode
+const internal::VariadicDynCastAllOfMatcher<Stmt, CXXTypeidExpr> cxxTypeidExpr;
+
 } // end namespace ast_matchers
 } // end namespace clang
 

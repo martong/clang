@@ -84,7 +84,10 @@ testImport(const std::string &FromCode, Language FromLang,
   FromCtx.getTranslationUnitDecl()->localUncachedLookup(
         ImportDeclName, FoundDecls);
 
-  if (FoundDecls.size() != 1)
+  if (FoundDecls.size() == 0)
+    return testing::AssertionFailure() << "No declarations were found!";
+
+  if (FoundDecls.size() > 1)
     return testing::AssertionFailure() << "Multiple declarations were found!";
 
   // Sanity check: the node being imported should match in the same way as
@@ -748,24 +751,21 @@ TEST(ImportDecl, ImportFunctionTemplateDecl) {
 
 TEST(ImportExpr, ImportClassTemplatePartialSpecialization) {
   MatchVerifier<Decl> Verifier;
-  EXPECT_TRUE(testImport(
-      R"s(
+  auto Code =  R"s(
 struct declToImport {
   template <typename T0>
   struct X;
-
-  template <typename T0>
+   template <typename T0>
   struct X<T0*> {};
 };
-          )s",
-      Lang_CXX, "",
-      Lang_CXX, Verifier, recordDecl()));
+                   )s";
+
+  EXPECT_TRUE(testImport(Code, Lang_CXX, "", Lang_CXX, Verifier, recordDecl()));
 }
 
 TEST(ImportExpr, ImportClassTemplatePartialSpecializationComplex) {
   MatchVerifier<Decl> Verifier;
-  EXPECT_TRUE(testImport(
-      R"s(
+  auto Code = R"s(
 // excerpt from <functional>
 
 namespace declToImport {
@@ -789,9 +789,10 @@ class _Mem_fn<_Res _Class::*> {
 };
 
 } // namespace
-          )s",
-      Lang_CXX, "",
-      Lang_CXX, Verifier, namespaceDecl()));
+                  )s";
+
+  EXPECT_TRUE(testImport(Code, Lang_CXX, "", Lang_CXX, Verifier,
+                         namespaceDecl()));
 }
 
 const internal::VariadicDynCastAllOfMatcher<Expr, UnresolvedMemberExpr>
@@ -1146,6 +1147,25 @@ TEST_F(Fixture, IDNSOfNonmemberOperator) {
   Decl* From = LastDeclMatcher<Decl>{}.match(FromTU, functionDecl());
   const Decl* To = Import(From, Lang_CXX);
   EXPECT_EQ(From->getIdentifierNamespace(), To->getIdentifierNamespace());
+}
+
+TEST(ImportExpr, CXXTypeidExpr) {
+  MatchVerifier<Decl> Verifier;
+  EXPECT_TRUE(testImport("namespace std { struct type_info {}; }"
+                         "class C {}; void declToImport() { typeid(C); }",
+                         Lang_CXX11, "", Lang_CXX11, Verifier,
+                         functionDecl(hasBody(compoundStmt(
+                            has(cxxTypeidExpr()))))));
+  EXPECT_TRUE(testImport("namespace std { struct type_info {}; }"
+                         "class C {};"
+                         "void declToImport() { C c; typeid(c); }",
+                         Lang_CXX11, "", Lang_CXX11, Verifier,
+                         functionDecl(hasBody(compoundStmt(
+                            has(expr(allOf(cxxTypeidExpr(),
+                               has(declRefExpr(to(
+                                  varDecl(allOf(hasName("c"),
+                                                hasType(cxxRecordDecl(
+                                                   hasName("C"))))))))))))))));
 }
 
 } // end namespace ast_matchers
