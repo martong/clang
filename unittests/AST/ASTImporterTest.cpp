@@ -1012,6 +1012,67 @@ TEST_F(Fixture, TUshouldNotContainTemplatedDeclOfTypeAlias) {
   Check(To);
 }
 
+TEST_F(
+    Fixture,
+    TUshouldNotContainClassTemplateSpecializationOfImplicitInstantiation) {
+
+  Decl *From, *To;
+  std::tie(From, To) = getImportedDecl(
+      R"(
+        template<class T>
+        class Base {};
+        class declToImport : public Base<declToImport> {};
+    )",
+      Lang_CXX, "", Lang_CXX);
+
+  // Check that the ClassTemplateSpecializationDecl is NOT the child of the TU
+  auto Pattern =
+      translationUnitDecl(unless(has(classTemplateSpecializationDecl())));
+  ASSERT_TRUE(
+      MatchVerifier<Decl>{}.match(From->getTranslationUnitDecl(), Pattern));
+  EXPECT_TRUE(
+      MatchVerifier<Decl>{}.match(To->getTranslationUnitDecl(), Pattern));
+
+  // Check that the ClassTemplateSpecializationDecl is the child of the
+  // ClassTemplateDecl
+  Pattern = translationUnitDecl(has(classTemplateDecl(
+      hasName("Base"), has(classTemplateSpecializationDecl()))));
+  ASSERT_TRUE(
+      MatchVerifier<Decl>{}.match(From->getTranslationUnitDecl(), Pattern));
+  EXPECT_TRUE(
+      MatchVerifier<Decl>{}.match(To->getTranslationUnitDecl(), Pattern));
+}
+
+TEST_F(
+    Fixture,
+    TUshouldContainClassTemplateSpecializationOfExplicitInstantiation) {
+
+  Decl *From, *To;
+  std::tie(From, To) = getImportedDecl(
+      R"(
+        namespace NS {
+          template<class T>
+          class X {};
+          template class X<int>;
+        }
+    )",
+      Lang_CXX, "", Lang_CXX, "NS");
+
+  // Check that the ClassTemplateSpecializationDecl is NOT the child of the
+  // ClassTemplateDecl
+  auto Pattern = namespaceDecl(has(classTemplateDecl(
+      hasName("X"), unless(has(classTemplateSpecializationDecl())))));
+  ASSERT_TRUE(MatchVerifier<Decl>{}.match(From, Pattern));
+  EXPECT_TRUE(MatchVerifier<Decl>{}.match(To, Pattern));
+
+  // Check that the ClassTemplateSpecializationDecl is the child of the
+  // NamespaceDecl
+  Pattern = namespaceDecl(has(classTemplateSpecializationDecl(hasName("X"))));
+  ASSERT_TRUE(MatchVerifier<Decl>{}.match(From, Pattern));
+  EXPECT_TRUE(MatchVerifier<Decl>{}.match(To, Pattern));
+}
+
+
 TEST_F(Fixture, CXXRecordDeclFieldsShouldBeInCorrectOrder) {
 
 
