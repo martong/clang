@@ -1626,5 +1626,14 @@ TEST(ObjCDeclMacher, CoreDecls) {
     objcPropertyDecl(hasName("enabled"))));
 }
 
+TEST(Matcher, TypeidExpr) {
+  EXPECT_TRUE(
+    matches("namespace std { struct type_info {}; }"
+            "class C {}; void f () { typeid(C); }", cxxTypeidExpr()));
+  EXPECT_TRUE(
+    matches("namespace std { struct type_info {}; }"
+            "class C {} c; void f () { typeid(c); }", cxxTypeidExpr()));
+}
+
 } // namespace ast_matchers
 } // namespace clang

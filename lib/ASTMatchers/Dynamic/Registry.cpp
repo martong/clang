@@ -168,6 +168,7 @@ RegistryMaps::RegistryMaps() {
   REGISTER_MATCHER(cxxThisExpr);
   REGISTER_MATCHER(cxxThrowExpr);
   REGISTER_MATCHER(cxxTryStmt);
+  REGISTER_MATCHER(cxxTypeidExpr);
   REGISTER_MATCHER(cxxUnresolvedConstructExpr);
   REGISTER_MATCHER(decayedType);
   REGISTER_MATCHER(decl);
