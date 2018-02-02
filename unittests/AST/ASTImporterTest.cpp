@@ -1165,6 +1165,27 @@ TEST_F(Fixture, ShouldImportImplicitCXXRecordDecl) {
   EXPECT_TRUE(Verifier.match(To, Matcher));
 }
 
+TEST_F(
+    Fixture,
+    ShouldImportImplicitCXXRecordDeclOfClassTemplateSpecializationDecl) {
+  Decl *From, *To;
+  std::tie(From, To) = getImportedDecl(
+      R"(
+        template<class T>
+        class Base {};
+        class declToImport : public Base<declToImport> {};
+    )",
+      Lang_CXX, "", Lang_CXX);
+
+  auto hasImplicitClass = has(cxxRecordDecl());
+  auto Pattern = translationUnitDecl(has(classTemplateDecl(
+      hasName("Base"), has(classTemplateSpecializationDecl(hasImplicitClass)))));
+  ASSERT_TRUE(
+      MatchVerifier<Decl>{}.match(From->getTranslationUnitDecl(), Pattern));
+  EXPECT_TRUE(
+      MatchVerifier<Decl>{}.match(To->getTranslationUnitDecl(), Pattern));
+}
+
 TEST_F(Fixture, IDNSOrdinary) {
   Decl *From, *To;
   std::tie(From, To) = getImportedDecl(
@@ -1227,6 +1248,27 @@ TEST(ImportExpr, CXXTypeidExpr) {
                                   varDecl(allOf(hasName("c"),
                                                 hasType(cxxRecordDecl(
                                                    hasName("C"))))))))))))))));
+}
+
+TEST_F(
+    Fixture,
+    ShouldImportMembersOfClassTemplateSpecializationDecl) {
+  Decl *From, *To;
+  std::tie(From, To) = getImportedDecl(
+      R"(
+        template<class T>
+        class Base { int a; };
+        class declToImport : Base<declToImport> {};
+    )",
+      Lang_CXX, "", Lang_CXX);
+
+  auto Pattern = translationUnitDecl(has(classTemplateDecl(
+      hasName("Base"),
+      has(classTemplateSpecializationDecl(has(fieldDecl(hasName("a"))))))));
+  ASSERT_TRUE(
+      MatchVerifier<Decl>{}.match(From->getTranslationUnitDecl(), Pattern));
+  EXPECT_TRUE(
+      MatchVerifier<Decl>{}.match(To->getTranslationUnitDecl(), Pattern));
 }
 
 } // end namespace ast_matchers
