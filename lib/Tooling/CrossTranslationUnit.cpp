@@ -250,15 +250,16 @@ const FunctionDecl *CrossTranslationUnit::getCrossTUDefinition(
   TranslationUnitDecl *TU = Unit->getASTContext().getTranslationUnitDecl();
   if (const FunctionDecl *ResultDecl =
           findFunctionInDeclContext(TU, LookupFnName)) {
-    auto *ToDecl = cast<FunctionDecl>(
+    auto *ToDecl = cast_or_null<FunctionDecl>(
         Importer.Import(const_cast<FunctionDecl *>(ResultDecl)));
     if (Importer.hasEncounteredUnsupportedNode()) {
-      InvalidFunctions.insert(ToDecl);
+      if (ToDecl)
+        InvalidFunctions.insert(ToDecl);
       Importer.setEncounteredUnsupportedNode(false);
       NumUnsupportedNodeFound++;
       return nullptr;
     }
-    assert(ToDecl->hasBody());
+    assert(ToDecl && ToDecl->hasBody());
     assert(FD->hasBody() && "Functions already imported should have body.");
     ++NumGetCTUSuccess;
     return ToDecl;

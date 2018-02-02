@@ -45,7 +45,7 @@ int ident_implicit(int in){
     return in;
 }
 
-//ASTImporter crashes on this
-//int struct_in_proto(struct data_t{int a;int b;} *d){
-//  return 0;
-//}
+//ASTImporter doesn't support this
+int struct_in_proto(struct data_t{int a;int b;} *d){
+  return 0;
+}
