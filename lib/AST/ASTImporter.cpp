@@ -6621,8 +6621,12 @@ Expr *ASTNodeImporter::VisitCXXNamedCastExpr(CXXNamedCastExpr *E) {
     return CXXReinterpretCastExpr::Create(
         Importer.getToContext(), ToType, VK, CK, ToOp, &BasePath, 
         ToWritten, ToOperatorLoc, ToRParenLoc, ToAngleBrackets);
+  } else if (isa<CXXConstCastExpr>(E)) {
+    return CXXConstCastExpr::Create(
+        Importer.getToContext(), ToType, VK, ToOp,
+        ToWritten, ToOperatorLoc, ToRParenLoc, ToAngleBrackets);
   } else {
-    return nullptr;
+    llvm_unreachable("Unknown cast type");
   }
 }
 
