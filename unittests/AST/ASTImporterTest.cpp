@@ -849,6 +849,34 @@ TEST(ImportExpr, ImportVarOfUnnamedStruct) {
                          Verifier, varDecl()));
 }
 
+TEST_F(Fixture, ImportFunctionWithBackReferringParameter) {
+  Decl *From, *To;
+  std::tie(From, To) = getImportedDecl(
+    R"(
+template<typename _T>
+struct X {};
+
+void declToImport(int y,X<int> &x){}
+
+template<>
+struct X<int> {
+  void g(){
+    X<int> x;
+    declToImport(0,x);
+  }
+};
+    )",Lang_CXX, "", Lang_CXX);
+
+  MatchVerifier<Decl> Verifier;
+  auto Matcher = functionDecl(hasName("declToImport"),
+                              parameterCountIs(2),
+                              hasParameter(0, hasName("y")),
+                              hasParameter(1, hasName("x")),
+                              hasParameter(1, hasType(asString("X<int> &"))));
+  ASSERT_TRUE(Verifier.match(From, Matcher));
+  EXPECT_TRUE(Verifier.match(To, Matcher));
+}
+
 const internal::VariadicDynCastAllOfMatcher<Expr, UnresolvedMemberExpr>
     unresolvedMemberExpr;
 TEST(ImportExpr, ImportUnresolvedMemberExpr) {
