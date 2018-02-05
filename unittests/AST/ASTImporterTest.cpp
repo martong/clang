@@ -112,11 +112,15 @@ struct Fixture : ::testing::Test {
   std::unique_ptr<ASTUnit> FromAST, ToAST;
   const char *const InputFileName = "input.cc";
   const char *const OutputFileName = "output.cc";
+  std::string FromCode, ToCode, Code; //Buffers, must live in test scope
 
   std::tuple<Decl *, Decl *>
-  getImportedDecl(const std::string &FromCode, Language FromLang,
-                  const std::string &ToCode, Language ToLang,
+  getImportedDecl(const std::string &FromSrcCode, Language FromLang,
+                  const std::string &ToSrcCode, Language ToLang,
                   const char *const Identifier = "declToImport") {
+    this->FromCode = FromSrcCode;
+    this->ToCode = ToSrcCode;
+
     StringVector FromArgs, ToArgs;
     getLangArgs(FromLang, FromArgs);
     getLangArgs(ToLang, ToArgs);
@@ -154,7 +158,8 @@ struct Fixture : ::testing::Test {
     return std::make_tuple(*FoundDecls.begin(), Imported);
   }
 
-  TranslationUnitDecl *getTuDecl(const std::string &Code, Language Lang) {
+  TranslationUnitDecl *getTuDecl(const std::string &SrcCode, Language Lang) {
+    this->Code = SrcCode;
     StringVector Args;
     getLangArgs(Lang, Args);
     FromAST = tooling::buildASTFromCodeWithArgs(Code, Args, InputFileName);
