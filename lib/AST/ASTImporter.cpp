@@ -408,21 +408,21 @@ QualType ASTNodeImporter::VisitBuiltinType(const BuiltinType *T) {
   // context supports ObjC.
 
   case BuiltinType::Char_U:
-    // The context we're importing from has an unsigned 'char'. If we're 
-    // importing into a context with a signed 'char', translate to 
+    // The context we're importing from has an unsigned 'char'. If we're
+    // importing into a context with a signed 'char', translate to
     // 'unsigned char' instead.
     if (Importer.getToContext().getLangOpts().CharIsSigned)
       return Importer.getToContext().UnsignedCharTy;
-    
+
     return Importer.getToContext().CharTy;
 
   case BuiltinType::Char_S:
-    // The context we're importing from has an unsigned 'char'. If we're 
-    // importing into a context with a signed 'char', translate to 
-    // 'unsigned char' instead.
+    // The context we're importing from has an signed 'char'. If we're
+    // importing into a context with an unsigned 'char', translate to
+    // 'signed char' instead.
     if (!Importer.getToContext().getLangOpts().CharIsSigned)
       return Importer.getToContext().SignedCharTy;
-    
+
     return Importer.getToContext().CharTy;
 
   case BuiltinType::WChar_S:
@@ -1216,10 +1216,6 @@ bool ASTNodeImporter::ImportDefinition(RecordDecl *From, RecordDecl *To,
     ImportDeclContext(From, /*ForceImport=*/true, To);
   
   To->completeDefinition();
-  // The code bellow will make the tests fail but can be useful for debugging
-  // purposes.
-  // assert(IsStructuralMatch(To, From) &&
-  //       "Imported class should be eq to the original.");
   return false;
 }
 
@@ -6762,7 +6758,7 @@ Decl *ASTImporter::Import(Decl *FromD) {
 
   // Record the imported declaration.
   ImportedDecls[FromD] = ToD;
-  
+
   if (TagDecl *FromTag = dyn_cast<TagDecl>(FromD)) {
     // Keep track of anonymous tags that have an associated typedef.
     if (FromTag->getTypedefNameForAnonDecl())

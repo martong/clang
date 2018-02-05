@@ -23,19 +23,11 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Tooling/Tooling.h"
+#include "Language.h"
 #include "gtest/gtest.h"
 
 namespace clang {
 namespace ast_matchers {
-
-enum Language { 
-    Lang_C,
-    Lang_C89,
-    Lang_CXX,
-    Lang_CXX11,
-    Lang_OpenCL,
-    Lang_OBJCXX
-};
 
 /// \brief Base class for verifying some property of nodes found by a matcher.
 template <typename NodeType>
