@@ -893,6 +893,39 @@ TEST(ImportExpr, CXXOperatorCallExpr) {
                                  has(cxxOperatorCallExpr()))))))))));
 }
 
+TEST(ImportExpr, CXXNamedCastExpr) {
+  MatchVerifier<Decl> Verifier;
+  EXPECT_TRUE(testImport("void declToImport() {"
+                         "  const_cast<char*>(\"hello\");"
+                         "}",
+                         Lang_CXX, "", Lang_CXX, Verifier,
+                         functionDecl(hasBody(compoundStmt(has(
+                             cxxConstCastExpr()))))));
+  EXPECT_TRUE(testImport("void declToImport() {"
+                         "  double d;"
+                         "  reinterpret_cast<int*>(&d);"
+                         "}",
+                         Lang_CXX, "", Lang_CXX, Verifier,
+                         functionDecl(hasBody(compoundStmt(has(
+                             cxxReinterpretCastExpr()))))));
+  EXPECT_TRUE(testImport("struct A {virtual ~A() {} };"
+                         "struct B : A {};"
+                         "void declToImport() {"
+                         "  dynamic_cast<B*>(new A);"
+                         "}",
+                         Lang_CXX, "", Lang_CXX, Verifier,
+                         functionDecl(hasBody(compoundStmt(has(
+                             cxxDynamicCastExpr()))))));
+  EXPECT_TRUE(testImport("struct A {virtual ~A() {} };"
+                         "struct B : A {};"
+                         "void declToImport() {"
+                         "  static_cast<B*>(new A);"
+                         "}",
+                         Lang_CXX, "", Lang_CXX, Verifier,
+                         functionDecl(hasBody(compoundStmt(has(
+                             cxxStaticCastExpr()))))));
+}
+
 TEST(ImportExpr, ImportUnresolvedLookupExpr) {
   MatchVerifier<Decl> Verifier;
   testImport("template<typename T> int foo();"
