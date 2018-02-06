@@ -92,14 +92,14 @@ struct Fixture : ::testing::Test {
   std::unique_ptr<ASTUnit> FromAST, ToAST;
   const char *const InputFileName = "input.cc";
   const char *const OutputFileName = "output.cc";
-  std::string FromCode, ToCode, Code; //Buffers, must live in test scope
+  std::string FromCode, ToCode; //Buffers, must live in test scope
 
   std::tuple<Decl *, Decl *>
   getImportedDecl(const std::string &FromSrcCode, Language FromLang,
                   const std::string &ToSrcCode, Language ToLang,
                   const char *const Identifier = "declToImport") {
-    this->FromCode = FromSrcCode;
-    this->ToCode = ToSrcCode;
+    FromCode = FromSrcCode;
+    ToCode = ToSrcCode;
 
     StringVector FromArgs, ToArgs;
     getLangArgs(FromLang, FromArgs);
@@ -139,10 +139,10 @@ struct Fixture : ::testing::Test {
   }
 
   TranslationUnitDecl *getTuDecl(const std::string &SrcCode, Language Lang) {
-    this->Code = SrcCode;
+    FromCode = SrcCode;
     StringVector Args;
     getLangArgs(Lang, Args);
-    FromAST = tooling::buildASTFromCodeWithArgs(Code, Args, InputFileName);
+    FromAST = tooling::buildASTFromCodeWithArgs(FromCode, Args, InputFileName);
     return FromAST->getASTContext().getTranslationUnitDecl();
   }
 
@@ -150,13 +150,21 @@ struct Fixture : ::testing::Test {
     assert(FromAST);
     StringVector ToArgs;
     getLangArgs(ToLang, ToArgs);
-    ToAST = tooling::buildASTFromCodeWithArgs("", ToArgs, OutputFileName);
+    ToAST = tooling::buildASTFromCodeWithArgs(ToCode, ToArgs, OutputFileName);
 
     ASTContext &FromCtx = FromAST->getASTContext(),
                &ToCtx = ToAST->getASTContext();
     ASTImporter Importer(ToCtx, ToAST->getFileManager(), FromCtx,
                          FromAST->getFileManager(), false);
     return Importer.Import(From);
+  }
+
+  ~Fixture() {
+    if (::testing::Test::HasFailure()) {
+      FromAST->getASTContext().getTranslationUnitDecl()->dump();
+      llvm::errs() << "\n";
+      ToAST->getASTContext().getTranslationUnitDecl()->dump();
+    }
   }
 };
 
@@ -1301,6 +1309,64 @@ TEST_F(
       MatchVerifier<Decl>{}.match(From->getTranslationUnitDecl(), Pattern));
   EXPECT_TRUE(
       MatchVerifier<Decl>{}.match(To->getTranslationUnitDecl(), Pattern));
+}
+
+TEST_F(Fixture, DISABLED_ImportPrototypeOfFunction) {
+  Decl *FromTU = getTuDecl("void f(); void f() {}", Lang_CXX);
+  FunctionDecl *PrototypeFD = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("f")));
+  FunctionDecl *DefinitionFD =
+      LastDeclMatcher<FunctionDecl>().match(FromTU, functionDecl(hasName("f")));
+
+  ASSERT_TRUE(PrototypeFD != DefinitionFD);
+  // The prototype does not have a body.  Note, FunctionDecl::hasBody()
+  // searches through the redecl chain, so we can't use it
+  ASSERT_FALSE(PrototypeFD->doesThisDeclarationHaveABody());
+  // The definition should have a body
+  ASSERT_TRUE(DefinitionFD->doesThisDeclarationHaveABody());
+  // The definition and the prototype is linked in the redecl chain
+  ASSERT_TRUE(DefinitionFD->getPreviousDecl() == (Decl *)PrototypeFD);
+
+  Decl *ToD = Import(PrototypeFD, Lang_CXX);
+  Decl *ToTU = ToD->getTranslationUnitDecl();
+  FunctionDecl *ToPrototypeFD =
+      FirstDeclMatcher<FunctionDecl>().match(ToTU, functionDecl(hasName("f")));
+  FunctionDecl *ToDefinitionFD =
+      LastDeclMatcher<FunctionDecl>().match(ToTU, functionDecl(hasName("f")));
+
+  EXPECT_TRUE(ToPrototypeFD != ToDefinitionFD);
+  EXPECT_FALSE(ToPrototypeFD->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(ToDefinitionFD->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(ToDefinitionFD->getPreviousDecl() == (Decl *)ToPrototypeFD);
+}
+
+TEST_F(Fixture, DISABLED_ImportPrototypeOfRecursiveFunction) {
+  Decl *FromTU = getTuDecl("void f(); void f() { f(); }", Lang_CXX);
+  FunctionDecl *PrototypeFD = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("f")));
+  FunctionDecl *DefinitionFD =
+      LastDeclMatcher<FunctionDecl>().match(FromTU, functionDecl(hasName("f")));
+
+  ASSERT_TRUE(PrototypeFD != DefinitionFD);
+  // The prototype does not have a body.  Note, FunctionDecl::hasBody()
+  // searches through the redecl chain, so we can't use it
+  ASSERT_FALSE(PrototypeFD->doesThisDeclarationHaveABody());
+  // The definition should have a body
+  ASSERT_TRUE(DefinitionFD->doesThisDeclarationHaveABody());
+  // The definition and the prototype is linked in the redecl chain
+  ASSERT_TRUE(DefinitionFD->getPreviousDecl() == (Decl *)PrototypeFD);
+
+  Decl *ToD = Import(PrototypeFD, Lang_CXX);
+  Decl *ToTU = ToD->getTranslationUnitDecl();
+  FunctionDecl *ToPrototypeFD =
+      FirstDeclMatcher<FunctionDecl>().match(ToTU, functionDecl(hasName("f")));
+  FunctionDecl *ToDefinitionFD =
+      LastDeclMatcher<FunctionDecl>().match(ToTU, functionDecl(hasName("f")));
+
+  EXPECT_TRUE(ToPrototypeFD != ToDefinitionFD);
+  EXPECT_FALSE(ToPrototypeFD->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(ToDefinitionFD->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(ToDefinitionFD->getPreviousDecl() == (Decl *)ToPrototypeFD);
 }
 
 } // end namespace ast_matchers
