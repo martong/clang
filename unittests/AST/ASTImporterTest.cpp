@@ -17,32 +17,12 @@
 #include "clang/ASTMatchers/ASTMatchFinder.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/Tooling/Tooling.h"
+
+#include "DeclMatcher.h"
 #include "gtest/gtest.h"
 
 namespace clang {
 namespace ast_matchers {
-
-typedef std::vector<std::string> StringVector;
-
-void getLangArgs(Language Lang, StringVector &Args) {
-  switch (Lang) {
-  case Lang_C:
-    Args.insert(Args.end(), { "-x", "c", "-std=c99" });
-    break;
-  case Lang_C89:
-    Args.insert(Args.end(), { "-x", "c", "-std=c89" });
-    break;
-  case Lang_CXX:
-    Args.push_back("-std=c++98");
-    break;
-  case Lang_CXX11:
-    Args.push_back("-std=c++11");
-    break;
-  case Lang_OpenCL:
-  case Lang_OBJCXX:
-    break;
-  }
-}
 
 template<typename NodeType, typename MatcherType>
 testing::AssertionResult
@@ -810,6 +790,30 @@ class _Mem_fn<_Res _Class::*> {
                          namespaceDecl()));
 }
 
+TEST(ImportExpr, ImportTypedefOfUnnamedStruct) {
+  MatchVerifier<Decl> Verifier;
+  auto Code = "typedef struct {} declToImport;";
+  EXPECT_TRUE(
+      testImport(Code, Lang_CXX, "", Lang_CXX, Verifier, typedefDecl()));
+}
+
+TEST(ImportExpr, ImportTypedefOfUnnamedStructWithCharArray) {
+  MatchVerifier<Decl> Verifier;
+  auto Code = R"s(
+      struct declToImport
+      {
+        typedef struct { char arr[2]; } two;
+      };
+          )s";
+  EXPECT_TRUE(testImport(Code, Lang_CXX, "", Lang_CXX, Verifier, recordDecl()));
+}
+
+TEST(ImportExpr, ImportVarOfUnnamedStruct) {
+  MatchVerifier<Decl> Verifier;
+  EXPECT_TRUE(testImport("struct {} declToImport;", Lang_CXX, "", Lang_CXX,
+                         Verifier, varDecl()));
+}
+
 const internal::VariadicDynCastAllOfMatcher<Expr, UnresolvedMemberExpr>
     unresolvedMemberExpr;
 TEST(ImportExpr, ImportUnresolvedMemberExpr) {
@@ -1247,26 +1251,6 @@ TEST_F(Fixture, IDNSOrdinary) {
   EXPECT_TRUE(Verifier.match(To, Matcher));
   EXPECT_EQ(From->getIdentifierNamespace(), To->getIdentifierNamespace());
 }
-
-// Matcher class to retrieve the last matched node under a given AST.
-template <typename NodeType>
-class LastDeclMatcher : public MatchFinder::MatchCallback {
-  NodeType *Node = nullptr;
-  void run(const MatchFinder::MatchResult &Result) override {
-    Node = const_cast<NodeType *>(Result.Nodes.getNodeAs<NodeType>(""));
-  }
-
-public:
-  // Returns the last matched node under the tree rooted in `D`.
-  template <typename MatcherType>
-  NodeType *match(const Decl *D, const MatcherType &AMatcher) {
-    MatchFinder Finder;
-    Finder.addMatcher(AMatcher.bind(""), this);
-    Finder.matchAST(D->getASTContext());
-    assert(Node);
-    return Node;
-  }
-};
 
 TEST_F(Fixture, IDNSOfNonmemberOperator) {
   Decl *FromTU = getTuDecl(
