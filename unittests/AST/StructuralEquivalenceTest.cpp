@@ -56,7 +56,7 @@ struct StructuralEquivalenceTest : ::testing::Test {
     NamedDecl *d1 = getDecl(Ctx1, Identifier);
     assert(d0);
     assert(d1);
-    return {d0, d1};
+    return std::make_tuple(d0, d1);
   }
 
   bool testStructuralMatch(NamedDecl *d0, NamedDecl *d1) {
