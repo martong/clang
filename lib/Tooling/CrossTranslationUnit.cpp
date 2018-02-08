@@ -235,6 +235,16 @@ const FunctionDecl *CrossTranslationUnit::getCrossTUDefinition(
     } else {
       Unit = ASTCacheEntry->second.get();
     }
+
+    const auto& LangTo = Context.getLangOpts();
+    const auto& LangFrom = Unit->getASTContext().getLangOpts();
+    // FIXME: Currenty we do not support the import of C AST into C++. This
+    // limitation should be lifted in the future after carafully examining
+    // and handling the cases where the two ASTs are incomatible.
+    if (LangTo.CPlusPlus && !LangFrom.CPlusPlus) {
+      return nullptr;
+    }
+
     FunctionAstUnitMap[LookupFnName] = Unit;
   } else {
     Unit = FnUnitCacheEntry->second;
