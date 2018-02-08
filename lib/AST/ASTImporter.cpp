@@ -22,6 +22,7 @@
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Basic/FileManager.h"
 #include "clang/Basic/SourceManager.h"
+#include "clang/Basic/TargetInfo.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include <deque>
 
@@ -6746,9 +6747,29 @@ Decl *ASTImporter::GetAlreadyImportedOrNull(Decl *FromD) {
   }
 }
 
+Decl *ASTImporter::GetVAListTag(Decl *FromD) {
+  if (isa<TypedefDecl>(FromD) &&
+      ToContext.getTargetInfo().getBuiltinVaListKind() ==
+      TargetInfo::PowerABIBuiltinVaList) {
+    const auto *Arr =
+      cast<ConstantArrayType>(ToContext.getBuiltinVaListDecl()->
+                              getUnderlyingType().getTypePtr());
+    const auto *Elem =
+      cast<TypedefType>(Arr->getElementType().getTypePtr());
+    return cast<TypedefDecl>(Elem->getDecl());
+  }
+
+  return ToContext.getVaListTagDecl();
+}
+
 Decl *ASTImporter::Import(Decl *FromD) {
   if (!FromD)
     return nullptr;
+
+  if (const auto *ND = dyn_cast<NamedDecl>(FromD))
+    if (IdentifierInfo *II = ND->getIdentifier())
+      if (II->isStr("__va_list_tag"))
+        return GetVAListTag(FromD);
 
   ASTNodeImporter Importer(*this);
 

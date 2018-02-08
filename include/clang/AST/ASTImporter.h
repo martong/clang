@@ -139,6 +139,10 @@ namespace clang {
     /// NULL.
     Decl *GetAlreadyImportedOrNull(Decl *FromD);
 
+    /// \brief Return the declaration of the built-in type "__va_list_tag" from
+    /// the ASTContext instead of importing it.
+    Decl *GetVAListTag(Decl *FromD);
+
     /// \brief Import the given declaration context from the "from"
     /// AST context into the "to" AST context.
     ///

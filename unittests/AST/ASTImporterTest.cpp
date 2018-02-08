@@ -1566,5 +1566,18 @@ TEST_F(ImportFunctions,
   EXPECT_EQ(DefinitionD->getPreviousDecl(), ProtoD);
 }
 
+TEST_F(Fixture, OmitVAListTag) {
+  Decl *From, *To;
+  std::tie(From, To) =
+      getImportedDecl("void declToImport(int n, ...) {"
+                      "  __builtin_va_list __args;"
+                      "  __builtin_va_start(__args, n);"
+                      "}",
+                      Lang_C, "", Lang_C);
+  auto Pattern = translationUnitDecl(has(recordDecl(hasName("__va_list_tag"))));
+  EXPECT_FALSE(
+      MatchVerifier<Decl>{}.match(To->getTranslationUnitDecl(), Pattern));
+}
+
 } // end namespace ast_matchers
 } // end namespace clang
