@@ -89,27 +89,37 @@ testImport(const std::string &FromCode, Language FromLang,
 
 struct Fixture : ::testing::Test {
 
-  std::unique_ptr<ASTUnit> FromAST, ToAST;
+  // We may have several From context but only one To context.
+  std::unique_ptr<ASTUnit> ToAST;
+  std::vector<std::unique_ptr<ASTUnit>> FromASTVec;
+
   const char *const InputFileName = "input.cc";
   const char *const OutputFileName = "output.cc";
-  std::string FromCode, ToCode; //Buffers, must live in test scope
 
+  //Buffers for the contexts, must live in test scope
+  StringRef ToCode;
+  std::vector<StringRef> FromCodeVec;
+
+  // Creates an AST both for the From and To source code and imports the Decl
+  // of the identifier into the To context.
+  // Must not call more than once within the same test.
   std::tuple<Decl *, Decl *>
-  getImportedDecl(const std::string &FromSrcCode, Language FromLang,
-                  const std::string &ToSrcCode, Language ToLang,
+  getImportedDecl(StringRef FromSrcCode, Language FromLang,
+                  StringRef ToSrcCode, Language ToLang,
                   const char *const Identifier = "declToImport") {
-    FromCode = FromSrcCode;
+    FromCodeVec.push_back(FromSrcCode);
     ToCode = ToSrcCode;
 
     StringVector FromArgs, ToArgs;
     getLangArgs(FromLang, FromArgs);
     getLangArgs(ToLang, ToArgs);
 
-    FromAST =
-        tooling::buildASTFromCodeWithArgs(FromCode, FromArgs, InputFileName),
+    FromASTVec.emplace_back(tooling::buildASTFromCodeWithArgs(
+        FromCodeVec.back(), FromArgs, InputFileName));
+    assert(!ToAST);
     ToAST = tooling::buildASTFromCodeWithArgs(ToCode, ToArgs, OutputFileName);
 
-    ASTContext &FromCtx = FromAST->getASTContext(),
+    ASTContext &FromCtx = FromASTVec.back()->getASTContext(),
                &ToCtx = ToAST->getASTContext();
 
     // Add input.cc to virtual file system so importer can 'find' it
@@ -118,10 +128,11 @@ struct Fixture : ::testing::Test {
         ToCtx.getSourceManager().getFileManager().getVirtualFileSystem().get());
     vfs::InMemoryFileSystem *MFS =
         static_cast<vfs::InMemoryFileSystem *>(OFS->overlays_begin()->get());
-    MFS->addFile(InputFileName, 0, llvm::MemoryBuffer::getMemBuffer(FromCode));
+    MFS->addFile(InputFileName, 0,
+                 llvm::MemoryBuffer::getMemBuffer(FromCodeVec.back()));
 
     ASTImporter Importer(ToCtx, ToAST->getFileManager(), FromCtx,
-                         FromAST->getFileManager(), false);
+                         FromASTVec.back()->getFileManager(), false);
 
     IdentifierInfo *ImportedII = &FromCtx.Idents.get(Identifier);
     assert(ImportedII && "Declaration with the given identifier "
@@ -138,31 +149,47 @@ struct Fixture : ::testing::Test {
     return std::make_tuple(*FoundDecls.begin(), Imported);
   }
 
-  TranslationUnitDecl *getTuDecl(const std::string &SrcCode, Language Lang) {
-    FromCode = SrcCode;
+  // Creates a TU decl for the given source code.
+  // May be called several times in a given test.
+  TranslationUnitDecl *getTuDecl(StringRef SrcCode, Language Lang) {
+    FromCodeVec.push_back(SrcCode);
     StringVector Args;
     getLangArgs(Lang, Args);
-    FromAST = tooling::buildASTFromCodeWithArgs(FromCode, Args, InputFileName);
-    return FromAST->getASTContext().getTranslationUnitDecl();
+    FromASTVec.emplace_back(tooling::buildASTFromCodeWithArgs(
+        FromCodeVec.back(), Args, InputFileName));
+
+    return FromASTVec.back()->getASTContext().getTranslationUnitDecl();
   }
 
+  // Import the given Decl into the ToCtx.
+  // May be called several times in a given test.
+  // The different instances of the param From may have different ASTContext.
   Decl *Import(Decl *From, Language ToLang) {
-    assert(FromAST);
-    StringVector ToArgs;
-    getLangArgs(ToLang, ToArgs);
-    ToAST = tooling::buildASTFromCodeWithArgs(ToCode, ToArgs, OutputFileName);
+    if (!ToAST) {
+      StringVector ToArgs;
+      getLangArgs(ToLang, ToArgs);
+      ToAST = tooling::buildASTFromCodeWithArgs(ToCode, ToArgs, OutputFileName);
+    }
 
-    ASTContext &FromCtx = FromAST->getASTContext(),
+    ASTContext &FromCtx = From->getASTContext(),
                &ToCtx = ToAST->getASTContext();
     ASTImporter Importer(ToCtx, ToAST->getFileManager(), FromCtx,
-                         FromAST->getFileManager(), false);
+                         FromCtx.getSourceManager().getFileManager(), false);
     return Importer.Import(From);
   }
 
   ~Fixture() {
-    if (::testing::Test::HasFailure()) {
-      FromAST->getASTContext().getTranslationUnitDecl()->dump();
-      llvm::errs() << "\n";
+    if (!::testing::Test::HasFailure()) return;
+
+    for (auto& FromAST : FromASTVec) {
+      if (FromAST) {
+        llvm::errs() << "FromAST:\n";
+        FromAST->getASTContext().getTranslationUnitDecl()->dump();
+        llvm::errs() << "\n";
+      }
+    }
+    if (ToAST) {
+      llvm::errs() << "ToAST:\n";
       ToAST->getASTContext().getTranslationUnitDecl()->dump();
     }
   }
@@ -1311,62 +1338,236 @@ TEST_F(
       MatchVerifier<Decl>{}.match(To->getTranslationUnitDecl(), Pattern));
 }
 
-TEST_F(Fixture, DISABLED_ImportPrototypeOfFunction) {
-  Decl *FromTU = getTuDecl("void f(); void f() {}", Lang_CXX);
-  FunctionDecl *PrototypeFD = FirstDeclMatcher<FunctionDecl>().match(
-      FromTU, functionDecl(hasName("f")));
-  FunctionDecl *DefinitionFD =
-      LastDeclMatcher<FunctionDecl>().match(FromTU, functionDecl(hasName("f")));
+struct ImportFunctions : Fixture {};
 
-  ASSERT_TRUE(PrototypeFD != DefinitionFD);
-  // The prototype does not have a body.  Note, FunctionDecl::hasBody()
-  // searches through the redecl chain, so we can't use it
-  ASSERT_FALSE(PrototypeFD->doesThisDeclarationHaveABody());
-  // The definition should have a body
-  ASSERT_TRUE(DefinitionFD->doesThisDeclarationHaveABody());
-  // The definition and the prototype is linked in the redecl chain
-  ASSERT_TRUE(DefinitionFD->getPreviousDecl() == (Decl *)PrototypeFD);
+TEST_F(ImportFunctions,
+       PrototypeShouldBeImportedAsAPrototypeWhenThereIsNoDefinition) {
+  Decl *FromTU = getTuDecl("void f();", Lang_CXX);
+  auto Pattern = functionDecl(hasName("f"));
+  FunctionDecl *FromD =
+      FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
 
-  Decl *ToD = Import(PrototypeFD, Lang_CXX);
-  Decl *ToTU = ToD->getTranslationUnitDecl();
-  FunctionDecl *ToPrototypeFD =
-      FirstDeclMatcher<FunctionDecl>().match(ToTU, functionDecl(hasName("f")));
-  FunctionDecl *ToDefinitionFD =
-      LastDeclMatcher<FunctionDecl>().match(ToTU, functionDecl(hasName("f")));
+  Decl *ImportedD = Import(FromD, Lang_CXX);
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
 
-  EXPECT_TRUE(ToPrototypeFD != ToDefinitionFD);
-  EXPECT_FALSE(ToPrototypeFD->doesThisDeclarationHaveABody());
-  EXPECT_TRUE(ToDefinitionFD->doesThisDeclarationHaveABody());
-  EXPECT_TRUE(ToDefinitionFD->getPreviousDecl() == (Decl *)ToPrototypeFD);
+  // There must be only one imported FunctionDecl ...
+  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
+              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
+  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == ToFD);
+  // .. without a body
+  EXPECT_TRUE(!ToFD->doesThisDeclarationHaveABody());
 }
 
-TEST_F(Fixture, DISABLED_ImportPrototypeOfRecursiveFunction) {
+TEST_F(ImportFunctions,
+       PrototypeShouldBeImportedAsDefintionWhenThereIsADefinition) {
+  Decl *FromTU = getTuDecl("void f(); void f() {}", Lang_CXX);
+  auto Pattern = functionDecl(hasName("f"));
+  FunctionDecl *FromD = // Prototype
+      FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+  Decl *ImportedD = Import(FromD, Lang_CXX);
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
+
+  // There must be only one imported FunctionDecl ...
+  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
+              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
+  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == ToFD);
+  // .. with a body
+  EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
+}
+
+TEST_F(ImportFunctions,
+       DefinitionShouldBeImportedAsDefintionWhenThereIsAPrototype) {
+  Decl *FromTU = getTuDecl("void f(); void f() {}", Lang_CXX);
+  auto Pattern = functionDecl(hasName("f"));
+  FunctionDecl *FromD = // Definition
+      LastDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+  Decl *ImportedD = Import(FromD, Lang_CXX);
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
+
+  // There must be only one imported FunctionDecl ...
+  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
+              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
+  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == ToFD);
+  // .. with a body
+  EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
+}
+
+TEST_F(ImportFunctions,
+       DefinitionShouldBeImportedAsADefinition) {
+  Decl *FromTU = getTuDecl("void f() {}", Lang_CXX);
+  auto Pattern = functionDecl(hasName("f"));
+  FunctionDecl *FromD =
+      FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+  Decl *ImportedD = Import(FromD, Lang_CXX);
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
+
+  // There must be only one imported FunctionDecl ...
+  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
+              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
+  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == ToFD);
+  // .. with a body
+  EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
+}
+
+TEST_F(ImportFunctions, ImportPrototypeOfRecursiveFunction) {
   Decl *FromTU = getTuDecl("void f(); void f() { f(); }", Lang_CXX);
-  FunctionDecl *PrototypeFD = FirstDeclMatcher<FunctionDecl>().match(
-      FromTU, functionDecl(hasName("f")));
+  auto Pattern = functionDecl(hasName("f"));
+  FunctionDecl *PrototypeFD =
+      FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+  Decl *ImportedD = Import(PrototypeFD, Lang_CXX);
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
+
+  // There must be only one imported FunctionDecl ...
+  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
+              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
+  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == ToFD);
+  // .. with a body
+  EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
+}
+
+TEST_F(ImportFunctions, ImportDefinitionOfRecursiveFunction) {
+  Decl *FromTU = getTuDecl("void f(); void f() { f(); }", Lang_CXX);
+  auto Pattern = functionDecl(hasName("f"));
   FunctionDecl *DefinitionFD =
-      LastDeclMatcher<FunctionDecl>().match(FromTU, functionDecl(hasName("f")));
+      LastDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
 
-  ASSERT_TRUE(PrototypeFD != DefinitionFD);
-  // The prototype does not have a body.  Note, FunctionDecl::hasBody()
-  // searches through the redecl chain, so we can't use it
-  ASSERT_FALSE(PrototypeFD->doesThisDeclarationHaveABody());
-  // The definition should have a body
-  ASSERT_TRUE(DefinitionFD->doesThisDeclarationHaveABody());
-  // The definition and the prototype is linked in the redecl chain
-  ASSERT_TRUE(DefinitionFD->getPreviousDecl() == (Decl *)PrototypeFD);
+  Decl *ImportedD = Import(DefinitionFD, Lang_CXX);
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
 
-  Decl *ToD = Import(PrototypeFD, Lang_CXX);
-  Decl *ToTU = ToD->getTranslationUnitDecl();
-  FunctionDecl *ToPrototypeFD =
-      FirstDeclMatcher<FunctionDecl>().match(ToTU, functionDecl(hasName("f")));
-  FunctionDecl *ToDefinitionFD =
-      LastDeclMatcher<FunctionDecl>().match(ToTU, functionDecl(hasName("f")));
+  // There must be only one imported FunctionDecl ...
+  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
+              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
+  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == ToFD);
+  // .. with a body
+  EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
+}
 
-  EXPECT_TRUE(ToPrototypeFD != ToDefinitionFD);
-  EXPECT_FALSE(ToPrototypeFD->doesThisDeclarationHaveABody());
-  EXPECT_TRUE(ToDefinitionFD->doesThisDeclarationHaveABody());
-  EXPECT_TRUE(ToDefinitionFD->getPreviousDecl() == (Decl *)ToPrototypeFD);
+TEST_F(ImportFunctions,
+       ImportPrototypes) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *ImportedD;
+  {
+    Decl *FromTU = getTuDecl("void f();", Lang_CXX);
+    FunctionDecl *FromD =
+        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+    ImportedD = Import(FromD, Lang_CXX);
+  }
+  Decl *ImportedD1;
+  {
+    Decl *FromTU = getTuDecl("void f();", Lang_CXX);
+    FunctionDecl *FromD =
+        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD1 = Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  // There must be only one imported FunctionDecl ...
+  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
+              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
+  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_EQ(ImportedD, ImportedD1);
+  EXPECT_TRUE(ImportedD == ToFD);
+  // .. without a body
+  EXPECT_TRUE(!ToFD->doesThisDeclarationHaveABody());
+}
+
+TEST_F(ImportFunctions,
+       ImportDefinitionThenPrototype) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *ImportedD;
+  {
+    Decl *FromTU = getTuDecl("void f(){}", Lang_CXX);
+    FunctionDecl *FromD =
+        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+    ImportedD = Import(FromD, Lang_CXX);
+  }
+  Decl *ImportedD1;
+  {
+    Decl *FromTU = getTuDecl("void f();", Lang_CXX);
+    FunctionDecl *FromD =
+        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD1 = Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  // There must be only one imported FunctionDecl ...
+  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
+              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
+  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_EQ(ImportedD, ImportedD1);
+  EXPECT_TRUE(ImportedD == ToFD);
+  // .. with a body
+  EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
+}
+
+TEST_F(ImportFunctions,
+       ImportPrototypeThenDefinition) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *ImportedD;
+  {
+    Decl *FromTU = getTuDecl("void f();", Lang_CXX);
+    FunctionDecl *FromD =
+        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+    ImportedD = Import(FromD, Lang_CXX);
+  }
+  Decl *ImportedD1;
+  {
+    Decl *FromTU = getTuDecl("void f(){}", Lang_CXX);
+    FunctionDecl *FromD =
+        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD1 = Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  FunctionDecl* ProtoD = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(!ProtoD->doesThisDeclarationHaveABody());
+  FunctionDecl* DefinitionD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(DefinitionD->doesThisDeclarationHaveABody());
+  EXPECT_EQ(DefinitionD->getPreviousDecl(), ProtoD);
+}
+
+TEST_F(ImportFunctions,
+       ImportPrototypeThenProtoAndDefinition) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *ImportedD;
+  {
+    Decl *FromTU = getTuDecl("void f();", Lang_CXX);
+    FunctionDecl *FromD =
+        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+    ImportedD = Import(FromD, Lang_CXX);
+  }
+  Decl *ImportedD1;
+  {
+    Decl *FromTU = getTuDecl("void f(); void f(){}", Lang_CXX);
+    FunctionDecl *FromD =
+        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD1 = Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  FunctionDecl* ProtoD = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(!ProtoD->doesThisDeclarationHaveABody());
+  FunctionDecl* DefinitionD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(DefinitionD->doesThisDeclarationHaveABody());
+  EXPECT_EQ(DefinitionD->getPreviousDecl(), ProtoD);
 }
 
 } // end namespace ast_matchers
