@@ -1518,20 +1518,18 @@ TEST_F(ImportFunctions,
        ImportPrototypeThenDefinition) {
   auto Pattern = functionDecl(hasName("f"));
 
-  Decl *ImportedD;
   {
     Decl *FromTU = getTuDecl("void f();", Lang_CXX);
     FunctionDecl *FromD =
         FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
 
-    ImportedD = Import(FromD, Lang_CXX);
+    Import(FromD, Lang_CXX);
   }
-  Decl *ImportedD1;
   {
     Decl *FromTU = getTuDecl("void f(){}", Lang_CXX);
     FunctionDecl *FromD =
         FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
-    ImportedD1 = Import(FromD, Lang_CXX);
+    Import(FromD, Lang_CXX);
   }
 
   Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
@@ -1546,20 +1544,18 @@ TEST_F(ImportFunctions,
        ImportPrototypeThenProtoAndDefinition) {
   auto Pattern = functionDecl(hasName("f"));
 
-  Decl *ImportedD;
   {
     Decl *FromTU = getTuDecl("void f();", Lang_CXX);
     FunctionDecl *FromD =
         FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
 
-    ImportedD = Import(FromD, Lang_CXX);
+    Import(FromD, Lang_CXX);
   }
-  Decl *ImportedD1;
   {
     Decl *FromTU = getTuDecl("void f(); void f(){}", Lang_CXX);
     FunctionDecl *FromD =
         FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
-    ImportedD1 = Import(FromD, Lang_CXX);
+    Import(FromD, Lang_CXX);
   }
 
   Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
