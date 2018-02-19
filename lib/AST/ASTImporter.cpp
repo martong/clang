@@ -1995,7 +1995,7 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
 
     return Importer.Imported(D, ImportedDef);
   }
-  
+
   // Import the major distinguishing characteristics of this record.
   DeclContext *DC, *LexicalDC;
   DeclarationName Name;
@@ -2013,7 +2013,7 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
     SearchName = Importer.Import(D->getTypedefNameForAnonDecl()->getDeclName());
     IDNS |= Decl::IDNS_Ordinary;
   } else if (Importer.getToContext().getLangOpts().CPlusPlus)
-    IDNS |= Decl::IDNS_Ordinary;
+    IDNS |= Decl::IDNS_Ordinary | Decl::IDNS_TagFriend;
 
   // We may already have a record of the same name; try to find and match it.
   RecordDecl *AdoptDecl = nullptr;
@@ -2032,7 +2032,7 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
     for (unsigned I = 0, N = FoundDecls.size(); I != N; ++I) {
       if (!FoundDecls[I]->isInIdentifierNamespace(IDNS))
         continue;
-      
+
       Decl *Found = FoundDecls[I];
       if (TypedefNameDecl *Typedef = dyn_cast<TypedefNameDecl>(Found)) {
         if (const TagType *Tag = Typedef->getUnderlyingType()->getAs<TagType>())
@@ -2791,7 +2791,9 @@ Decl *ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
   // Not found. Create it.
   FriendDecl::FriendUnion ToFU;
   if (NamedDecl *FriendD = D->getFriendDecl()) {
-    auto ToFriendD = cast_or_null<NamedDecl>(Importer.Import(FriendD));
+    auto *ToFriendD = cast_or_null<NamedDecl>(Importer.Import(FriendD));
+    if (ToFriendD && FriendD->getFriendObjectKind() != Decl::FOK_None)
+      ToFriendD->setObjectOfFriendDecl(true);
     ToFU = ToFriendD;
   } else
     ToFU = Importer.Import(D->getFriendType());
