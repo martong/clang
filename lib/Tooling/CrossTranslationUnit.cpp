@@ -238,10 +238,10 @@ const FunctionDecl *CrossTranslationUnit::getCrossTUDefinition(
 
     const auto& LangTo = Context.getLangOpts();
     const auto& LangFrom = Unit->getASTContext().getLangOpts();
-    // FIXME: Currenty we do not support the import of C AST into C++. This
-    // limitation should be lifted in the future after carafully examining
-    // and handling the cases where the two ASTs are incomatible.
-    if (LangTo.CPlusPlus && !LangFrom.CPlusPlus) {
+    // FIXME: Currenty we do not support the import of C AST into C++ or vica
+    // versa. This limitation should be lifted in the future after carefully
+    // examining and handling the cases where the two ASTs are incomatible.
+    if (LangTo.CPlusPlus != LangFrom.CPlusPlus) {
       return nullptr;
     }
 
