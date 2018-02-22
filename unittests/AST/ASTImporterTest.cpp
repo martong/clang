@@ -1416,7 +1416,7 @@ TEST_F(ImportFunctions,
   EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
 }
 
-TEST_F(ImportFunctions, ImportPrototypeOfRecursiveFunction) {
+TEST_F(ImportFunctions, DISABLED_ImportPrototypeOfRecursiveFunction) {
   Decl *FromTU = getTuDecl("void f(); void f() { f(); }", Lang_CXX);
   auto Pattern = functionDecl(hasName("f"));
   FunctionDecl *PrototypeFD =
@@ -1541,7 +1541,7 @@ TEST_F(ImportFunctions,
 }
 
 TEST_F(ImportFunctions,
-       ImportPrototypeThenProtoAndDefinition) {
+       DISABLED_ImportPrototypeThenProtoAndDefinition) {
   auto Pattern = functionDecl(hasName("f"));
 
   {

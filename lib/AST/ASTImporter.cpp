@@ -2321,13 +2321,16 @@ bool ASTNodeImporter::ImportTemplateInformation(FunctionDecl *FromFD,
 
 Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
 
-  // If we have the defintion in the ToCtx, import that and skip the prototype.
-  // This handles difficulties when we have a recursive function with a
-  // prototype and with a definition in the same ToCtx.  E.g. importing the
-  // prototype below would import the definition twice without this branch.
-  // "void f(); void f() { f(); }"
-  if (FunctionDecl* Definition = D->getDefinition())
-    D = Definition;
+//  FIXME: This part is commented out temporarily.
+//  https://github.com/Ericsson/clang/pull/290
+//
+//  // If we have the defintion in the ToCtx, import that and skip the prototype.
+//  // This handles difficulties when we have a recursive function with a
+//  // prototype and with a definition in the same ToCtx.  E.g. importing the
+//  // prototype below would import the definition twice without this branch.
+//  // "void f(); void f() { f(); }"
+//  if (FunctionDecl* Definition = D->getDefinition())
+//    D = Definition;
 
   // Import the major distinguishing characteristics of this function.
   DeclContext *DC, *LexicalDC;
