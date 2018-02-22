@@ -1,6 +1,7 @@
 // RUN: %clang_cc1 -std=c++1z -emit-pch -o %t.1.ast %S/Inputs/class-template1.cpp
 // RUN: %clang_cc1 -std=c++1z -emit-pch -o %t.2.ast %S/Inputs/class-template2.cpp
-// RUN: %clang_cc1 -std=c++1z  -ast-merge %t.1.ast -ast-merge %t.2.ast -fsyntax-only %s 2>&1 | FileCheck %s
+// RUN: %clang_cc1 -std=c++1z -emit-pch -o %t.3.ast %S/Inputs/class-template3.cpp
+// RUN: %clang_cc1 -std=c++1z  -ast-merge %t.1.ast -ast-merge %t.2.ast -ast-merge %t.3.ast -fsyntax-only %s 2>&1 | FileCheck %s
 
 static_assert(sizeof(X0<char>().getValue(1)) == sizeof(char));
 static_assert(sizeof(X0<int>().getValue(1)) == sizeof(int));

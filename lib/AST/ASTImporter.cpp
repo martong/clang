@@ -1574,6 +1574,9 @@ Decl *ASTNodeImporter::VisitStaticAssertDecl(StaticAssertDecl *D) {
   DeclContext *DC = Importer.ImportContext(D->getDeclContext());
   if (!DC)
     return nullptr;
+  Decl *AlreadyImported = Importer.GetAlreadyImportedOrNull(D);
+  if (AlreadyImported)
+    return AlreadyImported;
 
   DeclContext *LexicalDC = DC;
 
@@ -2440,7 +2443,12 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   TypeSourceInfo *TInfo = Importer.Import(D->getTypeSourceInfo());
   if (D->getTypeSourceInfo() && !TInfo)
     return nullptr;
-
+  
+  // Check recursive import.
+  Decl *AlreadyImported = Importer.GetAlreadyImportedOrNull(D);
+  if (AlreadyImported)
+    return AlreadyImported;
+  
   // Create the imported function.
   FunctionDecl *ToFunction = nullptr;
   SourceLocation InnerLocStart = Importer.Import(D->getInnerLocStart());
@@ -6776,18 +6784,18 @@ Decl *ASTImporter::Import(Decl *FromD) {
 
   ASTNodeImporter Importer(*this);
 
-  // Check whether we've already imported this declaration.  
-  llvm::DenseMap<Decl *, Decl *>::iterator Pos = ImportedDecls.find(FromD);
-  if (Pos != ImportedDecls.end()) {
-    Decl *ToD = Pos->second;
-    Importer.ImportDefinitionIfNeeded(FromD, ToD);
+  // Check whether we've already imported this declaration.
+  Decl *ToD = GetAlreadyImportedOrNull(FromD);
+  if (ToD)
     return ToD;
-  }
-  
+
   // Import the type
-  Decl *ToD = Importer.Visit(FromD);
+  ToD = Importer.Visit(FromD);
   if (!ToD)
     return nullptr;
+
+  llvm::DenseMap<Decl *, Decl *>::iterator Pos = ImportedDecls.find(FromD);
+  assert((Pos == ImportedDecls.end() || Pos->second == ToD) && "Try to import an already imported Decl");
 
   // Record the imported declaration.
   ImportedDecls[FromD] = ToD;
@@ -7421,6 +7429,9 @@ void ASTImporter::CompleteDecl (Decl *D) {
 }
 
 Decl *ASTImporter::Imported(Decl *From, Decl *To) {
+  llvm::DenseMap<Decl *, Decl *>::iterator Pos = ImportedDecls.find(From);
+  assert((Pos == ImportedDecls.end() || Pos->second == To) && "Try to import an already imported Decl");
+
   if (From->hasAttrs()) {
     for (Attr *FromAttr : From->getAttrs())
       To->addAttr(FromAttr->clone(To->getASTContext()));
