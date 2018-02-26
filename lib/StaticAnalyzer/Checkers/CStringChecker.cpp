@@ -276,9 +276,6 @@ ProgramStateRef CStringChecker::CheckLocation(CheckerContext &C,
                                              ProgramStateRef state,
                                              const Expr *S, SVal l,
                                              const char *warningMsg) const {
-  if (!Filter.CheckCStringOutOfBounds)
-    return state;
-
   // If a previous check has failed, propagate the failure.
   if (!state)
     return nullptr;
