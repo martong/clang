@@ -87,18 +87,43 @@ testImport(const std::string &FromCode, Language FromLang,
   return Verifier.match(Imported, AMatcher);
 }
 
-struct Fixture : ::testing::Test {
-
-  // We may have several From context but only one To context.
-  std::unique_ptr<ASTUnit> ToAST;
-  std::vector<std::unique_ptr<ASTUnit>> FromASTVec;
+class Fixture : public ::testing::Test {
 
   const char *const InputFileName = "input.cc";
   const char *const OutputFileName = "output.cc";
 
   //Buffers for the contexts, must live in test scope
-  StringRef ToCode;
-  std::vector<StringRef> FromCodeVec;
+  std::string ToCode;
+
+  struct TU {
+    std::string Code;
+    std::string FileName;
+    std::unique_ptr<ASTUnit> Unit;
+    TranslationUnitDecl *TUDecl = nullptr;
+    TU(StringRef Code, StringRef FileName, StringVector Args)
+        : Code(Code), FileName(FileName),
+          Unit(tooling::buildASTFromCodeWithArgs(this->Code, Args,
+                                                 this->FileName)),
+          TUDecl(Unit->getASTContext().getTranslationUnitDecl()) {}
+  };
+  // We may have several From context and related translation units.
+  std::list<TU> FromTUs;
+
+  // Creates a virtual file and assigns that to the To context.  If the file
+  // already exists then the file will not be created again as a duplicate.
+  void createVirtualFile(StringRef FileName, const std::string &Code) {
+    assert(ToAST);
+    ASTContext &ToCtx = ToAST->getASTContext();
+    vfs::OverlayFileSystem *OFS = static_cast<vfs::OverlayFileSystem *>(
+        ToCtx.getSourceManager().getFileManager().getVirtualFileSystem().get());
+    vfs::InMemoryFileSystem *MFS =
+        static_cast<vfs::InMemoryFileSystem *>(OFS->overlays_begin()->get());
+    MFS->addFile(FileName, 0, llvm::MemoryBuffer::getMemBuffer(Code.c_str()));
+  }
+
+public:
+  // We may have several From context but only one To context.
+  std::unique_ptr<ASTUnit> ToAST;
 
   // Creates an AST both for the From and To source code and imports the Decl
   // of the identifier into the To context.
@@ -107,32 +132,24 @@ struct Fixture : ::testing::Test {
   getImportedDecl(StringRef FromSrcCode, Language FromLang,
                   StringRef ToSrcCode, Language ToLang,
                   const char *const Identifier = "declToImport") {
-    FromCodeVec.push_back(FromSrcCode);
-    ToCode = ToSrcCode;
-
     StringVector FromArgs, ToArgs;
     getLangArgs(FromLang, FromArgs);
     getLangArgs(ToLang, ToArgs);
 
-    FromASTVec.emplace_back(tooling::buildASTFromCodeWithArgs(
-        FromCodeVec.back(), FromArgs, InputFileName));
+    FromTUs.emplace_back(FromSrcCode, InputFileName, FromArgs);
+    TU &FromTu = FromTUs.back();
+
+    ToCode = ToSrcCode;
     assert(!ToAST);
     ToAST = tooling::buildASTFromCodeWithArgs(ToCode, ToArgs, OutputFileName);
 
-    ASTContext &FromCtx = FromASTVec.back()->getASTContext(),
+    ASTContext &FromCtx = FromTu.Unit->getASTContext(),
                &ToCtx = ToAST->getASTContext();
 
-    // Add input.cc to virtual file system so importer can 'find' it
-    // while importing SourceLocations.
-    vfs::OverlayFileSystem *OFS = static_cast<vfs::OverlayFileSystem *>(
-        ToCtx.getSourceManager().getFileManager().getVirtualFileSystem().get());
-    vfs::InMemoryFileSystem *MFS =
-        static_cast<vfs::InMemoryFileSystem *>(OFS->overlays_begin()->get());
-    MFS->addFile(InputFileName, 0,
-                 llvm::MemoryBuffer::getMemBuffer(FromCodeVec.back()));
+    createVirtualFile(InputFileName, FromTu.Code);
 
     ASTImporter Importer(ToCtx, ToAST->getFileManager(), FromCtx,
-                         FromASTVec.back()->getFileManager(), false);
+                         FromTu.Unit->getFileManager(), false);
 
     IdentifierInfo *ImportedII = &FromCtx.Idents.get(Identifier);
     assert(ImportedII && "Declaration with the given identifier "
@@ -151,14 +168,19 @@ struct Fixture : ::testing::Test {
 
   // Creates a TU decl for the given source code.
   // May be called several times in a given test.
-  TranslationUnitDecl *getTuDecl(StringRef SrcCode, Language Lang) {
-    FromCodeVec.push_back(SrcCode);
+  TranslationUnitDecl *getTuDecl(StringRef SrcCode, Language Lang,
+                                 StringRef FileName = "input.cc") {
+    assert(
+        std::find_if(FromTUs.begin(), FromTUs.end(), [&FileName](const TU &e) {
+          return e.FileName == FileName;
+        }) == FromTUs.end());
+
     StringVector Args;
     getLangArgs(Lang, Args);
-    FromASTVec.emplace_back(tooling::buildASTFromCodeWithArgs(
-        FromCodeVec.back(), Args, InputFileName));
+    FromTUs.emplace_back(SrcCode, FileName, Args);
+    TU &Tu = FromTUs.back();
 
-    return FromASTVec.back()->getASTContext().getTranslationUnitDecl();
+    return Tu.TUDecl;
   }
 
   // Import the given Decl into the ToCtx.
@@ -168,8 +190,21 @@ struct Fixture : ::testing::Test {
     if (!ToAST) {
       StringVector ToArgs;
       getLangArgs(ToLang, ToArgs);
-      ToAST = tooling::buildASTFromCodeWithArgs(ToCode, ToArgs, OutputFileName);
+      // Build the AST from an empty file.
+      ToAST =
+          tooling::buildASTFromCodeWithArgs(/*Code=*/"", ToArgs, "empty.cc");
     }
+
+    // Create a virtual file in the To Ctx which corresponds to the file from
+    // which we want to import the `From` Decl. Without this source locations
+    // will be invalid in the ToCtx.
+    auto It =
+        std::find_if(FromTUs.begin(), FromTUs.end(), [&From](const TU &e) {
+          return e.TUDecl == From->getTranslationUnitDecl();
+        });
+    assert(It != FromTUs.end());
+    // This will not create the file more than once.
+    createVirtualFile(It->FileName, It->Code);
 
     ASTContext &FromCtx = From->getASTContext(),
                &ToCtx = ToAST->getASTContext();
@@ -181,10 +216,10 @@ struct Fixture : ::testing::Test {
   ~Fixture() {
     if (!::testing::Test::HasFailure()) return;
 
-    for (auto& FromAST : FromASTVec) {
-      if (FromAST) {
+    for (auto &Tu : FromTUs) {
+      if (Tu.Unit) {
         llvm::errs() << "FromAST:\n";
-        FromAST->getASTContext().getTranslationUnitDecl()->dump();
+        Tu.Unit->getASTContext().getTranslationUnitDecl()->dump();
         llvm::errs() << "\n";
       }
     }
@@ -1486,7 +1521,7 @@ TEST_F(ImportFunctions,
 
   Decl *ImportedD;
   {
-    Decl *FromTU = getTuDecl("void f();", Lang_CXX);
+    Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input0.cc");
     FunctionDecl *FromD =
         FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
 
@@ -1494,7 +1529,7 @@ TEST_F(ImportFunctions,
   }
   Decl *ImportedD1;
   {
-    Decl *FromTU = getTuDecl("void f();", Lang_CXX);
+    Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input1.cc");
     FunctionDecl *FromD =
         FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
     ImportedD1 = Import(FromD, Lang_CXX);
@@ -1517,7 +1552,7 @@ TEST_F(ImportFunctions,
 
   Decl *ImportedD;
   {
-    Decl *FromTU = getTuDecl("void f(){}", Lang_CXX);
+    Decl *FromTU = getTuDecl("void f(){}", Lang_CXX, "input0.cc");
     FunctionDecl *FromD =
         FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
 
@@ -1525,7 +1560,7 @@ TEST_F(ImportFunctions,
   }
   Decl *ImportedD1;
   {
-    Decl *FromTU = getTuDecl("void f();", Lang_CXX);
+    Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input1.cc");
     FunctionDecl *FromD =
         FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
     ImportedD1 = Import(FromD, Lang_CXX);
@@ -1547,14 +1582,14 @@ TEST_F(ImportFunctions,
   auto Pattern = functionDecl(hasName("f"));
 
   {
-    Decl *FromTU = getTuDecl("void f();", Lang_CXX);
+    Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input0.cc");
     FunctionDecl *FromD =
         FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
 
     Import(FromD, Lang_CXX);
   }
   {
-    Decl *FromTU = getTuDecl("void f(){}", Lang_CXX);
+    Decl *FromTU = getTuDecl("void f(){}", Lang_CXX, "input1.cc");
     FunctionDecl *FromD =
         FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
     Import(FromD, Lang_CXX);
@@ -1573,14 +1608,14 @@ TEST_F(ImportFunctions,
   auto Pattern = functionDecl(hasName("f"));
 
   {
-    Decl *FromTU = getTuDecl("void f();", Lang_CXX);
+    Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input0.cc");
     FunctionDecl *FromD =
         FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
 
     Import(FromD, Lang_CXX);
   }
   {
-    Decl *FromTU = getTuDecl("void f(); void f(){}", Lang_CXX);
+    Decl *FromTU = getTuDecl("void f(); void f(){}", Lang_CXX, "input1.cc");
     FunctionDecl *FromD =
         FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
     Import(FromD, Lang_CXX);
