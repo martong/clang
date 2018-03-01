@@ -814,6 +814,60 @@ TEST(ImportDecl, ImportFunctionTemplateDecl) {
               has(returnStmt(has(integerLiteral(equals(2)))))))))))))))))));
 }
 
+TEST(ImportDecl, DISABLED_ImportTemplateDefaultArgument) {
+  MatchVerifier<Decl> Verifier;
+  EXPECT_TRUE(
+        testImport(
+          "template <typename T=int> void declToImport(T &t) { };",
+          Lang_CXX11, "", Lang_CXX11, Verifier,
+          functionTemplateDecl(has(templateArgument()))));
+}
+
+TEST_F(Fixture, ImportTemplatedDecl) {
+  Decl *FromTU = getTuDecl("template<class X> struct S{};", Lang_CXX);
+  auto From =
+      FirstDeclMatcher<ClassTemplateDecl>().match(FromTU, classTemplateDecl());
+  ASSERT_TRUE(From);
+  auto To = cast<ClassTemplateDecl>(Import(From, Lang_CXX));
+  ASSERT_TRUE(To);
+  auto ToTemplated = To->getTemplatedDecl();
+  auto ToTemplated1 =
+      cast<CXXRecordDecl>(Import(From->getTemplatedDecl(), Lang_CXX));
+  EXPECT_TRUE(ToTemplated1);
+  ASSERT_EQ(ToTemplated1, ToTemplated);
+}
+
+TEST_F(Fixture, ImportCorrectTemplatedDecl) {
+  auto Code =
+        R"(
+        namespace x {
+          template<class X> struct S1{};
+          template<class X> struct S2{};
+          template<class X> struct S3{};
+        }
+        )";
+  Decl *FromTU = getTuDecl(Code, Lang_CXX);
+  auto FromNs =
+      FirstDeclMatcher<NamespaceDecl>().match(FromTU, namespaceDecl());
+  auto ToNs = cast<NamespaceDecl>(Import(FromNs, Lang_CXX));
+  ASSERT_TRUE(ToNs);
+  auto From =
+      FirstDeclMatcher<ClassTemplateDecl>().match(FromTU,
+                                                  classTemplateDecl(
+                                                      hasName("S2")));
+  auto To =
+      FirstDeclMatcher<ClassTemplateDecl>().match(ToNs,
+                                                  classTemplateDecl(
+                                                      hasName("S2")));
+  ASSERT_TRUE(From);
+  ASSERT_TRUE(To);
+  auto ToTemplated = To->getTemplatedDecl();
+  auto ToTemplated1 =
+      cast<CXXRecordDecl>(Import(From->getTemplatedDecl(), Lang_CXX));
+  EXPECT_TRUE(ToTemplated1);
+  ASSERT_EQ(ToTemplated1, ToTemplated);
+}
+
 TEST(ImportExpr, ImportClassTemplatePartialSpecialization) {
   MatchVerifier<Decl> Verifier;
   auto Code =  R"s(
