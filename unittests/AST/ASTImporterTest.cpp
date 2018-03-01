@@ -1799,5 +1799,15 @@ TEST_F(Fixture, TypeForDeclShouldBeSet) {
   EXPECT_EQ(Imported1->getTypeForDecl(), Imported2->getTypeForDecl());
 }
 
+TEST_F(Fixture, DeclsFromFriendsShouldBeInRedeclChains2) {
+  Decl *From, *To;
+  std::tie(From, To) =
+      getImportedDecl("class declToImport {};", Lang_CXX,
+                      "class Y { friend class declToImport; };", Lang_CXX);
+  auto *Imported = cast<CXXRecordDecl>(To);
+
+  EXPECT_TRUE(Imported->getPreviousDecl());
+}
+
 } // end namespace ast_matchers
 } // end namespace clang
