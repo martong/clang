@@ -2118,10 +2118,9 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
         Importer.getToContext().getTypeDeclType(
             D2CXX, llvm::dyn_cast<CXXRecordDecl>(DC));
       } else {
-        D2CXX = CXXRecordDecl::Create(Importer.getToContext(),
-                                      D->getTagKind(),
-                                      DC, StartLoc, Loc,
-                                      Name.getAsIdentifierInfo());
+        D2CXX = CXXRecordDecl::Create(
+            Importer.getToContext(), D->getTagKind(), DC, StartLoc, Loc,
+            Name.getAsIdentifierInfo(), cast_or_null<CXXRecordDecl>(PrevDecl));
       }
       D2 = D2CXX;
       D2->setAccess(D->getAccess());
@@ -2155,7 +2154,8 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
 
     } else {
       D2 = RecordDecl::Create(Importer.getToContext(), D->getTagKind(), DC,
-                              StartLoc, Loc, Name.getAsIdentifierInfo());
+                              StartLoc, Loc, Name.getAsIdentifierInfo(),
+                              PrevDecl);
       D2->setLexicalDeclContext(LexicalDC);
       LexicalDC->addDeclInternal(D2);
     }
@@ -2163,10 +2163,6 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
     D2->setQualifierInfo(Importer.Import(D->getQualifierLoc()));
     if (D->isAnonymousStructOrUnion())
       D2->setAnonymousStructOrUnion(true);
-    if (PrevDecl) {
-      // FIXME: do this for all Redeclarables, not just RecordDecls.
-      D2->setPreviousDecl(PrevDecl);
-    }
   }
   
   Importer.Imported(D, D2);
@@ -4207,7 +4203,7 @@ Decl *ASTNodeImporter::VisitClassTemplateDecl(ClassTemplateDecl *D) {
   D2->setLexicalDeclContext(LexicalDC);
   ToTemplated->setLexicalDeclContext(LexicalDC);
   LexicalDC->addDeclInternal(D2);
-  
+
   // Note the relationship between the class templates.
   Importer.Imported(D, D2);
   Importer.Imported(FromTemplated, ToTemplated);
@@ -4267,19 +4263,18 @@ Decl *ASTNodeImporter::VisitClassTemplateSpecializationDecl(
   void *InsertPos = nullptr;
   ClassTemplateSpecializationDecl *D2
     = ClassTemplate->findSpecialization(TemplateArgs, InsertPos);
-  if (D2) {
+  ClassTemplateSpecializationDecl *PrevDecl = D2;
+  RecordDecl *FoundDef = D2 ? D2->getDefinition() : nullptr;
+  if (FoundDef) {
     // We already have a class template specialization with these template
     // arguments.
     
     // FIXME: Check for specialization vs. instantiation errors.
-    
-    if (RecordDecl *FoundDef = D2->getDefinition()) {
-      if (!D->isCompleteDefinition() || IsStructuralMatch(D, FoundDef)) {
-        // The record types structurally match, or the "from" translation
-        // unit only had a forward declaration anyway; call it the same
-        // function.
-        return Importer.Imported(D, FoundDef);
-      }
+    if (!D->isCompleteDefinition() || IsStructuralMatch(D, FoundDef)) {
+      // The record types structurally match, or the "from" translation
+      // unit only had a forward declaration anyway; call it the same
+      // function.
+      return Importer.Imported(D, FoundDef);
     }
   } else {
     // Create a new specialization.
@@ -4315,7 +4310,7 @@ Decl *ASTNodeImporter::VisitClassTemplateSpecializationDecl(
                                                    StartLoc, IdLoc,
                                                    ClassTemplate,
                                                    TemplateArgs,
-                                                   /*PrevDecl=*/nullptr);
+                                                   PrevDecl);
     }
 
     D2->setSpecializationKind(D->getSpecializationKind());
