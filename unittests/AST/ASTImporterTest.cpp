@@ -1679,5 +1679,60 @@ TEST_F(Fixture, OmitVAListTag) {
       MatchVerifier<Decl>{}.match(To->getTranslationUnitDecl(), Pattern));
 }
 
+TEST_F(Fixture, ProperPrevDeclForClassTemplateDecls) {
+  auto Pattern = classTemplateSpecializationDecl(hasName("X"));
+
+  ClassTemplateSpecializationDecl *Imported1;
+  {
+    Decl *FromTU = getTuDecl("template<class T> class X;"
+                             "struct Y { friend class X<int>; };",
+                             Lang_CXX, "input0.cc");
+    auto *FromD = FirstDeclMatcher<ClassTemplateSpecializationDecl>().match(
+        FromTU, Pattern);
+
+    Imported1 = cast<ClassTemplateSpecializationDecl>(Import(FromD, Lang_CXX));
+  }
+  ClassTemplateSpecializationDecl *Imported2;
+  {
+    Decl *FromTU = getTuDecl("template<class T> class X;"
+                             "template<> class X<int>{};"
+                             "struct Z { friend class X<int>; };",
+                             Lang_CXX, "input1.cc");
+    auto *FromD = FirstDeclMatcher<ClassTemplateSpecializationDecl>().match(
+        FromTU, Pattern);
+
+    Imported2 = cast<ClassTemplateSpecializationDecl>(Import(FromD, Lang_CXX));
+  }
+
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  // FIXME: Check if this should actually be 2.
+  EXPECT_EQ(DeclCounter<ClassTemplateSpecializationDecl>().match(ToTU, Pattern),
+            3u);
+  ASSERT_TRUE(Imported2->getPreviousDecl());
+  EXPECT_EQ(Imported2->getPreviousDecl(), Imported1);
+}
+
+TEST_F(Fixture, TypeForDeclShouldBeSet) {
+  auto Pattern = cxxRecordDecl(hasName("X"));
+
+  CXXRecordDecl *Imported1;
+  {
+    Decl *FromTU = getTuDecl("class X;", Lang_CXX, "input0.cc");
+    auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(FromTU, Pattern);
+
+    Imported1 = cast<CXXRecordDecl>(Import(FromD, Lang_CXX));
+  }
+  CXXRecordDecl *Imported2;
+  {
+    Decl *FromTU = getTuDecl("class X {};", Lang_CXX, "input1.cc");
+    auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(FromTU, Pattern);
+
+    Imported2 = cast<CXXRecordDecl>(Import(FromD, Lang_CXX));
+  }
+
+  EXPECT_TRUE(Imported2->getPreviousDecl());
+  EXPECT_EQ(Imported1->getTypeForDecl(), Imported2->getTypeForDecl());
+}
+
 } // end namespace ast_matchers
 } // end namespace clang

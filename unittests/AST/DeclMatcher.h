@@ -52,7 +52,7 @@ class DeclCounter : public MatchFinder::MatchCallback {
       }
   }
 public:
-  // Returns the first/last matched node under the tree rooted in `D`.
+  // Returns the number of matched nodes under the tree rooted in `D`.
   template <typename MatcherType>
   unsigned match(const Decl *D, const MatcherType &AMatcher) {
     MatchFinder Finder;
