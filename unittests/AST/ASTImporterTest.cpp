@@ -1479,7 +1479,7 @@ TEST_F(ImportFunctions,
   EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
 }
 
-TEST_F(ImportFunctions, DISABLED_ImportPrototypeOfRecursiveFunction) {
+TEST_F(ImportFunctions, ImportPrototypeOfRecursiveFunction) {
   Decl *FromTU = getTuDecl("void f(); void f() { f(); }", Lang_CXX);
   auto Pattern = functionDecl(hasName("f"));
   FunctionDecl *PrototypeFD =
@@ -1596,6 +1596,7 @@ TEST_F(ImportFunctions,
   }
 
   Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
   FunctionDecl* ProtoD = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
   EXPECT_TRUE(!ProtoD->doesThisDeclarationHaveABody());
   FunctionDecl* DefinitionD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
@@ -1604,7 +1605,7 @@ TEST_F(ImportFunctions,
 }
 
 TEST_F(ImportFunctions,
-       DISABLED_ImportPrototypeThenProtoAndDefinition) {
+       ImportPrototypeThenProtoAndDefinition) {
   auto Pattern = functionDecl(hasName("f"));
 
   {
@@ -1622,11 +1623,47 @@ TEST_F(ImportFunctions,
   }
 
   Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
   FunctionDecl* ProtoD = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
   EXPECT_TRUE(!ProtoD->doesThisDeclarationHaveABody());
   FunctionDecl* DefinitionD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
   EXPECT_TRUE(DefinitionD->doesThisDeclarationHaveABody());
   EXPECT_EQ(DefinitionD->getPreviousDecl(), ProtoD);
+}
+
+TEST_F(ImportFunctions,
+       OverriddenMethodsShouldBeImported) {
+  auto Code =
+        R"(
+        struct B { virtual void f(); };
+        void B::f() {}
+        struct D : B { void f(); };
+        )";
+  auto Pattern = cxxMethodDecl(hasName("f"), hasParent(cxxRecordDecl(hasName("D"))));
+  Decl *FromTU = getTuDecl(Code, Lang_CXX);
+  CXXMethodDecl *Proto = FirstDeclMatcher<CXXMethodDecl>().match(FromTU, Pattern);
+
+  ASSERT_EQ(Proto->size_overridden_methods(), 1u);
+  CXXMethodDecl* To = cast<CXXMethodDecl>(Import(Proto, Lang_CXX));
+  EXPECT_EQ(To->size_overridden_methods(), 1u);
+}
+
+TEST_F(ImportFunctions,
+       VirtualFlagShouldBePreservedWhenImportingPrototype) {
+  auto Code =
+        R"(
+        struct B { virtual void f(); };
+        void B::f() {}
+        )";
+  auto Pattern = cxxMethodDecl(hasName("f"), hasParent(cxxRecordDecl(hasName("B"))));
+  Decl *FromTU = getTuDecl(Code, Lang_CXX);
+  CXXMethodDecl *Proto = FirstDeclMatcher<CXXMethodDecl>().match(FromTU, Pattern);
+  CXXMethodDecl *Def = LastDeclMatcher<CXXMethodDecl>().match(FromTU, Pattern);
+
+  ASSERT_TRUE(Proto->isVirtual());
+  ASSERT_TRUE(Def->isVirtual());
+  CXXMethodDecl* To = cast<CXXMethodDecl>(Import(Proto, Lang_CXX));
+  EXPECT_TRUE(To->isVirtual());
 }
 
 TEST_F(Fixture, OmitVAListTag) {

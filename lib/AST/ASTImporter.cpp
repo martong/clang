@@ -2324,17 +2324,6 @@ bool ASTNodeImporter::ImportTemplateInformation(FunctionDecl *FromFD,
 
 Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
 
-//  FIXME: This part is commented out temporarily.
-//  https://github.com/Ericsson/clang/pull/290
-//
-//  // If we have the defintion in the ToCtx, import that and skip the prototype.
-//  // This handles difficulties when we have a recursive function with a
-//  // prototype and with a definition in the same ToCtx.  E.g. importing the
-//  // prototype below would import the definition twice without this branch.
-//  // "void f(); void f() { f(); }"
-//  if (FunctionDecl* Definition = D->getDefinition())
-//    D = Definition;
-
   // Import the major distinguishing characteristics of this function.
   DeclContext *DC, *LexicalDC;
   DeclarationName Name;
@@ -2362,10 +2351,7 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
         if (FoundFunction->hasExternalFormalLinkage() &&
             D->hasExternalFormalLinkage()) {
           if (IsStructuralMatch(D, FoundFunction)) {
-            // FIXME: Actually try to merge the body and other attributes.
-            const FunctionDecl *FromBodyDecl = nullptr;
-            D->hasBody(FromBodyDecl);
-            if (D == FromBodyDecl && !FoundFunction->hasBody()) {
+            if (D->hasBody() && !FoundFunction->hasBody()) {
               // This function is needed to merge completely.
               FoundWithoutBody = FoundFunction;
               break;
@@ -2559,7 +2545,18 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     }
 
   // Import the body, if any.
-  if (Stmt *FromBody = D->getBody()) {
+  const FunctionDecl* FromDefinition = nullptr;
+  if (Stmt *FromBody = D->getBody(FromDefinition)) {
+
+    // If we have the defintion in the FromCtx, mark that as imported.
+    // This handles difficulties when we have a recursive function with a
+    // prototype and a definition in the same ToCtx.  E.g. importing the
+    // prototype below would import the definition twice without this.
+    // "void f(); void f() { f(); }"
+    // This is because in the definition the CallExpression refers to the
+    // definition, not to the prototype.
+    Importer.Imported(const_cast<FunctionDecl*>(FromDefinition), ToFunction);
+
     if (Stmt *ToBody = Importer.Import(FromBody)) {
       ToFunction->setBody(ToBody);
     }
