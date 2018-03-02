@@ -2039,6 +2039,13 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
           Found = Tag->getDecl();
       }
       
+      if (D->getDescribedTemplate()) {
+        if (ClassTemplateDecl *Template = dyn_cast<ClassTemplateDecl>(Found))
+          Found = Template->getTemplatedDecl();
+        else
+          continue;
+      }
+      
       if (RecordDecl *FoundRecord = dyn_cast<RecordDecl>(Found)) {
         if (!SearchName) {
           // If both unnamed structs/unions are in a record context, make sure
