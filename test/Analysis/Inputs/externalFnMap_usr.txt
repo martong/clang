@@ -16,3 +16,4 @@ c:@N@chns@F@chf2#I# xtu-chain.cpp.ast
 c:@F@fun_with_unsupported_node#I# xtu-other.cpp.ast
 c:@F@fun_using_type_alias_template# xtu-other.cpp.ast
 c:@F@fun_using_pack_expansion# xtu-other.cpp.ast
+c:@F@fun_using_anon_struct#I# xtu-other.cpp.ast

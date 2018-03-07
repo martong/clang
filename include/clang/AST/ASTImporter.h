@@ -77,10 +77,6 @@ namespace clang {
     ///  in the "to" source manager.
     ImportedCXXBaseSpecifierMap ImportedCXXBaseSpecifiers;
 
-    /// \brief Imported, anonymous tag declarations that are missing their 
-    /// corresponding typedefs.
-    SmallVector<TagDecl *, 4> AnonTagsWithPendingTypedefs;
-    
     /// \brief Declaration (from, to) pairs that are known not to be equivalent
     /// (which we have already complained about).
     NonEquivalentDeclSet NonEquivalentDecls;
