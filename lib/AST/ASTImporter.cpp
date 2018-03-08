@@ -2350,6 +2350,7 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     return ToD;
 
   const FunctionDecl *FoundWithoutBody = nullptr;
+  FunctionTemplateDecl *FromFT = D->getDescribedFunctionTemplate();
 
   // Try to find a function in our own ("to") context with the same name, same
   // type, and in the same context as the function we're importing.
@@ -2362,35 +2363,49 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
       if (!FoundDecls[I]->isInIdentifierNamespace(IDNS))
         continue;
 
-      if (FunctionDecl *FoundFunction = dyn_cast<FunctionDecl>(FoundDecls[I])) {
-        if (FoundFunction->hasExternalFormalLinkage() &&
-            D->hasExternalFormalLinkage()) {
-          if (IsStructuralMatch(D, FoundFunction)) {
-            if (D->hasBody() && !FoundFunction->hasBody()) {
-              // This function is needed to merge completely.
-              FoundWithoutBody = FoundFunction;
-              break;
+      if (!FromFT) {
+        if (FunctionDecl *FoundFunction = dyn_cast<FunctionDecl>(FoundDecls[I])) {
+          if (FoundFunction->hasExternalFormalLinkage() &&
+              D->hasExternalFormalLinkage()) {
+            if (IsStructuralMatch(D, FoundFunction)) {
+              if (D->hasBody() && !FoundFunction->hasBody()) {
+                // This function is needed to merge completely.
+                FoundWithoutBody = FoundFunction;
+                break;
+              }
+              return Importer.Imported(D, FoundFunction);
             }
-            return Importer.Imported(D, FoundFunction);
+
+            // FIXME: Check for overloading more carefully, e.g., by boosting
+            // Sema::IsOverload out to the AST library.
+
+            // Function overloading is okay in C++.
+            if (Importer.getToContext().getLangOpts().CPlusPlus)
+              continue;
+
+            // Complain about inconsistent function types.
+            Importer.ToDiag(Loc, diag::err_odr_function_type_inconsistent)
+              << Name << D->getType() << FoundFunction->getType();
+            Importer.ToDiag(FoundFunction->getLocation(), 
+                            diag::note_odr_value_here)
+              << FoundFunction->getType();
           }
+        }
 
-          // FIXME: Check for overloading more carefully, e.g., by boosting
-          // Sema::IsOverload out to the AST library.
-
-          // Function overloading is okay in C++.
-          if (Importer.getToContext().getLangOpts().CPlusPlus)
-            continue;
-
-          // Complain about inconsistent function types.
-          Importer.ToDiag(Loc, diag::err_odr_function_type_inconsistent)
-            << Name << D->getType() << FoundFunction->getType();
-          Importer.ToDiag(FoundFunction->getLocation(), 
-                          diag::note_odr_value_here)
-            << FoundFunction->getType();
+        ConflictingDecls.push_back(FoundDecls[I]);
+      } else {
+        if (FunctionTemplateDecl *FoundFunction =
+            dyn_cast<FunctionTemplateDecl>(FoundDecls[I])) {
+          if (FoundFunction->hasExternalFormalLinkage() &&
+              FromFT->hasExternalFormalLinkage()) {
+            if (IsStructuralMatch(FromFT, FoundFunction)) {
+              Importer.Imported(D, FoundFunction->getTemplatedDecl());
+              // FIXME: Actually try to merge the body and other attributes.
+              return FoundFunction->getTemplatedDecl();
+            }
+          }
         }
       }
-
-      ConflictingDecls.push_back(FoundDecls[I]);
     }
 
     if (!ConflictingDecls.empty()) {
@@ -2554,7 +2569,7 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   }
 
   // Import the describing template function, if any.
-  if (FunctionTemplateDecl *FromFT = D->getDescribedFunctionTemplate())
+  if (FromFT)
     if (auto *ToFT = dyn_cast<FunctionTemplateDecl>(Importer.Import(FromFT))) {
       ToFunction->setDescribedFunctionTemplate(ToFT);
     }
@@ -4670,6 +4685,11 @@ Decl *ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
       cast_or_null<FunctionDecl>(Importer.Import(D->getTemplatedDecl()));
   if (!TemplatedFD)
     return nullptr;
+
+  // Check recursive import.
+  Decl *AlreadyImported = Importer.GetAlreadyImportedOrNull(D);
+  if (AlreadyImported)
+    return AlreadyImported;
 
   FunctionTemplateDecl *ToFunc = FunctionTemplateDecl::Create(
       Importer.getToContext(), DC, Loc, Name, Params, TemplatedFD);

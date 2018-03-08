@@ -920,8 +920,7 @@ TEST_F(Fixture, ImportOfTemplatedDeclOfClassTemplateDecl) {
   EXPECT_EQ(ToTemplated1, ToTemplated);
 }
 
-// Currently disabled, because lookup fails to find the existing templated decl.
-TEST_F(Fixture, DISABLED_ImportOfTemplatedDeclOfFunctionTemplateDecl) {
+TEST_F(Fixture, ImportOfTemplatedDeclOfFunctionTemplateDecl) {
   Decl *FromTU = getTuDecl("template<class X> void f(){}", Lang_CXX);
   auto From = FirstDeclMatcher<FunctionTemplateDecl>().match(
       FromTU, functionTemplateDecl());
