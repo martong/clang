@@ -18,6 +18,7 @@
 #include "clang/AST/DeclCXX.h"
 #include "clang/AST/DeclObjC.h"
 #include "clang/AST/DeclVisitor.h"
+#include "clang/AST/Redeclarable.h"
 #include "clang/AST/StmtVisitor.h"
 #include "clang/AST/TypeVisitor.h"
 #include "clang/Basic/FileManager.h"
@@ -26,6 +27,26 @@
 #include "llvm/Support/MemoryBuffer.h"
 
 namespace clang {
+
+  template <class T>
+  llvm::SmallVector<Decl*, 2>
+  getCanonicalForwardRedeclChain(Redeclarable<T>* D) {
+    llvm::SmallVector<Decl*, 2> Redecls;
+    for (auto R : D->getFirstDecl()->redecls()) {
+      if (R != D->getFirstDecl())
+        Redecls.push_back(R);
+    }
+    Redecls.push_back(D->getFirstDecl());
+    std::reverse(Redecls.begin(), Redecls.end());
+    return Redecls;
+  }
+
+  llvm::SmallVector<Decl*, 2> getCanonicalForwardRedeclChain(Decl* D) {
+    // Currently only FunctionDecl is supported
+    auto FD = cast<FunctionDecl>(D);
+    return getCanonicalForwardRedeclChain<FunctionDecl>(FD);
+  }
+
   class ASTNodeImporter : public TypeVisitor<ASTNodeImporter, QualType>,
                           public DeclVisitor<ASTNodeImporter, Decl *>,
                           public StmtVisitor<ASTNodeImporter, Stmt *> {
@@ -2339,6 +2360,14 @@ bool ASTNodeImporter::ImportTemplateInformation(FunctionDecl *FromFD,
 
 Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
 
+  llvm::SmallVector<Decl*, 2> Redecls = getCanonicalForwardRedeclChain(D);
+  auto RedeclIt = Redecls.begin();
+  // Import the first part of the decl chain. I.e. import all previous
+  // declarations starting from the canonical decl.
+  for (;RedeclIt != Redecls.end() && *RedeclIt != D; ++RedeclIt)
+    Importer.Import(*RedeclIt);
+  assert(*RedeclIt == D);
+
   // Import the major distinguishing characteristics of this function.
   DeclContext *DC, *LexicalDC;
   DeclarationName Name;
@@ -2349,14 +2378,14 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   if (ToD)
     return ToD;
 
-  const FunctionDecl *FoundWithoutBody = nullptr;
+  const FunctionDecl *FoundByLookup = nullptr;
   FunctionTemplateDecl *FromFT = D->getDescribedFunctionTemplate();
 
   // Try to find a function in our own ("to") context with the same name, same
   // type, and in the same context as the function we're importing.
   if (!LexicalDC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
-    unsigned IDNS = Decl::IDNS_Ordinary;
+    unsigned IDNS = Decl::IDNS_Ordinary | Decl::IDNS_OrdinaryFriend;
     SmallVector<NamedDecl *, 2> FoundDecls;
     DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
     for (unsigned I = 0, N = FoundDecls.size(); I != N; ++I) {
@@ -2368,15 +2397,11 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
           if (FoundFunction->hasExternalFormalLinkage() &&
               D->hasExternalFormalLinkage()) {
             if (IsStructuralMatch(D, FoundFunction)) {
-              // FIXME: Actually try to merge the body and other attributes.
-              const FunctionDecl *FromBodyDecl = nullptr;
-              D->hasBody(FromBodyDecl);
-              if (D == FromBodyDecl && !FoundFunction->hasBody()) {
-                // This function is needed to merge completely.
-                FoundWithoutBody = FoundFunction;
-                break;
-              }
-              return Importer.Imported(D, FoundFunction);
+              if (D->doesThisDeclarationHaveABody() &&
+                  FoundFunction->doesThisDeclarationHaveABody())
+                return Importer.Imported(D, FoundFunction);
+              FoundByLookup = FoundFunction;
+              break;
             }
 
             // FIXME: Check for overloading more carefully, e.g., by boosting
@@ -2547,9 +2572,9 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   }
   ToFunction->setParams(Parameters);
 
-  if (FoundWithoutBody) {
+  if (FoundByLookup) {
     auto *Recent = const_cast<FunctionDecl *>(
-          FoundWithoutBody->getMostRecentDecl());
+          FoundByLookup->getMostRecentDecl());
     ToFunction->setPreviousDecl(Recent);
   }
 
@@ -2577,11 +2602,11 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
       ToFunction->setDescribedFunctionTemplate(ToFT);
     }
 
-  // Import the body, if any.
-  const FunctionDecl* FromDefinition = nullptr;
-  if (Stmt *FromBody = D->getBody(FromDefinition)) {
-    if (Stmt *ToBody = Importer.Import(FromBody)) {
-      ToFunction->setBody(ToBody);
+  if (D->doesThisDeclarationHaveABody()) {
+    if (Stmt *FromBody = D->getBody()) {
+      if (Stmt *ToBody = Importer.Import(FromBody)) {
+        ToFunction->setBody(ToBody);
+      }
     }
   }
 
@@ -2591,13 +2616,29 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   if (ImportTemplateInformation(D, ToFunction))
     return nullptr;
 
+  bool IsFriend = D->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend);
+
   // Add this function to the lexical context.
   // NOTE: If the function is templated declaration, it should be not added into
   // LexicalDC. But described template is imported during import of
   // FunctionTemplateDecl (it happens later). So, we use source declaration
   // to determine if we should add the result function.
-  if (!D->getDescribedFunctionTemplate())
+  if (!D->getDescribedFunctionTemplate() && !IsFriend)
     LexicalDC->addDeclInternal(ToFunction);
+
+  // Friend declarations lexical context is the befriending class, but the
+  // semantic context is the enclosing scope of the befriending class.
+  // We want the friend functions to be found in the semantic context by lookup.
+  // FIXME should we handle this genrically in VisitFriendDecl?
+  // In Other cases when LexicalDC != DC we don't want it to be added,
+  // e.g out-of-class definitions like void B::f() {} .
+  if (LexicalDC != DC && IsFriend) {
+    DC->makeDeclVisibleInContext(ToFunction);
+  }
+
+  // Import the rest of the chain. I.e. import all subsequent declarations.
+  for (++RedeclIt; RedeclIt != Redecls.end(); ++RedeclIt)
+    Importer.Import(*RedeclIt);
 
   if (auto *FromCXXMethod = dyn_cast<CXXMethodDecl>(D))
     ImportOverrides(cast<CXXMethodDecl>(ToFunction), FromCXXMethod);

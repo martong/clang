@@ -19,7 +19,7 @@
 #include "clang/Tooling/Tooling.h"
 
 #include "DeclMatcher.h"
-#include "gtest/gtest.h"
+#include "gmock/gmock.h"
 
 namespace clang {
 namespace ast_matchers {
@@ -1586,7 +1586,7 @@ TEST_F(ImportFunctions,
        PrototypeShouldBeImportedAsAPrototypeWhenThereIsNoDefinition) {
   Decl *FromTU = getTuDecl("void f();", Lang_CXX);
   auto Pattern = functionDecl(hasName("f"));
-  FunctionDecl *FromD =
+  auto FromD =
       FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
 
   Decl *ImportedD = Import(FromD, Lang_CXX);
@@ -1595,55 +1595,70 @@ TEST_F(ImportFunctions,
   // There must be only one imported FunctionDecl ...
   EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
               LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
-  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
   EXPECT_TRUE(ImportedD == ToFD);
   // .. without a body
   EXPECT_TRUE(!ToFD->doesThisDeclarationHaveABody());
 }
 
-TEST_F(ImportFunctions,
-       PrototypeShouldBeImportedAsDefintionWhenThereIsADefinition) {
+TEST_F(ImportFunctions, PrototypeAfterPrototype) {
+  Decl *FromTU = getTuDecl("void f(); void f();", Lang_CXX);
+  auto Pattern = functionDecl(hasName("f"));
+  auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+  Decl *ImportedD = Import(FromD, Lang_CXX);
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
+
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To0);
+  EXPECT_TRUE(!To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(!To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
+}
+
+TEST_F(ImportFunctions, ImportOfPrototypeShouldBringInTheWholeChain) {
   Decl *FromTU = getTuDecl("void f(); void f() {}", Lang_CXX);
   auto Pattern = functionDecl(hasName("f"));
-  FunctionDecl *FromD = // Prototype
+  auto FromD = // Prototype
       FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
 
   Decl *ImportedD = Import(FromD, Lang_CXX);
   Decl *ToTU = ImportedD->getTranslationUnitDecl();
 
-  // There must be only one imported FunctionDecl ...
-  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
-              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
-  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
-  EXPECT_TRUE(ImportedD == ToFD);
-  // .. with a body
-  EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To0);
+  EXPECT_TRUE(!To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
 }
 
-TEST_F(ImportFunctions,
-       DefinitionShouldBeImportedAsDefintionWhenThereIsAPrototype) {
+TEST_F(ImportFunctions, ImportOfDefinitionShouldBringInTheWholeChain) {
   Decl *FromTU = getTuDecl("void f(); void f() {}", Lang_CXX);
   auto Pattern = functionDecl(hasName("f"));
-  FunctionDecl *FromD = // Definition
+  auto FromD = // Definition
       LastDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
 
   Decl *ImportedD = Import(FromD, Lang_CXX);
   Decl *ToTU = ImportedD->getTranslationUnitDecl();
 
-  // There must be only one imported FunctionDecl ...
-  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
-              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
-  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
-  EXPECT_TRUE(ImportedD == ToFD);
-  // .. with a body
-  EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To1);
+  EXPECT_TRUE(!To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
 }
 
 TEST_F(ImportFunctions,
        DefinitionShouldBeImportedAsADefinition) {
   Decl *FromTU = getTuDecl("void f() {}", Lang_CXX);
   auto Pattern = functionDecl(hasName("f"));
-  FunctionDecl *FromD =
+  auto FromD =
       FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
 
   Decl *ImportedD = Import(FromD, Lang_CXX);
@@ -1652,46 +1667,46 @@ TEST_F(ImportFunctions,
   // There must be only one imported FunctionDecl ...
   EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
               LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
-  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
   EXPECT_TRUE(ImportedD == ToFD);
   // .. with a body
   EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
 }
 
-TEST_F(ImportFunctions, DISABLED_ImportPrototypeOfRecursiveFunction) {
+TEST_F(ImportFunctions, ImportPrototypeOfRecursiveFunction) {
   Decl *FromTU = getTuDecl("void f(); void f() { f(); }", Lang_CXX);
   auto Pattern = functionDecl(hasName("f"));
-  FunctionDecl *PrototypeFD =
-      FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+  auto From =
+      FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern); // Proto
 
-  Decl *ImportedD = Import(PrototypeFD, Lang_CXX);
+  Decl *ImportedD = Import(From, Lang_CXX);
   Decl *ToTU = ImportedD->getTranslationUnitDecl();
 
-  // There must be only one imported FunctionDecl ...
-  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
-              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
-  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
-  EXPECT_TRUE(ImportedD == ToFD);
-  // .. with a body
-  EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To0);
+  EXPECT_TRUE(!To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
 }
 
 TEST_F(ImportFunctions, ImportDefinitionOfRecursiveFunction) {
   Decl *FromTU = getTuDecl("void f(); void f() { f(); }", Lang_CXX);
   auto Pattern = functionDecl(hasName("f"));
-  FunctionDecl *DefinitionFD =
-      LastDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+  auto From =
+      LastDeclMatcher<FunctionDecl>().match(FromTU, Pattern); // Def
 
-  Decl *ImportedD = Import(DefinitionFD, Lang_CXX);
+  Decl *ImportedD = Import(From, Lang_CXX);
   Decl *ToTU = ImportedD->getTranslationUnitDecl();
 
-  // There must be only one imported FunctionDecl ...
-  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
-              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
-  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
-  EXPECT_TRUE(ImportedD == ToFD);
-  // .. with a body
-  EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To1);
+  EXPECT_TRUE(!To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
 }
 
 TEST_F(ImportFunctions,
@@ -1701,28 +1716,50 @@ TEST_F(ImportFunctions,
   Decl *ImportedD;
   {
     Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input0.cc");
-    FunctionDecl *FromD =
-        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
 
     ImportedD = Import(FromD, Lang_CXX);
   }
   Decl *ImportedD1;
   {
     Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input1.cc");
-    FunctionDecl *FromD =
-        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
     ImportedD1 = Import(FromD, Lang_CXX);
   }
 
-  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
-  // There must be only one imported FunctionDecl ...
-  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
-              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
-  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
-  EXPECT_EQ(ImportedD, ImportedD1);
-  EXPECT_TRUE(ImportedD == ToFD);
-  // .. without a body
-  EXPECT_TRUE(!ToFD->doesThisDeclarationHaveABody());
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
+
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To0);
+  EXPECT_TRUE(!To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(!To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
+}
+
+TEST_F(ImportFunctions, ImportDefinitions) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *ImportedD;
+  {
+    Decl *FromTU = getTuDecl("void f(){}", Lang_CXX, "input0.cc");
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD = Import(FromD, Lang_CXX);
+  }
+  Decl *ImportedD1;
+  {
+    Decl *FromTU = getTuDecl("void f(){};", Lang_CXX, "input1.cc");
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD1 = Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
+
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 1u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To0);
+  EXPECT_TRUE(To0->doesThisDeclarationHaveABody());
 }
 
 TEST_F(ImportFunctions,
@@ -1732,28 +1769,25 @@ TEST_F(ImportFunctions,
   Decl *ImportedD;
   {
     Decl *FromTU = getTuDecl("void f(){}", Lang_CXX, "input0.cc");
-    FunctionDecl *FromD =
-        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
-
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
     ImportedD = Import(FromD, Lang_CXX);
   }
   Decl *ImportedD1;
   {
     Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input1.cc");
-    FunctionDecl *FromD =
-        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
     ImportedD1 = Import(FromD, Lang_CXX);
   }
 
   Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
-  // There must be only one imported FunctionDecl ...
-  EXPECT_TRUE(FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern) ==
-              LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern));
-  FunctionDecl *ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
-  EXPECT_EQ(ImportedD, ImportedD1);
-  EXPECT_TRUE(ImportedD == ToFD);
-  // .. with a body
-  EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
+
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To0);
+  EXPECT_TRUE(To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(!To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
 }
 
 TEST_F(ImportFunctions,
@@ -1762,52 +1796,125 @@ TEST_F(ImportFunctions,
 
   {
     Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input0.cc");
-    FunctionDecl *FromD =
-        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
-
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
     Import(FromD, Lang_CXX);
   }
   {
     Decl *FromTU = getTuDecl("void f(){}", Lang_CXX, "input1.cc");
-    FunctionDecl *FromD =
-        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
     Import(FromD, Lang_CXX);
+  }
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(!To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
+}
+
+TEST_F(ImportFunctions, ImportPrototypeThenPrototype) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  FunctionDecl *ImportedD = nullptr;
+  {
+    Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input0.cc");
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD = cast<FunctionDecl>(Import(FromD, Lang_CXX));
+  }
+
+  FunctionDecl *ImportedD1 = nullptr;
+  {
+    Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input1.cc");
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD1 = cast<FunctionDecl>(Import(FromD, Lang_CXX));
   }
 
   Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
-  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
-  FunctionDecl* ProtoD = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
-  EXPECT_TRUE(!ProtoD->doesThisDeclarationHaveABody());
-  FunctionDecl* DefinitionD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
-  EXPECT_TRUE(DefinitionD->doesThisDeclarationHaveABody());
-  EXPECT_EQ(DefinitionD->getPreviousDecl(), ProtoD);
+
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To0);
+  EXPECT_TRUE(ImportedD1 == To1);
+  EXPECT_TRUE(!To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(!To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
 }
 
 TEST_F(ImportFunctions,
-       DISABLED_ImportPrototypeThenProtoAndDefinition) {
+       ImportPrototypeThenProtoAndDefinition) {
   auto Pattern = functionDecl(hasName("f"));
 
   {
     Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input0.cc");
-    FunctionDecl *FromD =
-        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
-
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
     Import(FromD, Lang_CXX);
   }
   {
     Decl *FromTU = getTuDecl("void f(); void f(){}", Lang_CXX, "input1.cc");
-    FunctionDecl *FromD =
-        FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
     Import(FromD, Lang_CXX);
   }
 
   Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
-  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+
+  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 3u);
   FunctionDecl* ProtoD = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
   EXPECT_TRUE(!ProtoD->doesThisDeclarationHaveABody());
+
   FunctionDecl* DefinitionD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
   EXPECT_TRUE(DefinitionD->doesThisDeclarationHaveABody());
-  EXPECT_EQ(DefinitionD->getPreviousDecl(), ProtoD);
+
+  EXPECT_TRUE(DefinitionD->getPreviousDecl());
+  EXPECT_TRUE(!DefinitionD->getPreviousDecl()->doesThisDeclarationHaveABody());
+  EXPECT_EQ(DefinitionD->getPreviousDecl()->getPreviousDecl(), ProtoD);
+}
+
+TEST_F(ImportFunctions, InClassProtoAndOutOfClassDef_ImportingProto) {
+  auto Code =
+      R"(
+        struct B { void f(); };
+        void B::f() {}
+        )";
+  auto Pattern = cxxMethodDecl(hasName("f"));
+  Decl *FromTU = getTuDecl(Code, Lang_CXX);
+  CXXMethodDecl *Proto =
+      FirstDeclMatcher<CXXMethodDecl>().match(FromTU, Pattern);
+
+  CXXMethodDecl *To = cast<CXXMethodDecl>(Import(Proto, Lang_CXX));
+
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  EXPECT_EQ(DeclCounter<CXXMethodDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<CXXMethodDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<CXXMethodDecl>().match(ToTU, Pattern);
+  EXPECT_EQ(To, To0);
+  EXPECT_TRUE(!To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
+}
+
+TEST_F(ImportFunctions, InClassProtoAndOutOfClassDef_ImportingDef) {
+  auto Code =
+      R"(
+        struct B { void f(); };
+        void B::f() {}
+        )";
+  auto Pattern = cxxMethodDecl(hasName("f"));
+  Decl *FromTU = getTuDecl(Code, Lang_CXX);
+  CXXMethodDecl *Def = LastDeclMatcher<CXXMethodDecl>().match(FromTU, Pattern);
+
+  CXXMethodDecl *To = cast<CXXMethodDecl>(Import(Def, Lang_CXX));
+
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  EXPECT_EQ(DeclCounter<CXXMethodDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<CXXMethodDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<CXXMethodDecl>().match(ToTU, Pattern);
+  EXPECT_EQ(To, To1);
+  EXPECT_TRUE(!To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
 }
 
 TEST_F(ImportFunctions,
@@ -1821,9 +1928,10 @@ TEST_F(ImportFunctions,
   auto Pattern = cxxMethodDecl(hasName("f"), hasParent(cxxRecordDecl(hasName("D"))));
   Decl *FromTU = getTuDecl(Code, Lang_CXX);
   CXXMethodDecl *Proto = FirstDeclMatcher<CXXMethodDecl>().match(FromTU, Pattern);
-
   ASSERT_EQ(Proto->size_overridden_methods(), 1u);
+
   CXXMethodDecl* To = cast<CXXMethodDecl>(Import(Proto, Lang_CXX));
+
   EXPECT_EQ(To->size_overridden_methods(), 1u);
 }
 
@@ -1838,11 +1946,274 @@ TEST_F(ImportFunctions,
   Decl *FromTU = getTuDecl(Code, Lang_CXX);
   CXXMethodDecl *Proto = FirstDeclMatcher<CXXMethodDecl>().match(FromTU, Pattern);
   CXXMethodDecl *Def = LastDeclMatcher<CXXMethodDecl>().match(FromTU, Pattern);
-
   ASSERT_TRUE(Proto->isVirtual());
   ASSERT_TRUE(Def->isVirtual());
+
   CXXMethodDecl* To = cast<CXXMethodDecl>(Import(Proto, Lang_CXX));
+
   EXPECT_TRUE(To->isVirtual());
+}
+
+TEST_F(ImportFunctions,
+       VirtualFlagShouldBePreservedWhenImportingDefinition) {
+  auto Code =
+        R"(
+        struct B { virtual void f(); };
+        void B::f() {}
+        )";
+  auto Pattern = cxxMethodDecl(hasName("f"), hasParent(cxxRecordDecl(hasName("B"))));
+  Decl *FromTU = getTuDecl(Code, Lang_CXX);
+  CXXMethodDecl *Proto = FirstDeclMatcher<CXXMethodDecl>().match(FromTU, Pattern);
+  CXXMethodDecl *Def = LastDeclMatcher<CXXMethodDecl>().match(FromTU, Pattern);
+  ASSERT_TRUE(Proto->isVirtual());
+  ASSERT_TRUE(Def->isVirtual());
+
+  CXXMethodDecl* To = cast<CXXMethodDecl>(Import(Def, Lang_CXX));
+
+  EXPECT_TRUE(To->isVirtual());
+}
+
+
+struct ImportFriendFunctions : ImportFunctions {};
+
+TEST_F(ImportFriendFunctions, ImportFriendFunctionRedeclChainProto) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *FromTU = getTuDecl("struct X { friend void f(); };"
+                           "void f();",
+                           Lang_CXX,
+                           "input0.cc");
+  auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+  auto *ImportedD = cast<FunctionDecl>(Import(FromD, Lang_CXX));
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  EXPECT_TRUE(!ImportedD->doesThisDeclarationHaveABody());
+  auto ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(!ToFD->doesThisDeclarationHaveABody());
+  EXPECT_EQ(ToFD->getPreviousDecl(), ImportedD);
+}
+
+TEST_F(ImportFriendFunctions,
+       ImportFriendFunctionRedeclChainProto_OutOfClassProtoFirst) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *FromTU = getTuDecl("void f();"
+                           "struct X { friend void f(); };",
+                           Lang_CXX, "input0.cc");
+  auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+  auto *ImportedD = cast<FunctionDecl>(Import(FromD, Lang_CXX));
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  EXPECT_TRUE(!ImportedD->doesThisDeclarationHaveABody());
+  auto ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(!ToFD->doesThisDeclarationHaveABody());
+  EXPECT_EQ(ToFD->getPreviousDecl(), ImportedD);
+}
+
+TEST_F(ImportFriendFunctions, ImportFriendFunctionRedeclChainDef) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *FromTU = getTuDecl("struct X { friend void f(){} };"
+                           "void f();",
+                           Lang_CXX,
+                           "input0.cc");
+  auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+  auto *ImportedD = cast<FunctionDecl>(Import(FromD, Lang_CXX));
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  EXPECT_TRUE(ImportedD->doesThisDeclarationHaveABody());
+  auto ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(!ToFD->doesThisDeclarationHaveABody());
+  EXPECT_EQ(ToFD->getPreviousDecl(), ImportedD);
+}
+
+TEST_F(ImportFriendFunctions,
+       ImportFriendFunctionRedeclChainDef_OutOfClassDef) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *FromTU = getTuDecl("struct X { friend void f(); };"
+                           "void f(){}",
+                           Lang_CXX, "input0.cc");
+  auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+  auto *ImportedD = cast<FunctionDecl>(Import(FromD, Lang_CXX));
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  EXPECT_TRUE(!ImportedD->doesThisDeclarationHaveABody());
+  auto ToFD = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ToFD->doesThisDeclarationHaveABody());
+  EXPECT_EQ(ToFD->getPreviousDecl(), ImportedD);
+}
+
+TEST_F(ImportFriendFunctions, ImportFriendFunctionRedeclChainDefWithClass) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *FromTU = getTuDecl(
+      R"(
+        class X;
+        void f(X *x){}
+        class X{
+        friend void f(X *x);
+        };
+      )",
+      Lang_CXX, "input0.cc");
+  auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+  auto *ImportedD = cast<FunctionDecl>(Import(FromD, Lang_CXX));
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  EXPECT_TRUE(ImportedD->doesThisDeclarationHaveABody());
+  auto *InClassFD = cast<FunctionDecl>(FirstDeclMatcher<FriendDecl>()
+                                              .match(ToTU, friendDecl())
+                                              ->getFriendDecl());
+  EXPECT_TRUE(!InClassFD->doesThisDeclarationHaveABody());
+  EXPECT_EQ(InClassFD->getPreviousDecl(), ImportedD);
+  // The parameters must refer the same type
+  EXPECT_EQ((*InClassFD->param_begin())->getOriginalType(),
+            (*ImportedD->param_begin())->getOriginalType());
+}
+
+TEST_F(ImportFriendFunctions,
+       ImportFriendFunctionRedeclChainDefWithClass_ImportTheProto) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *FromTU = getTuDecl(
+      R"(
+        class X;
+        void f(X *x){}
+        class X{
+        friend void f(X *x);
+        };
+      )",
+      Lang_CXX, "input0.cc");
+  auto FromD = LastDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+  auto *ImportedD = cast<FunctionDecl>(Import(FromD, Lang_CXX));
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  EXPECT_TRUE(!ImportedD->doesThisDeclarationHaveABody());
+  auto *OutOfClassFD = FirstDeclMatcher<FunctionDecl>().match(
+      ToTU, functionDecl(unless(hasParent(friendDecl()))));
+
+  EXPECT_TRUE(OutOfClassFD->doesThisDeclarationHaveABody());
+  EXPECT_EQ(ImportedD->getPreviousDecl(), OutOfClassFD);
+  // The parameters must refer the same type
+  EXPECT_EQ((*OutOfClassFD->param_begin())->getOriginalType(),
+            (*ImportedD->param_begin())->getOriginalType());
+}
+
+TEST_F(ImportFriendFunctions, ImportFriendFunctionFromMultipleTU) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  FunctionDecl *ImportedD;
+  {
+    Decl *FromTU =
+        getTuDecl("struct X { friend void f(){} };", Lang_CXX, "input0.cc");
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD = cast<FunctionDecl>(Import(FromD, Lang_CXX));
+  }
+  FunctionDecl *ImportedD1;
+  {
+    Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input1.cc");
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD1 = cast<FunctionDecl>(Import(FromD, Lang_CXX));
+  }
+
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  EXPECT_TRUE(ImportedD->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(!ImportedD1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(ImportedD1->getPreviousDecl(), ImportedD);
+}
+
+TEST_F(ImportFriendFunctions, Lookup) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *FromTU =
+      getTuDecl("struct X { friend void f(); };", Lang_CXX, "input0.cc");
+  auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+  ASSERT_TRUE(FromD->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  ASSERT_TRUE(!FromD->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+  auto Name = FromD->getDeclName();
+  {
+    CXXRecordDecl *Class =
+        FirstDeclMatcher<CXXRecordDecl>().match(FromTU, cxxRecordDecl());
+    auto lookup_res = Class->noload_lookup(Name);
+    ASSERT_EQ(lookup_res.size(), 0u);
+    lookup_res = cast<TranslationUnitDecl>(FromTU)->noload_lookup(Name);
+    ASSERT_EQ(lookup_res.size(), 1u);
+  }
+
+  Import(FromD, Lang_CXX);
+
+  {
+    Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+    CXXRecordDecl *Class =
+        FirstDeclMatcher<CXXRecordDecl>().match(ToTU, cxxRecordDecl());
+    auto lookup_res = Class->noload_lookup(Name);
+    EXPECT_EQ(lookup_res.size(), 0u);
+    lookup_res = cast<TranslationUnitDecl>(FromTU)->noload_lookup(Name);
+    EXPECT_EQ(lookup_res.size(), 1u);
+  }
+
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 1u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(To0->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  EXPECT_TRUE(!To0->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+}
+
+TEST_F(ImportFriendFunctions, LookupWithProto) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *FromTU =
+      getTuDecl("struct X { friend void f(); };"
+                // This proto decl makes f available to normal
+                // lookup, otherwise it is hidden.
+                // Normal C++ lookup (implemented in
+                // `clang::Sema::CppLookupName()` and in `LookupDirect()`)
+                // returns the found `NamedDecl` only if the set IDNS is matched
+                "void f();",
+                Lang_CXX, "input0.cc");
+  auto From0 = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+  auto From1 = LastDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+  ASSERT_TRUE(From0->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  ASSERT_TRUE(!From0->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+  ASSERT_TRUE(!From1->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  ASSERT_TRUE(From1->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+  auto Name = From0->getDeclName();
+  {
+    CXXRecordDecl *Class =
+        FirstDeclMatcher<CXXRecordDecl>().match(FromTU, cxxRecordDecl());
+    auto lookup_res = Class->noload_lookup(Name);
+    ASSERT_EQ(lookup_res.size(), 0u);
+    lookup_res = cast<TranslationUnitDecl>(FromTU)->noload_lookup(Name);
+    ASSERT_EQ(lookup_res.size(), 1u);
+  }
+
+  Import(From0, Lang_CXX);
+
+  {
+    Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+    CXXRecordDecl *Class =
+        FirstDeclMatcher<CXXRecordDecl>().match(ToTU, cxxRecordDecl());
+    auto lookup_res = Class->noload_lookup(Name);
+    EXPECT_EQ(lookup_res.size(), 0u);
+    lookup_res = cast<TranslationUnitDecl>(FromTU)->noload_lookup(Name);
+    EXPECT_EQ(lookup_res.size(), 1u);
+  }
+
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(To0->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  EXPECT_TRUE(!To0->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+  EXPECT_TRUE(!To1->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  EXPECT_TRUE(To1->isInIdentifierNamespace(Decl::IDNS_Ordinary));
 }
 
 TEST_F(Fixture, OmitVAListTag) {
@@ -1921,6 +2292,47 @@ TEST_F(Fixture, DeclsFromFriendsShouldBeInRedeclChains2) {
   auto *Imported = cast<CXXRecordDecl>(To);
 
   EXPECT_TRUE(Imported->getPreviousDecl());
+}
+
+struct CanonicalRedeclChain : Fixture {};
+
+TEST_F(CanonicalRedeclChain, ShouldBeConsequentWithMatchers) {
+  Decl *FromTU = getTuDecl("void f();", Lang_CXX);
+  auto Pattern = functionDecl(hasName("f"));
+  auto D0 = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+  auto Redecls = getCanonicalForwardRedeclChain(D0);
+  ASSERT_EQ(Redecls.size(), 1u);
+  EXPECT_EQ(D0, Redecls[0]);
+}
+
+TEST_F(CanonicalRedeclChain, ShouldBeConsequentWithMatchers2) {
+  Decl *FromTU = getTuDecl("void f(); void f(); void f();", Lang_CXX);
+  auto Pattern = functionDecl(hasName("f"));
+  auto D0 = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+  auto D2 = LastDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+  FunctionDecl *D1 = D2->getPreviousDecl();
+
+  auto Redecls = getCanonicalForwardRedeclChain(D0);
+  ASSERT_EQ(Redecls.size(), 3u);
+  EXPECT_EQ(D0, Redecls[0]);
+  EXPECT_EQ(D1, Redecls[1]);
+  EXPECT_EQ(D2, Redecls[2]);
+}
+
+TEST_F(CanonicalRedeclChain, ShouldBeSameForAllDeclInTheChain) {
+  Decl *FromTU = getTuDecl("void f(); void f(); void f();", Lang_CXX);
+  auto Pattern = functionDecl(hasName("f"));
+  auto D0 = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+  auto D2 = LastDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+  FunctionDecl *D1 = D2->getPreviousDecl();
+
+  auto RedeclsD0 = getCanonicalForwardRedeclChain(D0);
+  auto RedeclsD1 = getCanonicalForwardRedeclChain(D1);
+  auto RedeclsD2 = getCanonicalForwardRedeclChain(D2);
+
+  EXPECT_THAT(RedeclsD0, ::testing::ContainerEq(RedeclsD1));
+  EXPECT_THAT(RedeclsD1, ::testing::ContainerEq(RedeclsD2));
 }
 
 } // end namespace ast_matchers
