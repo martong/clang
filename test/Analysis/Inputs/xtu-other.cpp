@@ -76,6 +76,9 @@ int avtSize(void){
 	return sizeof(avt);
 }
 
+typedef struct { int n; } Anonymous;
+int fun_using_anon_struct(int n) { Anonymous anon; anon.n = n; return anon.n; }
+
 template <typename T>
 class X { T t; };
 

@@ -53,6 +53,7 @@ int fun_with_unsupported_node(int);
 
 int fun_using_type_alias_template();
 int fun_using_pack_expansion();
+int fun_using_anon_struct(int);
 
 int main() {
   clang_analyzer_eval(f(3) == 2); // expected-warning{{TRUE}}
@@ -76,4 +77,5 @@ int main() {
 
   clang_analyzer_eval(fun_using_type_alias_template() == 3); // expected-warning{{TRUE}}
   clang_analyzer_eval(fun_using_pack_expansion() == 4); // expected-warning{{TRUE}}
+  clang_analyzer_eval(fun_using_anon_struct(8) == 8); // expected-warning{{TRUE}}
 }
