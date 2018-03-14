@@ -335,7 +335,29 @@ class CXXSelfAssignmentBRVisitor final
 public:
   CXXSelfAssignmentBRVisitor() : Satisfied(false) {}
 
-  void Profile(llvm::FoldingSetNodeID &ID) const override {}
+  void Profile(llvm::FoldingSetNodeID &ID) const override {
+    static int x = 0;
+    ID.AddPointer(&x);
+  }
+
+  std::shared_ptr<PathDiagnosticPiece> VisitNode(const ExplodedNode *Succ,
+                                                 const ExplodedNode *Pred,
+                                                 BugReporterContext &BRC,
+                                                 BugReport &BR) override;
+};
+
+class SpecialReturnValueBRVisitor final
+  : public BugReporterVisitorImpl<SpecialReturnValueBRVisitor> {
+  
+  bool Satisfied;
+
+public:
+  SpecialReturnValueBRVisitor() : Satisfied(false) {}
+
+  void Profile(llvm::FoldingSetNodeID &ID) const override {
+    static int x = 0;
+    ID.AddPointer(&x);
+  }
 
   std::shared_ptr<PathDiagnosticPiece> VisitNode(const ExplodedNode *Succ,
                                                  const ExplodedNode *Pred,
