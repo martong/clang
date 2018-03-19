@@ -3087,6 +3087,9 @@ Decl *ASTNodeImporter::VisitVarDecl(VarDecl *D) {
 
   // Create the imported variable.
   TypeSourceInfo *TInfo = Importer.Import(D->getTypeSourceInfo());
+
+  if (Decl *AlreadyImported = Importer.GetAlreadyImportedOrNull(D))
+    return AlreadyImported;
   VarDecl *ToVar = VarDecl::Create(Importer.getToContext(), DC,
                                    Importer.Import(D->getInnerLocStart()),
                                    Loc, Name.getAsIdentifierInfo(),
