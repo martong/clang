@@ -2335,5 +2335,62 @@ TEST_F(CanonicalRedeclChain, ShouldBeSameForAllDeclInTheChain) {
   EXPECT_THAT(RedeclsD1, ::testing::ContainerEq(RedeclsD2));
 }
 
+// Note, this test case is automatically reduced from Xerces code.
+TEST_F(Fixture, UsingShadowDeclShouldImportTheDeclOnlyOnce) {
+  auto Pattern = cxxRecordDecl(hasName("B"));
+
+  {
+    Decl *FromTU =
+        getTuDecl(
+            R"(
+namespace xercesc_3_2 {
+class MemoryManager;
+class A {
+public:
+  static MemoryManager *fgMemoryManager;
+};
+class XMLString {
+public:
+  static int *transcode(const char *const, MemoryManager *const);
+};
+class B {
+  B(char *p1) : fMsg(XMLString::transcode(p1, A::fgMemoryManager)) {}
+  int *fMsg;
+};
+}
+            )"
+            , Lang_CXX, "input0.cc");
+    CXXRecordDecl *FromD =
+        FirstDeclMatcher<CXXRecordDecl>().match(FromTU, Pattern);
+
+    Import(FromD, Lang_CXX);
+  }
+
+  FunctionDecl *ImportedD1;
+  {
+    Decl *FromTU = getTuDecl(
+            R"(
+int strtol(char **);
+using ::strtol;
+namespace xercesc_3_2 {
+class MemoryManager;
+class XMLString {
+  static int *transcode(const char *, MemoryManager *);
+};
+int *XMLString::transcode(const char *const, MemoryManager *const) { return 0; }
+char *a;
+long b = strtol(&a);
+}
+            )"
+        , Lang_CXX, "input1.cc");
+    FunctionDecl *FromD =
+        FirstDeclMatcher<FunctionDecl>().match(FromTU, functionDecl(hasName("transcode")));
+    ImportedD1 = cast<FunctionDecl>(Import(FromD, Lang_CXX));
+  }
+
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  EXPECT_EQ(DeclCounter<UsingShadowDecl>().match(ToTU, usingShadowDecl()), 1u);
+}
+
 } // end namespace ast_matchers
 } // end namespace clang

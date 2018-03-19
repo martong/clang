@@ -3612,6 +3612,9 @@ Decl *ASTNodeImporter::VisitUsingShadowDecl(UsingShadowDecl *D) {
   if (!ToTarget)
     return nullptr;
 
+  if (Decl *AlreadyImported = Importer.GetAlreadyImportedOrNull(D))
+    return AlreadyImported;
+
   UsingShadowDecl *ToShadow = UsingShadowDecl::Create(
         Importer.getToContext(), DC, Loc, ToUsing, ToTarget);
 
