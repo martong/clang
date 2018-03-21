@@ -4172,9 +4172,7 @@ Decl *ASTNodeImporter::VisitTemplateTypeParmDecl(TemplateTypeParmDecl *D) {
   // For template arguments, we adopt the translation unit as our declaration
   // context. This context will be fixed when the actual template declaration
   // is created.
-  
-  // FIXME: Import default argument.
-  return TemplateTypeParmDecl::Create(Importer.getToContext(),
+  auto ToD = TemplateTypeParmDecl::Create(Importer.getToContext(),
                               Importer.getToContext().getTranslationUnitDecl(),
                                       Importer.Import(D->getLocStart()),
                                       Importer.Import(D->getLocation()),
@@ -4183,6 +4181,13 @@ Decl *ASTNodeImporter::VisitTemplateTypeParmDecl(TemplateTypeParmDecl *D) {
                                       Importer.Import(D->getIdentifier()),
                                       D->wasDeclaredWithTypename(),
                                       D->isParameterPack());
+  Importer.Imported(D, ToD);
+  if (D->hasDefaultArgument()) {
+    TypeSourceInfo *ToDefaultArgInfo =
+        Importer.Import(D->getDefaultArgumentInfo());
+    ToD->setDefaultArgument(ToDefaultArgInfo);
+  }
+  return ToD;
 }
 
 Decl *

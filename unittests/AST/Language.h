@@ -21,6 +21,7 @@ enum Language {
     Lang_C89,
     Lang_CXX,
     Lang_CXX11,
+    Lang_CXX14,
     Lang_OpenCL,
     Lang_OBJCXX
 };
@@ -41,6 +42,9 @@ void getLangArgs(Language Lang, StringVector &Args) {
     break;
   case Lang_CXX11:
     Args.push_back("-std=c++11");
+    break;
+  case Lang_CXX14:
+    Args.push_back("-std=c++14");
     break;
   case Lang_OpenCL:
   case Lang_OBJCXX:

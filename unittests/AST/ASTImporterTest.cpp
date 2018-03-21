@@ -2392,5 +2392,113 @@ long b = strtol(&a);
   EXPECT_EQ(DeclCounter<UsingShadowDecl>().match(ToTU, usingShadowDecl()), 1u);
 }
 
+TEST_F(Fixture, ShouldImportDefaultTemplateArg) {
+  Decl *FromTU =
+      getTuDecl("template <class T=int> struct X{};", Lang_CXX, "input0.cc");
+  auto FromD =
+      FirstDeclMatcher<ClassTemplateDecl>().match(FromTU, classTemplateDecl());
+
+  {
+    auto TPL = FromD->getTemplateParameters();
+    ASSERT_EQ((TPL->end() - TPL->begin()), 1);
+    TemplateTypeParmDecl *ParmD = cast<TemplateTypeParmDecl>(*(TPL->begin()));
+    ASSERT_TRUE(ParmD->hasDefaultArgument());
+  }
+
+  {
+    auto ToD = cast<ClassTemplateDecl>(Import(FromD, Lang_CXX));
+    auto TPL = ToD->getTemplateParameters();
+    ASSERT_EQ((TPL->end() - TPL->begin()), 1);
+    TemplateTypeParmDecl *ParmD = cast<TemplateTypeParmDecl>(*(TPL->begin()));
+    EXPECT_TRUE(ParmD->hasDefaultArgument());
+  }
+}
+
+TEST_F(Fixture, ShouldImportDefaultTemplateArgs) {
+  Decl *FromTU = getTuDecl("template <class T0=int, class T1=char> struct X{};",
+                           Lang_CXX, "input0.cc");
+  auto FromD =
+      FirstDeclMatcher<ClassTemplateDecl>().match(FromTU, classTemplateDecl());
+
+  {
+    auto TPL = FromD->getTemplateParameters();
+    ASSERT_EQ((TPL->end() - TPL->begin()), 2);
+    auto it = TPL->begin();
+    TemplateTypeParmDecl *ParmD0 = cast<TemplateTypeParmDecl>(*it++);
+    ASSERT_TRUE(ParmD0->hasDefaultArgument());
+    TemplateTypeParmDecl *ParmD1 = cast<TemplateTypeParmDecl>(*it);
+    ASSERT_TRUE(ParmD1->hasDefaultArgument());
+  }
+
+  {
+    auto ToD = cast<ClassTemplateDecl>(Import(FromD, Lang_CXX));
+    auto TPL = ToD->getTemplateParameters();
+    ASSERT_EQ((TPL->end() - TPL->begin()), 2);
+    auto it = TPL->begin();
+    TemplateTypeParmDecl *ParmD0 = cast<TemplateTypeParmDecl>(*it++);
+    EXPECT_TRUE(ParmD0->hasDefaultArgument());
+    TemplateTypeParmDecl *ParmD1 = cast<TemplateTypeParmDecl>(*it);
+    EXPECT_TRUE(ParmD1->hasDefaultArgument());
+  }
+}
+
+TEST_F(Fixture, ShouldImportDefaultTemplateArgFromFwdDecl) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      template<typename T0, typename T1 = int> class A;
+      template<typename T0 = int, typename T1> class A;
+      )",
+      Lang_CXX, "input0.cc");
+  auto FromD =
+      LastDeclMatcher<ClassTemplateDecl>().match(FromTU, classTemplateDecl());
+
+  {
+    auto TPL = FromD->getTemplateParameters();
+    ASSERT_EQ((TPL->end() - TPL->begin()), 2);
+    auto it = TPL->begin();
+    TemplateTypeParmDecl *ParmD0 = cast<TemplateTypeParmDecl>(*it++);
+    ASSERT_TRUE(ParmD0->hasDefaultArgument());
+    TemplateTypeParmDecl *ParmD1 = cast<TemplateTypeParmDecl>(*it);
+    ASSERT_TRUE(ParmD1->hasDefaultArgument());
+  }
+
+  {
+    auto ToD = cast<ClassTemplateDecl>(Import(FromD, Lang_CXX));
+    auto TPL = ToD->getTemplateParameters();
+    ASSERT_EQ((TPL->end() - TPL->begin()), 2);
+    auto it = TPL->begin();
+    TemplateTypeParmDecl *ParmD0 = cast<TemplateTypeParmDecl>(*it++);
+    EXPECT_TRUE(ParmD0->hasDefaultArgument());
+    TemplateTypeParmDecl *ParmD1 = cast<TemplateTypeParmDecl>(*it);
+    EXPECT_TRUE(ParmD1->hasDefaultArgument());
+  }
+}
+
+const internal::VariadicDynCastAllOfMatcher<Decl, VarTemplateDecl>
+    varTemplateDecl;
+
+TEST_F(Fixture, ShouldImportDefaultTemplateArgOfVariableTemplate) {
+  Decl *FromTU = getTuDecl(
+      "template<class T=double> constexpr T pi = T(3.1415926535897932385L);",
+      Lang_CXX14, "input0.cc");
+  auto FromD =
+      FirstDeclMatcher<VarTemplateDecl>().match(FromTU, varTemplateDecl());
+
+  {
+    auto TPL = FromD->getTemplateParameters();
+    ASSERT_EQ((TPL->end() - TPL->begin()), 1);
+    TemplateTypeParmDecl *ParmD = cast<TemplateTypeParmDecl>(*(TPL->begin()));
+    ASSERT_TRUE(ParmD->hasDefaultArgument());
+  }
+
+  {
+    auto ToD = cast<VarTemplateDecl>(Import(FromD, Lang_CXX));
+    auto TPL = ToD->getTemplateParameters();
+    ASSERT_EQ((TPL->end() - TPL->begin()), 1);
+    TemplateTypeParmDecl *ParmD = cast<TemplateTypeParmDecl>(*(TPL->begin()));
+    EXPECT_TRUE(ParmD->hasDefaultArgument());
+  }
+}
+
 } // end namespace ast_matchers
 } // end namespace clang
