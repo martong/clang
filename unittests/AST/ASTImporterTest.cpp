@@ -1720,11 +1720,10 @@ TEST_F(ImportFunctions,
 
     ImportedD = Import(FromD, Lang_CXX);
   }
-  Decl *ImportedD1;
   {
     Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input1.cc");
     auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
-    ImportedD1 = Import(FromD, Lang_CXX);
+    Import(FromD, Lang_CXX);
   }
 
   Decl *ToTU = ImportedD->getTranslationUnitDecl();
@@ -1747,11 +1746,10 @@ TEST_F(ImportFunctions, ImportDefinitions) {
     auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
     ImportedD = Import(FromD, Lang_CXX);
   }
-  Decl *ImportedD1;
   {
     Decl *FromTU = getTuDecl("void f(){};", Lang_CXX, "input1.cc");
     auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
-    ImportedD1 = Import(FromD, Lang_CXX);
+    Import(FromD, Lang_CXX);
   }
 
   Decl *ToTU = ImportedD->getTranslationUnitDecl();
@@ -1772,11 +1770,10 @@ TEST_F(ImportFunctions,
     auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
     ImportedD = Import(FromD, Lang_CXX);
   }
-  Decl *ImportedD1;
   {
     Decl *FromTU = getTuDecl("void f();", Lang_CXX, "input1.cc");
     auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
-    ImportedD1 = Import(FromD, Lang_CXX);
+    Import(FromD, Lang_CXX);
   }
 
   Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
@@ -1976,6 +1973,38 @@ TEST_F(ImportFunctions,
 
 struct ImportFriendFunctions : ImportFunctions {};
 
+TEST_F(ImportFriendFunctions, ImportFriendList) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *FromTU = getTuDecl("struct X { friend void f(); };"
+                           "void f();",
+                           Lang_CXX,
+                           "input0.cc");
+  auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+  {
+    auto *Class = FirstDeclMatcher<CXXRecordDecl>().match(FromTU, cxxRecordDecl());
+    auto *Friend = FirstDeclMatcher<FriendDecl>().match(FromTU, friendDecl());
+    auto Friends = Class->friends();
+    unsigned int FrN = 0;
+    for (auto Fr : Friends) {
+      ASSERT_EQ(Fr, Friend);
+      ++FrN;
+    }
+    ASSERT_EQ(FrN, 1);
+  }
+  Import(FromD, Lang_CXX);
+  auto *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  auto *Class = FirstDeclMatcher<CXXRecordDecl>().match(ToTU, cxxRecordDecl());
+  auto *Friend = FirstDeclMatcher<FriendDecl>().match(ToTU, friendDecl());
+  auto Friends = Class->friends();
+  unsigned int FrN = 0;
+  for (auto Fr : Friends) {
+    EXPECT_EQ(Fr, Friend);
+    ++FrN;
+  }
+  ASSERT_EQ(FrN, 1);
+}
+
 TEST_F(ImportFriendFunctions, ImportFriendFunctionRedeclChainProto) {
   auto Pattern = functionDecl(hasName("f"));
 
@@ -2137,25 +2166,26 @@ TEST_F(ImportFriendFunctions, Lookup) {
   auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
   ASSERT_TRUE(FromD->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
   ASSERT_TRUE(!FromD->isInIdentifierNamespace(Decl::IDNS_Ordinary));
-  auto Name = FromD->getDeclName();
+  auto FromName = FromD->getDeclName();
   {
     CXXRecordDecl *Class =
         FirstDeclMatcher<CXXRecordDecl>().match(FromTU, cxxRecordDecl());
-    auto lookup_res = Class->noload_lookup(Name);
+    auto lookup_res = Class->noload_lookup(FromName);
     ASSERT_EQ(lookup_res.size(), 0u);
-    lookup_res = cast<TranslationUnitDecl>(FromTU)->noload_lookup(Name);
+    lookup_res = cast<TranslationUnitDecl>(FromTU)->noload_lookup(FromName);
     ASSERT_EQ(lookup_res.size(), 1u);
   }
 
-  Import(FromD, Lang_CXX);
+  auto ToD = cast<FunctionDecl>(Import(FromD, Lang_CXX));
+  auto ToName = ToD->getDeclName();
 
   {
     Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
     CXXRecordDecl *Class =
         FirstDeclMatcher<CXXRecordDecl>().match(ToTU, cxxRecordDecl());
-    auto lookup_res = Class->noload_lookup(Name);
+    auto lookup_res = Class->noload_lookup(ToName);
     EXPECT_EQ(lookup_res.size(), 0u);
-    lookup_res = cast<TranslationUnitDecl>(FromTU)->noload_lookup(Name);
+    lookup_res = cast<TranslationUnitDecl>(ToTU)->noload_lookup(ToName);
     EXPECT_EQ(lookup_res.size(), 1u);
   }
 
@@ -2166,7 +2196,7 @@ TEST_F(ImportFriendFunctions, Lookup) {
   EXPECT_TRUE(!To0->isInIdentifierNamespace(Decl::IDNS_Ordinary));
 }
 
-TEST_F(ImportFriendFunctions, LookupWithProto) {
+TEST_F(ImportFriendFunctions, DISABLED_LookupWithProto) {
   auto Pattern = functionDecl(hasName("f"));
 
   Decl *FromTU =
@@ -2184,36 +2214,125 @@ TEST_F(ImportFriendFunctions, LookupWithProto) {
   ASSERT_TRUE(!From0->isInIdentifierNamespace(Decl::IDNS_Ordinary));
   ASSERT_TRUE(!From1->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
   ASSERT_TRUE(From1->isInIdentifierNamespace(Decl::IDNS_Ordinary));
-  auto Name = From0->getDeclName();
+  auto FromName = From0->getDeclName();
   {
     CXXRecordDecl *Class =
         FirstDeclMatcher<CXXRecordDecl>().match(FromTU, cxxRecordDecl());
-    auto lookup_res = Class->noload_lookup(Name);
+    auto lookup_res = Class->noload_lookup(FromName);
     ASSERT_EQ(lookup_res.size(), 0u);
-    lookup_res = cast<TranslationUnitDecl>(FromTU)->noload_lookup(Name);
+    lookup_res = cast<TranslationUnitDecl>(FromTU)->noload_lookup(FromName);
     ASSERT_EQ(lookup_res.size(), 1u);
   }
 
-  Import(From0, Lang_CXX);
+  auto To0 = cast<FunctionDecl>(Import(From0, Lang_CXX));
+  auto ToName = To0->getDeclName();
 
   {
-    Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+    auto ToTU = ToAST->getASTContext().getTranslationUnitDecl();
     CXXRecordDecl *Class =
         FirstDeclMatcher<CXXRecordDecl>().match(ToTU, cxxRecordDecl());
-    auto lookup_res = Class->noload_lookup(Name);
+    auto lookup_res = Class->noload_lookup(ToName);
     EXPECT_EQ(lookup_res.size(), 0u);
-    lookup_res = cast<TranslationUnitDecl>(FromTU)->noload_lookup(Name);
+    lookup_res = ToTU->noload_lookup(ToName);
     EXPECT_EQ(lookup_res.size(), 1u);
   }
 
-  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  auto ToTU = ToAST->getASTContext().getTranslationUnitDecl();
   ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
-  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
   auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
   EXPECT_TRUE(To0->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
   EXPECT_TRUE(!To0->isInIdentifierNamespace(Decl::IDNS_Ordinary));
   EXPECT_TRUE(!To1->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
   EXPECT_TRUE(To1->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+}
+
+TEST_F(ImportFriendFunctions, LookupWithProtoFirst) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *FromTU =
+      getTuDecl("void f();"
+                "struct X { friend void f(); };",
+                Lang_CXX, "input0.cc");
+  auto From0 = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+  auto From1 = LastDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+  ASSERT_TRUE(!From0->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  ASSERT_TRUE(From0->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+  ASSERT_TRUE(From1->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  ASSERT_TRUE(From1->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+  auto FromName = From0->getDeclName();
+  {
+    CXXRecordDecl *Class =
+        FirstDeclMatcher<CXXRecordDecl>().match(FromTU, cxxRecordDecl());
+    auto lookup_res = Class->noload_lookup(FromName);
+    ASSERT_EQ(lookup_res.size(), 0u);
+    lookup_res = cast<TranslationUnitDecl>(FromTU)->noload_lookup(FromName);
+    ASSERT_EQ(lookup_res.size(), 1u);
+  }
+
+  auto To0 = cast<FunctionDecl>(Import(From0, Lang_CXX));
+  auto ToName = To0->getDeclName();
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+
+  {
+    CXXRecordDecl *Class =
+        FirstDeclMatcher<CXXRecordDecl>().match(ToTU, cxxRecordDecl());
+    auto lookup_res = Class->noload_lookup(ToName);
+    EXPECT_EQ(lookup_res.size(), 0u);
+    lookup_res = cast<TranslationUnitDecl>(ToTU)->noload_lookup(ToName);
+    EXPECT_EQ(lookup_res.size(), 1u);
+  }
+
+  ASSERT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(!To0->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  EXPECT_TRUE(To0->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+  EXPECT_TRUE(To1->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  EXPECT_TRUE(To1->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+}
+
+TEST_F(ImportFriendFunctions, ImportFriendChangesLookup) {
+  auto Pattern = functionDecl(hasName("f"));
+
+  Decl *FromTU0 = getTuDecl("void f();", Lang_CXX, "input0.cc");
+  FunctionDecl *FromD0 =
+      FirstDeclMatcher<FunctionDecl>().match(FromTU0, Pattern);
+  Decl *FromTU1 =
+      getTuDecl("class X { friend void f(); };", Lang_CXX, "input1.cc");
+  FunctionDecl *FromD1 =
+      FirstDeclMatcher<FunctionDecl>().match(FromTU1, Pattern);
+  auto FromName0 = FromD0->getDeclName();
+  auto FromName1 = FromD1->getDeclName();
+
+  ASSERT_TRUE(FromD0->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+  ASSERT_TRUE(!FromD0->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  ASSERT_TRUE(!FromD1->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+  ASSERT_TRUE(FromD1->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  auto lookup_res = cast<TranslationUnitDecl>(FromTU0)->noload_lookup(FromName0);
+  ASSERT_EQ(lookup_res.size(), 1u);
+  lookup_res = cast<TranslationUnitDecl>(FromTU1)->noload_lookup(FromName1);
+  ASSERT_EQ(lookup_res.size(), 1u);
+
+  FunctionDecl *ToD0 = cast<FunctionDecl>(Import(FromD0, Lang_CXX));
+  auto ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  auto ToName = ToD0->getDeclName();
+  EXPECT_TRUE(ToD0->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+  EXPECT_TRUE(!ToD0->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  lookup_res = cast<TranslationUnitDecl>(ToTU)->noload_lookup(ToName);
+  EXPECT_EQ(lookup_res.size(), 1u);
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 1u);
+  
+  FunctionDecl *ToD1 = cast<FunctionDecl>(Import(FromD1, Lang_CXX));
+  lookup_res = cast<TranslationUnitDecl>(ToTU)->noload_lookup(ToName);
+  EXPECT_EQ(lookup_res.size(), 1u);
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+
+  EXPECT_TRUE(ToD0->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+  EXPECT_TRUE(!ToD0->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
+  
+  EXPECT_TRUE(ToD1->isInIdentifierNamespace(Decl::IDNS_Ordinary));
+  EXPECT_TRUE(ToD1->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend));
 }
 
 TEST_F(Fixture, OmitVAListTag) {
@@ -2366,7 +2485,6 @@ class B {
     Import(FromD, Lang_CXX);
   }
 
-  FunctionDecl *ImportedD1;
   {
     Decl *FromTU = getTuDecl(
             R"(
@@ -2385,7 +2503,7 @@ long b = strtol(&a);
         , Lang_CXX, "input1.cc");
     FunctionDecl *FromD =
         FirstDeclMatcher<FunctionDecl>().match(FromTU, functionDecl(hasName("transcode")));
-    ImportedD1 = cast<FunctionDecl>(Import(FromD, Lang_CXX));
+    Import(FromD, Lang_CXX);
   }
 
   Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();

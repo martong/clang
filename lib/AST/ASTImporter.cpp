@@ -2890,8 +2890,11 @@ Decl *ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
   FriendDecl::FriendUnion ToFU;
   if (NamedDecl *FriendD = D->getFriendDecl()) {
     auto *ToFriendD = cast_or_null<NamedDecl>(Importer.Import(FriendD));
-    if (ToFriendD && FriendD->getFriendObjectKind() != Decl::FOK_None)
-      ToFriendD->setObjectOfFriendDecl(true);
+    
+    if (ToFriendD && FriendD->getFriendObjectKind() != Decl::FOK_None &&
+        !(FriendD->isInIdentifierNamespace(Decl::IDNS_NonMemberOperator)))
+      ToFriendD->setObjectOfFriendDecl(false);
+
     ToFU = ToFriendD;
   } else
     ToFU = Importer.Import(D->getFriendType());
@@ -2920,7 +2923,6 @@ Decl *ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
   LexicalDC->addDeclInternal(FrD);
   return FrD;
 }
-
 Decl *ASTNodeImporter::VisitObjCIvarDecl(ObjCIvarDecl *D) {
   // Import the major distinguishing characteristics of an ivar.
   DeclContext *DC, *LexicalDC;
@@ -6927,14 +6929,8 @@ Decl *ASTImporter::Import(Decl *FromD) {
   ToD = Importer.Visit(FromD);
   if (!ToD)
     return nullptr;
+  Imported(FromD, ToD);
 
-  llvm::DenseMap<Decl *, Decl *>::iterator Pos = ImportedDecls.find(FromD);
-  assert((Pos == ImportedDecls.end() || Pos->second == ToD) && "Try to import an already imported Decl");
-
-  // Record the imported declaration.
-  ImportedDecls[FromD] = ToD;
-
-  ToD->IdentifierNamespace = FromD->IdentifierNamespace;
   return ToD;
 }
 
@@ -7542,7 +7538,10 @@ void ASTImporter::CompleteDecl (Decl *D) {
 
 Decl *ASTImporter::Imported(Decl *From, Decl *To) {
   llvm::DenseMap<Decl *, Decl *>::iterator Pos = ImportedDecls.find(From);
-  assert((Pos == ImportedDecls.end() || Pos->second == To) && "Try to import an already imported Decl");
+  assert((Pos == ImportedDecls.end() || Pos->second == To) &&
+      "Try to import an already imported Decl");
+  if (Pos != ImportedDecls.end())
+    return Pos->second;
 
   if (From->hasAttrs()) {
     for (Attr *FromAttr : From->getAttrs())
@@ -7554,7 +7553,10 @@ Decl *ASTImporter::Imported(Decl *From, Decl *To) {
   if (From->isImplicit()) {
     To->setImplicit();
   }
+  To->IdentifierNamespace = From->IdentifierNamespace;
+  
   ImportedDecls[From] = To;
+  
   return To;
 }
 
