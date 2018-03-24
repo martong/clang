@@ -2510,5 +2510,66 @@ long b = strtol(&a);
   EXPECT_EQ(DeclCounter<UsingShadowDecl>().match(ToTU, usingShadowDecl()), 1u);
 }
 
+TEST_F(Fixture, MissingFunctionTemplateDecl) {
+  Decl *FromTU = getTuDecl(
+      R"(
+namespace std {
+template <typename> struct __and_;
+template <typename> struct is_default_constructible;
+template <typename> struct __is_implicitly_default_constructible;
+template <bool> struct enable_if;
+struct pair {
+  template <typename, typename _U2,
+            typename enable_if<__and_<
+                __is_implicitly_default_constructible<_U2>>::value>::type>
+  pair();
+  template <
+      typename, typename _U2,
+      typename enable_if<__and_<is_default_constructible<_U2>>::value>::type>
+  pair();
+};
+class string;
+}
+namespace google {
+namespace protobuf {
+using std::string;
+namespace internal {
+void IsStructurallyValidUTF8(const char *, int) {}
+}
+}
+}
+            )",
+      Lang_CXX11, "input1.cc");
+  FunctionDecl *FromD = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("IsStructurallyValidUTF8")));
+  Import(FromD, Lang_CXX11);
+}
+
+TEST_F(Fixture, MissingCXXRecordDecl) {
+  Decl *FromTU = getTuDecl(
+      R"(
+namespace google {
+namespace protobuf {
+namespace io {
+class CodedOutputStream {
+  void WriteRaw(const void *, int);
+};
+}
+class A {
+  struct B;
+  struct B {};
+};
+namespace io {
+void CodedOutputStream::WriteRaw(const void *, int) {}
+}
+}
+}
+            )",
+      Lang_CXX11, "input1.cc");
+  FunctionDecl *FromD = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("WriteRaw")));
+  Import(FromD, Lang_CXX11);
+}
+
 } // end namespace ast_matchers
 } // end namespace clang

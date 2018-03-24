@@ -262,6 +262,9 @@ const FunctionDecl *CrossTranslationUnit::getCrossTUDefinition(
           findFunctionInDeclContext(TU, LookupFnName)) {
     auto *ToDecl = cast_or_null<FunctionDecl>(
         Importer.Import(const_cast<FunctionDecl *>(ResultDecl)));
+    if (Context.getDiagnostics().hasErrorOccurred()) {
+      return nullptr;
+    }
     if (Importer.hasEncounteredUnsupportedNode()) {
       if (ToDecl)
         InvalidFunctions.insert(ToDecl);
