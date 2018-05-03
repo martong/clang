@@ -7405,14 +7405,13 @@ bool Sema::RequireCompleteType(SourceLocation Loc, QualType T,
 }
 
 bool Sema::hasStructuralCompatLayout(Decl *D, Decl *Suggested) {
-  llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls;
   if (!Suggested)
     return false;
 
   // FIXME: Add a specific mode for C11 6.2.7/1 in StructuralEquivalenceContext
   // and isolate from other C++ specific checks.
   StructuralEquivalenceContext Ctx(
-      D->getASTContext(), Suggested->getASTContext(), NonEquivalentDecls,
+      D->getASTContext(), Suggested->getASTContext(),
       false /*StrictTypeSpelling*/, true /*Complain*/,
       true /*ErrorOnTagTypeMismatch*/);
   return Ctx.IsStructurallyEquivalent(D, Suggested);

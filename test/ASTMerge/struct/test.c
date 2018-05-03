@@ -35,9 +35,7 @@
 // CHECK: struct1.c:56:10: error: type 'struct DeeperError' has incompatible definitions in different translation units
 // CHECK: struct1.c:56:35: note: field 'f' has type 'int' here
 // CHECK: struct2.c:53:37: note: field 'f' has type 'float' here
-// CHECK: struct1.c:54:8: error: type 'struct DeepError' has incompatible definitions in different translation units
-// CHECK: struct1.c:56:41: note: field 'Deeper' has type 'struct DeeperError *' here
-// CHECK: struct2.c:53:43: note: field 'Deeper' has type 'struct DeeperError *' here
+// CHECK: struct1.c:56:10: error: type 'struct DeeperError' has incompatible definitions in different translation units
 // CHECK: struct2.c:54:3: error: external variable 'xDeep' declared with incompatible types in different translation units ('struct DeepError' vs. 'struct DeepError')
 // CHECK: struct1.c:57:3: note: declared here with type 'struct DeepError'
 // CHECK: struct1.c:74:9: error: type 'S13' has incompatible definitions in different translation units
@@ -48,10 +46,6 @@
 // CHECK: struct1.c:130:7: error: type 'struct DeepUnnamedError::(anonymous at [[PATH_TO_INPUTS:.+]]/struct1.c:130:7)' has incompatible definitions in different translation units
 // CHECK: struct1.c:131:14: note: field 'i' has type 'long' here
 // CHECK: struct2.c:128:15: note: field 'i' has type 'float' here
-  // CHECK: struct1.c:129:5: error: type 'union DeepUnnamedError::(anonymous at [[PATH_TO_INPUTS]]/struct1.c:129:5)' has incompatible definitions in different translation units
-// CHECK: struct1.c:132:9: note: field 'S' has type 'struct (anonymous struct at [[PATH_TO_INPUTS]]/struct1.c:130:7)' here
-// CHECK: struct2.c:129:9: note: field 'S' has type 'struct (anonymous struct at [[PATH_TO_INPUTS]]/struct2.c:127:7)' here
 // CHECK: struct2.c:138:3: error: external variable 'x16' declared with incompatible types in different translation units ('struct DeepUnnamedError' vs. 'struct DeepUnnamedError')
 // CHECK: struct1.c:141:3: note: declared here with type 'struct DeepUnnamedError'
 // CHECK: struct3.c:2:14: warning: cannot import unsupported AST node Record
-// CHECK: 21 errors generated

@@ -1543,7 +1543,6 @@ bool ASTNodeImporter::IsStructuralMatch(RecordDecl *FromRecord,
 
   StructuralEquivalenceContext Ctx(Importer.getFromContext(),
                                    ToRecord->getASTContext(),
-                                   Importer.getNonEquivalentDecls(),
                                    false, Complain);
   return Ctx.IsStructurallyEquivalent(FromRecord, ToRecord);
 }
@@ -1551,8 +1550,7 @@ bool ASTNodeImporter::IsStructuralMatch(RecordDecl *FromRecord,
 bool ASTNodeImporter::IsStructuralMatch(VarDecl *FromVar, VarDecl *ToVar,
                                         bool Complain) {
   StructuralEquivalenceContext Ctx(
-      Importer.getFromContext(), Importer.getToContext(),
-      Importer.getNonEquivalentDecls(), false, Complain);
+      Importer.getFromContext(), Importer.getToContext(), false, Complain);
   return Ctx.IsStructurallyEquivalent(FromVar, ToVar);
 }
 
@@ -1560,7 +1558,6 @@ bool ASTNodeImporter::IsStructuralMatch(EnumDecl *FromEnum, EnumDecl *ToEnum,
                                         bool Complain) {
   StructuralEquivalenceContext Ctx(Importer.getFromContext(),
                                    Importer.getToContext(),
-                                   Importer.getNonEquivalentDecls(),
                                    false, Complain);
   return Ctx.IsStructurallyEquivalent(FromEnum, ToEnum);
 }
@@ -1569,15 +1566,13 @@ bool ASTNodeImporter::IsStructuralMatch(FunctionTemplateDecl *From,
                                         FunctionTemplateDecl *To) {
   StructuralEquivalenceContext Ctx(Importer.getFromContext(),
                                    Importer.getToContext(),
-                                   Importer.getNonEquivalentDecls(),
                                    false, false);
   return Ctx.IsStructurallyEquivalent(From, To);
 }
 
 bool ASTNodeImporter::IsStructuralMatch(FunctionDecl *From, FunctionDecl *To) {
   StructuralEquivalenceContext Ctx(
-      Importer.getFromContext(), Importer.getToContext(),
-      Importer.getNonEquivalentDecls(), false, false);
+      Importer.getFromContext(), Importer.getToContext(), false, false);
   return Ctx.IsStructurallyEquivalent(From, To);
 }
 
@@ -1600,16 +1595,14 @@ bool ASTNodeImporter::IsStructuralMatch(EnumConstantDecl *FromEC,
 bool ASTNodeImporter::IsStructuralMatch(ClassTemplateDecl *From,
                                         ClassTemplateDecl *To) {
   StructuralEquivalenceContext Ctx(Importer.getFromContext(),
-                                   Importer.getToContext(),
-                                   Importer.getNonEquivalentDecls());
+                                   Importer.getToContext());
   return Ctx.IsStructurallyEquivalent(From, To);
 }
 
 bool ASTNodeImporter::IsStructuralMatch(VarTemplateDecl *From,
                                         VarTemplateDecl *To) {
   StructuralEquivalenceContext Ctx(Importer.getFromContext(),
-                                   Importer.getToContext(),
-                                   Importer.getNonEquivalentDecls());
+                                   Importer.getToContext());
   return Ctx.IsStructurallyEquivalent(From, To);
 }
 
@@ -2948,8 +2941,7 @@ Decl *ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
   auto *RD = cast<CXXRecordDecl>(DC);
   FriendDecl *ImportedFriend = RD->getFirstFriend();
   StructuralEquivalenceContext Context(
-      Importer.getFromContext(), Importer.getToContext(),
-      Importer.getNonEquivalentDecls(), false, false);
+      Importer.getFromContext(), Importer.getToContext(), false, false);
 
   while (ImportedFriend) {
     if (D->getFriendDecl() && ImportedFriend->getFriendDecl()) {
@@ -7677,7 +7669,6 @@ bool ASTImporter::IsStructurallyEquivalent(QualType From, QualType To,
   if (Pos != ImportedTypes.end() && ToContext.hasSameType(Import(From), To))
     return true;
 
-  StructuralEquivalenceContext Ctx(FromContext, ToContext, NonEquivalentDecls,
-                                   false, Complain);
+  StructuralEquivalenceContext Ctx(FromContext, ToContext, false, Complain);
   return Ctx.IsStructurallyEquivalent(From, To);
 }

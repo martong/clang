@@ -44,7 +44,7 @@ struct StructuralEquivalenceContext {
 
   /// Declaration (from, to) pairs that are known not to be equivalent
   /// (which we have already complained about).
-  llvm::DenseSet<std::pair<Decl *, Decl *>> &NonEquivalentDecls;
+  llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls;
 
   /// Whether we're being strict about the spelling of types when
   /// unifying two types.
@@ -61,11 +61,9 @@ struct StructuralEquivalenceContext {
 
   StructuralEquivalenceContext(
       ASTContext &FromCtx, ASTContext &ToCtx,
-      llvm::DenseSet<std::pair<Decl *, Decl *>> &NonEquivalentDecls,
       bool StrictTypeSpelling = false, bool Complain = true,
       bool ErrorOnTagTypeMismatch = false)
-      : FromCtx(FromCtx), ToCtx(ToCtx), NonEquivalentDecls(NonEquivalentDecls),
-        StrictTypeSpelling(StrictTypeSpelling),
+      : FromCtx(FromCtx), ToCtx(ToCtx), StrictTypeSpelling(StrictTypeSpelling),
         ErrorOnTagTypeMismatch(ErrorOnTagTypeMismatch), Complain(Complain),
         LastDiagFromC2(false) {}
 
