@@ -27,6 +27,11 @@ namespace {
 
 using namespace clang;
 
+// FIXME !!! Ensure that the implementation functions (all static functions
+// below) never call the public ASTStructuralEquivalence::IsEquivalent()
+// functions, because that will wreak havoc the internal state (DeclsToCheck
+// and Visited members) and could cause faulty behaviour or even infinite loop.
+
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      QualType T1, QualType T2);
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
@@ -1277,19 +1282,12 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
           std::make_pair(D1, D2)))
     return false;
 
-  if (Context.Marked.count({D1, D2}))
+  // If we already had encountered these declarations, finish the recursion.
+  if (Context.Visited.count({D1, D2}))
     return true;
 
-  //auto It = std::find(Context.DeclsToCheck.begin(), Context.DeclsToCheck.end(), std::make_pair(D1, D2));
-  //if (It != Context.DeclsToCheck.end())
-    //return true;
-  //Decl *&EquivToD1 = Context.TentativeEquivalences[D1];
-  //if (EquivToD1)
-    //return EquivToD1 == D2;
-
-  // Produce a tentative equivalence D1 <-> D2, which will be checked later.
   Context.DeclsToCheck.push_back({D1, D2});
-  Context.Marked.insert({D1, D2});
+  Context.Visited.insert({D1, D2});
   return true;
 }
 } // namespace
@@ -1358,7 +1356,8 @@ StructuralEquivalenceContext::findUntaggedStructOrUnionIndex(RecordDecl *Anon) {
 }
 
 bool StructuralEquivalenceContext::IsEquivalent(Decl *D1, Decl *D2) {
-  Marked.clear();
+  DeclsToCheck.clear();
+  Visited.clear();
   if (!::IsStructurallyEquivalent(*this, D1, D2))
     return false;
 
@@ -1366,7 +1365,8 @@ bool StructuralEquivalenceContext::IsEquivalent(Decl *D1, Decl *D2) {
 }
 
 bool StructuralEquivalenceContext::IsEquivalent(QualType T1, QualType T2) {
-  Marked.clear();
+  DeclsToCheck.clear();
+  Visited.clear();
   if (!::IsStructurallyEquivalent(*this, T1, T2))
     return false;
 
