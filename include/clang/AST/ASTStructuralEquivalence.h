@@ -36,11 +36,13 @@ struct StructuralEquivalenceContext {
   /// The set of "tentative" equivalences between two canonical
   /// declarations, mapping from a declaration in the first context to the
   /// declaration in the second context that we believe to be equivalent.
-  llvm::DenseMap<Decl *, Decl *> TentativeEquivalences;
+  //llvm::DenseMap<Decl *, Decl *> TentativeEquivalences;
 
   /// Queue of declarations in the first context whose equivalence
   /// with a declaration in the second context still needs to be verified.
-  std::deque<Decl *> DeclsToCheck;
+  std::deque<std::pair<Decl *, Decl *>> DeclsToCheck;
+
+  llvm::DenseSet<std::pair<Decl *, Decl *>> Marked;
 
   /// Declaration (from, to) pairs that are known not to be equivalent
   /// (which we have already complained about).
@@ -74,10 +76,10 @@ struct StructuralEquivalenceContext {
 
   /// Determine whether the two declarations are structurally
   /// equivalent.
-  bool IsStructurallyEquivalent(Decl *D1, Decl *D2);
+  bool IsEquivalent(Decl *D1, Decl *D2);
 
   /// Determine whether the two types are structurally equivalent.
-  bool IsStructurallyEquivalent(QualType T1, QualType T2);
+  bool IsEquivalent(QualType T1, QualType T2);
 
   /// Find the index of the given anonymous struct/union within its
   /// context.

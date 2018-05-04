@@ -171,10 +171,10 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     return true;
 
   case TemplateArgument::Type:
-    return Context.IsStructurallyEquivalent(Arg1.getAsType(), Arg2.getAsType());
+    return IsStructurallyEquivalent(Context, Arg1.getAsType(), Arg2.getAsType());
 
   case TemplateArgument::Integral:
-    if (!Context.IsStructurallyEquivalent(Arg1.getIntegralType(),
+    if (!IsStructurallyEquivalent(Context, Arg1.getIntegralType(),
                                           Arg2.getIntegralType()))
       return false;
 
@@ -182,7 +182,7 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      Arg2.getAsIntegral());
 
   case TemplateArgument::Declaration:
-    return Context.IsStructurallyEquivalent(Arg1.getAsDecl(), Arg2.getAsDecl());
+    return IsStructurallyEquivalent(Context, Arg1.getAsDecl(), Arg2.getAsDecl());
 
   case TemplateArgument::NullPtr:
     return true; // FIXME: Is this correct?
@@ -1119,9 +1119,8 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
       return false;
     }
 
-    if (!Context.IsStructurallyEquivalent(Params1->getParam(I),
-                                          Params2->getParam(I))) {
-
+    if (!IsStructurallyEquivalent(Context, Params1->getParam(I),
+                                  Params2->getParam(I))) {
       return false;
     }
   }
@@ -1159,7 +1158,7 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
   }
 
   // Check types.
-  if (!Context.IsStructurallyEquivalent(D1->getType(), D2->getType())) {
+  if (!IsStructurallyEquivalent(Context, D1->getType(), D2->getType())) {
     if (Context.Complain) {
       Context.Diag2(D2->getLocation(),
                     diag::err_odr_non_type_parameter_type_inconsistent)
@@ -1200,8 +1199,8 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     return false;
 
   // Check the templated declaration.
-  return Context.IsStructurallyEquivalent(D1->getTemplatedDecl(),
-                                          D2->getTemplatedDecl());
+  return IsStructurallyEquivalent(Context, D1->getTemplatedDecl(),
+                                  D2->getTemplatedDecl());
 }
 
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
@@ -1227,7 +1226,7 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 
   if (D1->getDescribedFunctionTemplate()) {
     if (D2->getDescribedFunctionTemplate()) {
-      if (!Context.IsStructurallyEquivalent(D1->getDescribedFunctionTemplate(),
+      if (!IsStructurallyEquivalent(Context, D1->getDescribedFunctionTemplate(),
                                             D2->getDescribedFunctionTemplate()))
         return false;
     } else {
@@ -1241,7 +1240,7 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      FunctionTemplateDecl *D1,
                                      FunctionTemplateDecl *D2) {
-  if (!Context.IsStructurallyEquivalent(D1->getTemplatedDecl(),
+  if (!IsStructurallyEquivalent(Context, D1->getTemplatedDecl(),
                                         D2->getTemplatedDecl()))
     return false;
 
@@ -1275,17 +1274,22 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
   // Check whether we already know that these two declarations are not
   // structurally equivalent.
   if (Context.NonEquivalentDecls.count(
-          std::make_pair(D1->getCanonicalDecl(), D2->getCanonicalDecl())))
+          std::make_pair(D1, D2)))
     return false;
 
-  // Determine whether we've already produced a tentative equivalence for D1.
-  Decl *&EquivToD1 = Context.TentativeEquivalences[D1->getCanonicalDecl()];
-  if (EquivToD1)
-    return EquivToD1 == D2->getCanonicalDecl();
+  if (Context.Marked.count({D1, D2}))
+    return true;
+
+  //auto It = std::find(Context.DeclsToCheck.begin(), Context.DeclsToCheck.end(), std::make_pair(D1, D2));
+  //if (It != Context.DeclsToCheck.end())
+    //return true;
+  //Decl *&EquivToD1 = Context.TentativeEquivalences[D1];
+  //if (EquivToD1)
+    //return EquivToD1 == D2;
 
   // Produce a tentative equivalence D1 <-> D2, which will be checked later.
-  EquivToD1 = D2->getCanonicalDecl();
-  Context.DeclsToCheck.push_back(D1->getCanonicalDecl());
+  Context.DeclsToCheck.push_back({D1, D2});
+  Context.Marked.insert({D1, D2});
   return true;
 }
 } // namespace
@@ -1353,16 +1357,16 @@ StructuralEquivalenceContext::findUntaggedStructOrUnionIndex(RecordDecl *Anon) {
   return Index;
 }
 
-bool StructuralEquivalenceContext::IsStructurallyEquivalent(Decl *D1,
-                                                            Decl *D2) {
+bool StructuralEquivalenceContext::IsEquivalent(Decl *D1, Decl *D2) {
+  Marked.clear();
   if (!::IsStructurallyEquivalent(*this, D1, D2))
     return false;
 
   return !Finish();
 }
 
-bool StructuralEquivalenceContext::IsStructurallyEquivalent(QualType T1,
-                                                            QualType T2) {
+bool StructuralEquivalenceContext::IsEquivalent(QualType T1, QualType T2) {
+  Marked.clear();
   if (!::IsStructurallyEquivalent(*this, T1, T2))
     return false;
 
@@ -1383,11 +1387,10 @@ static bool IsTemplateDeclStructurallyEquivalent(
 bool StructuralEquivalenceContext::Finish() {
   while (!DeclsToCheck.empty()) {
     // Check the next declaration.
-    Decl *D1 = DeclsToCheck.front();
-    DeclsToCheck.pop_front();
-
-    Decl *D2 = TentativeEquivalences[D1];
+    Decl *D1 = DeclsToCheck.front().first;
+    Decl *D2 = DeclsToCheck.front().second;
     assert(D2 && "Unrecorded tentative equivalence?");
+    DeclsToCheck.pop_front();
 
     bool Equivalent = true;
 
@@ -1534,7 +1537,8 @@ bool StructuralEquivalenceContext::Finish() {
       // Note that these two declarations are not equivalent (and we already
       // know about it).
       NonEquivalentDecls.insert(
-          std::make_pair(D1->getCanonicalDecl(), D2->getCanonicalDecl()));
+          std::make_pair(D1, D2));
+      DeclsToCheck.clear();
       return true;
     }
     // FIXME: Check other declaration kinds!
