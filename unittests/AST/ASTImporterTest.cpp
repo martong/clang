@@ -2689,6 +2689,157 @@ TEST_P(ASTImporterTestBase, ImportDefinitionOfClassTemplateAfterFwdDecl) {
   }
 }
 
+TEST_P(ASTImporterTestBase, ImportOfEquivalentRecordWithField) {
+  Decl *ToD1;
+  {
+    Decl *FromTU = getTuDecl(
+        R"(
+            struct A { int x; };
+            )",
+        Lang_CXX, "input0.cc");
+    auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(
+        FromTU, cxxRecordDecl(hasName("A")));
+
+    ToD1 = Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToD2;
+  {
+    Decl *FromTU = getTuDecl(
+        R"(
+            struct A { int x; };
+            )",
+        Lang_CXX, "input1.cc");
+    auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(
+        FromTU, cxxRecordDecl(hasName("A")));
+
+    ToD2 = Import(FromD, Lang_CXX);
+  }
+  
+  EXPECT_EQ(ToD1, ToD2);
+}
+
+TEST_P(ASTImporterTestBase, ImportOfEquivalentRecordWithFunction) {
+  Decl *ToD1;
+  {
+    Decl *FromTU = getTuDecl(
+        R"(
+            struct A { int x(); };
+            )",
+        Lang_CXX, "input0.cc");
+    auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(
+        FromTU, cxxRecordDecl(hasName("A")));
+
+    ToD1 = Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToD2;
+  {
+    Decl *FromTU = getTuDecl(
+        R"(
+            struct A { int x(); };
+            )",
+        Lang_CXX, "input1.cc");
+    auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(
+        FromTU, cxxRecordDecl(hasName("A")));
+
+    ToD2 = Import(FromD, Lang_CXX);
+  }
+  
+  EXPECT_EQ(ToD1, ToD2);
+}
+
+TEST_P(ASTImporterTestBase, ImportOfNonEquivalentRecordWithField) {
+  Decl *ToD1;
+  {
+    Decl *FromTU = getTuDecl(
+        R"(
+            struct A { int x; };
+            )",
+        Lang_CXX, "input0.cc");
+    auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(
+        FromTU, cxxRecordDecl(hasName("A")));
+
+    ToD1 = Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToD2;
+  {
+    Decl *FromTU = getTuDecl(
+        R"(
+            struct A { unsigned x; };
+            )",
+        Lang_CXX, "input1.cc");
+    auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(
+        FromTU, cxxRecordDecl(hasName("A")));
+
+    ToD2 = Import(FromD, Lang_CXX);
+  }
+  
+  EXPECT_NE(ToD1, ToD2);
+}
+
+TEST_P(ASTImporterTestBase, ImportOfNonEquivalentRecordWithFunction) {
+  Decl *ToD1;
+  {
+    Decl *FromTU = getTuDecl(
+        R"(
+            struct A { int x(); };
+            )",
+        Lang_CXX, "input0.cc");
+    auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(
+        FromTU, cxxRecordDecl(hasName("A")));
+
+    ToD1 = Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToD2;
+  {
+    Decl *FromTU = getTuDecl(
+        R"(
+            struct A { unsigned x(); };
+            )",
+        Lang_CXX, "input1.cc");
+    auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(
+        FromTU, cxxRecordDecl(hasName("A")));
+
+    ToD2 = Import(FromD, Lang_CXX);
+  }
+  
+  EXPECT_NE(ToD1, ToD2);
+}
+
+TEST_P(ASTImporterTestBase, ImportOfDeclAfterFwdDecl) {
+  Decl *ToD1;
+  {
+    Decl *FromTU = getTuDecl(
+        R"(
+            struct A;
+            )",
+        Lang_CXX, "input0.cc");
+    auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(
+        FromTU, cxxRecordDecl(hasName("A")));
+
+    ToD1 = Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToD2;
+  {
+    Decl *FromTU = getTuDecl(
+        R"(
+            struct A { int x; };
+            )",
+        Lang_CXX, "input1.cc");
+    auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(
+        FromTU, cxxRecordDecl(hasName("A")));
+
+    ToD2 = Import(FromD, Lang_CXX);
+  }
+  
+  EXPECT_NE(ToD1, ToD2);
+  EXPECT_EQ(ToD1, ToD2->getPreviousDecl());
+}
+
 INSTANTIATE_TEST_CASE_P(
     ParameterizedTests, ASTImporterTestBase,
     ::testing::Values(ArgVector(), ArgVector{"-fdelayed-template-parsing"}),);
