@@ -6577,6 +6577,9 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
   case AttributeList::AT_XRayLogArgs:
     handleXRayLogArgsAttr(S, D, Attr);
     break;
+  case AttributeList::AT_TestDouble:
+    handleSimpleAttribute<TestDoubleAttr>(S, D, Attr);
+    break;
   }
 }
 

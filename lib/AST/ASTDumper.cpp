@@ -867,7 +867,7 @@ void ASTDumper::dumpAttr(const Attr *A) {
       OS << "Attr";
     }
     dumpPointer(A);
-    dumpSourceRange(A->getRange());
+    //dumpSourceRange(A->getRange());
     if (A->isInherited())
       OS << " Inherited";
     if (A->isImplicit())

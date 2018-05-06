@@ -1274,6 +1274,11 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 /// Determine structural equivalence of two declarations.
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      Decl *D1, Decl *D2) {
+  // From -- D1, To -- D2
+  if (D2->hasAttr<TestDoubleAttr>()) {
+    return true;
+  }
+
   // FIXME: Check for known structural equivalences via a callback of some sort.
 
   // Check whether we already know that these two declarations are not

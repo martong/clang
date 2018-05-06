@@ -2784,3 +2784,9 @@ def InternalLinkage : InheritableAttr {
   let Subjects = SubjectList<[Var, Function, CXXRecord]>;
   let Documentation = [InternalLinkageDocs];
 }
+
+def TestDouble : Attr {
+  let Spellings = [GCC<"test_double">, CXX11<"", "test_double", 200809>];
+  let Subjects = SubjectList<[Function, Record]>;
+  let Documentation = [Undocumented];
+}
