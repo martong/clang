@@ -2679,6 +2679,10 @@ INSTANTIATE_TEST_CASE_P(
     ::testing::Values(ArgVector(), ArgVector{"-fdelayed-template-parsing"}),);
 
 INSTANTIATE_TEST_CASE_P(
+    ParameterizedTests, ImportFriendFunctions,
+    ::testing::Values(ArgVector(), ArgVector{"-fdelayed-template-parsing"}),);
+
+INSTANTIATE_TEST_CASE_P(
     ParameterizedTests, CanonicalRedeclChain,
     ::testing::Values(ArgVector()),);
 
