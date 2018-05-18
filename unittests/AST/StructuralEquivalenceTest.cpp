@@ -320,6 +320,30 @@ TEST_F(StructuralEquivalenceFunctionTest, ParamPtr) {
   EXPECT_FALSE(testStructuralMatch(get<0>(t), get<1>(t)));
 }
 
+TEST_F(StructuralEquivalenceFunctionTest, NameInParen) {
+  auto t = makeNamedDecls(
+      "void ((foo))();",
+      "void foo();",
+      Lang_CXX);
+  EXPECT_TRUE(testStructuralMatch(get<0>(t), get<1>(t)));
+}
+
+TEST_F(StructuralEquivalenceFunctionTest, NameInParenWithExceptionSpec) {
+  auto t = makeNamedDecls(
+      "void (foo)() throw(int);",
+      "void (foo)() noexcept;",
+      Lang_CXX11);
+  EXPECT_FALSE(testStructuralMatch(get<0>(t), get<1>(t)));
+}
+
+TEST_F(StructuralEquivalenceFunctionTest, NameInParenWithConst) {
+  auto t = makeNamedDecls(
+      "struct A { void (foo)() const; };",
+      "struct A { void (foo)(); };",
+      Lang_CXX11);
+  EXPECT_FALSE(testStructuralMatch(get<0>(t), get<1>(t)));
+}
+
 struct StructuralEquivalenceCXXMethodTest : StructuralEquivalenceTest {
 };
 

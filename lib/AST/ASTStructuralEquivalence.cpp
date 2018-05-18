@@ -416,8 +416,6 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
   case Type::FunctionProto: {
     const auto *Proto1 = cast<FunctionProtoType>(T1);
     const auto *Proto2 = cast<FunctionProtoType>(T2);
-    const auto *OrigProto1 = cast<FunctionProtoType>(OrigT1);
-    const auto *OrigProto2 = cast<FunctionProtoType>(OrigT2);
 
     if (Proto1->getNumParams() != Proto2->getNumParams())
       return false;
@@ -431,8 +429,13 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     
     if (Proto1->getTypeQuals() != Proto2->getTypeQuals())
       return false;
-    
-    // Check exceptions: This information may get lost in canonical type.
+
+    // Check exceptions, this information is lost in canonical type.
+    const auto *OrigProto1 =
+        cast<FunctionProtoType>(OrigT1.getDesugaredType(Context.FromCtx));
+    const auto *OrigProto2 =
+        cast<FunctionProtoType>(OrigT2.getDesugaredType(Context.ToCtx));
+
     auto Spec1 = OrigProto1->getExceptionSpecType();
     auto Spec2 = OrigProto2->getExceptionSpecType();
     
