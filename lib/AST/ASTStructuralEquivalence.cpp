@@ -237,6 +237,9 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
   if (T1.isNull() || T2.isNull())
     return T1.isNull() && T2.isNull();
 
+  QualType OrigT1 = T1;
+  QualType OrigT2 = T2;
+
   if (!Context.StrictTypeSpelling) {
     // We aren't being strict about token-to-token equivalence of types,
     // so map down to the canonical type.
@@ -411,8 +414,9 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
   }
 
   case Type::FunctionProto: {
-    const FunctionProtoType *Proto1 = cast<FunctionProtoType>(T1);
-    const FunctionProtoType *Proto2 = cast<FunctionProtoType>(T2);
+    const auto *Proto1 = cast<FunctionProtoType>(T1);
+    const auto *Proto2 = cast<FunctionProtoType>(T2);
+
     if (Proto1->getNumParams() != Proto2->getNumParams())
       return false;
     for (unsigned I = 0, N = Proto1->getNumParams(); I != N; ++I) {
@@ -422,23 +426,39 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     }
     if (Proto1->isVariadic() != Proto2->isVariadic())
       return false;
-    if (Proto1->getExceptionSpecType() != Proto2->getExceptionSpecType())
-      return false;
-    if (Proto1->getExceptionSpecType() == EST_Dynamic) {
-      if (Proto1->getNumExceptions() != Proto2->getNumExceptions())
-        return false;
-      for (unsigned I = 0, N = Proto1->getNumExceptions(); I != N; ++I) {
-        if (!IsStructurallyEquivalent(Context, Proto1->getExceptionType(I),
-                                      Proto2->getExceptionType(I)))
-          return false;
-      }
-    } else if (Proto1->getExceptionSpecType() == EST_ComputedNoexcept) {
-      if (!IsStructurallyEquivalent(Context, Proto1->getNoexceptExpr(),
-                                    Proto2->getNoexceptExpr()))
-        return false;
-    }
+    
     if (Proto1->getTypeQuals() != Proto2->getTypeQuals())
       return false;
+
+    // Check exceptions, this information is lost in canonical type.
+    const auto *OrigProto1 =
+        cast<FunctionProtoType>(OrigT1.getDesugaredType(Context.FromCtx));
+    const auto *OrigProto2 =
+        cast<FunctionProtoType>(OrigT2.getDesugaredType(Context.ToCtx));
+
+    auto Spec1 = OrigProto1->getExceptionSpecType();
+    auto Spec2 = OrigProto2->getExceptionSpecType();
+    
+    if (!isUnresolvedExceptionSpec(Spec1) &&
+        !isUnresolvedExceptionSpec(Spec2)) {
+      if (Spec1 != Spec2)
+        return false;
+      if (Spec1 == EST_Dynamic) {
+        if (OrigProto1->getNumExceptions() != OrigProto2->getNumExceptions())
+          return false;
+        for (unsigned I = 0, N = OrigProto1->getNumExceptions(); I != N; ++I) {
+          if (!IsStructurallyEquivalent(Context,
+                                        OrigProto1->getExceptionType(I),
+                                        OrigProto2->getExceptionType(I)))
+            return false;
+        }
+      } else if (Spec1 == EST_ComputedNoexcept) {
+        if (!IsStructurallyEquivalent(Context,
+                                      OrigProto1->getNoexceptExpr(),
+                                      OrigProto2->getNoexceptExpr()))
+          return false;
+      }
+    }
 
     // Fall through to check the bits common with FunctionNoProtoType.
     LLVM_FALLTHROUGH;
@@ -827,6 +847,75 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
       return false;
     }
   }
+
+  return true;
+}
+
+/// Determine structural equivalence of two methodss.
+static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
+                                     CXXMethodDecl *Method1,
+                                     CXXMethodDecl *Method2) {
+  if (Method1->isStatic() != Method2->isStatic())
+    return false;
+  if (Method1->isConst() != Method2->isConst())
+    return false;
+  if (Method1->isVolatile() != Method2->isVolatile())
+    return false;
+  if (Method1->isVirtual() != Method2->isVirtual())
+    return false;
+  if (Method1->isPure() != Method2->isPure())
+    return false;
+  if (Method1->isDefaulted() != Method2->isDefaulted())
+    return false;
+  if (Method1->isDeleted() != Method2->isDeleted())
+    return false;
+  // FIXME: Check for 'final'.
+
+  if (Method1->getRefQualifier() != Method2->getRefQualifier())
+    return false;
+
+  if (Method1->getAccess() != Method2->getAccess())
+    return false;
+
+  if (auto *Constructor1 = dyn_cast<CXXConstructorDecl>(Method1)) {
+    if (auto *Constructor2 = dyn_cast<CXXConstructorDecl>(Method2)) {
+      if (Constructor1->isExplicit() != Constructor2->isExplicit())
+        return false;
+    } else
+      return false;
+  }
+  
+  if (auto *Conversion1 = dyn_cast<CXXConversionDecl>(Method1)) {
+    if (auto *Conversion2 = dyn_cast<CXXConversionDecl>(Method2)) {
+      if (Conversion1->isExplicit() != Conversion2->isExplicit())
+        return false;
+      if (!IsStructurallyEquivalent(Context, Conversion1->getConversionType(),
+                                    Conversion2->getConversionType()))
+        return false;
+    } else
+      return false;
+  }
+  
+  if (Method1->isOverloadedOperator() && Method2->isOverloadedOperator()) {
+    if (Method1->getOverloadedOperator() != Method2->getOverloadedOperator())
+      return false;
+    const IdentifierInfo *Literal1 = Method1->getLiteralIdentifier();
+    const IdentifierInfo *Literal2 = Method2->getLiteralIdentifier();
+    if (!::IsStructurallyEquivalent(Literal1, Literal2))
+      return false;
+  }
+
+  // Check method names.
+  const IdentifierInfo *Name1 = Method1->getIdentifier();
+  const IdentifierInfo *Name2 = Method2->getIdentifier();
+  if (!::IsStructurallyEquivalent(Name1, Name2)) {
+    return false;
+    // TODO: add warning
+  }
+
+  if (!::IsStructurallyEquivalent(Context,
+                                  Method1->getType(), Method2->getType()))
+    return false;
 
   return true;
 }
@@ -1500,6 +1589,14 @@ bool StructuralEquivalenceContext::Finish() {
       if (TemplateTemplateParmDecl *TTP2 =
               dyn_cast<TemplateTemplateParmDecl>(D2)) {
         if (!::IsStructurallyEquivalent(*this, TTP1, TTP2))
+          Equivalent = false;
+      } else {
+        // Kind mismatch.
+        Equivalent = false;
+      }
+    } else if (auto *MD1 = dyn_cast<CXXMethodDecl>(D1)) {
+      if (auto *MD2 = dyn_cast<CXXMethodDecl>(D2)) {
+        if (!::IsStructurallyEquivalent(*this, MD1, MD2))
           Equivalent = false;
       } else {
         // Kind mismatch.
