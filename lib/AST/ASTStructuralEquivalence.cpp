@@ -988,12 +988,20 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
   if (D1->isBeingDefined() || D2->isBeingDefined())
     return true;
 
+  if (D1->isTemplated() != D2->isTemplated())
+    return false;
+
   if (CXXRecordDecl *D1CXX = dyn_cast<CXXRecordDecl>(D1)) {
     if (CXXRecordDecl *D2CXX = dyn_cast<CXXRecordDecl>(D2)) {
       if (D1CXX->hasExternalLexicalStorage() &&
           !D1CXX->isCompleteDefinition()) {
         D1CXX->getASTContext().getExternalSource()->CompleteType(D1CXX);
       }
+
+      if (auto *T1 = D1CXX->getDescribedClassTemplate())
+        if (auto *T2 = D2CXX->getDescribedClassTemplate())
+          if (!IsStructurallyEquivalent(Context, T1, T2))
+            return false;
 
       if (D1CXX->getNumBases() != D2CXX->getNumBases()) {
         if (Context.Complain) {
@@ -1313,15 +1321,13 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
   if (!::IsStructurallyEquivalent(Context, D1->getType(), D2->getType()))
     return false;
 
-  if (D1->getDescribedFunctionTemplate()) {
-    if (D2->getDescribedFunctionTemplate()) {
-      if (!IsStructurallyEquivalent(Context, D1->getDescribedFunctionTemplate(),
-                                            D2->getDescribedFunctionTemplate()))
+  if (D1->isTemplated() != D2->isTemplated())
+    return false;
+
+  if (auto T1 = D1->getDescribedFunctionTemplate())
+    if (auto T2 = D2->getDescribedFunctionTemplate())
+      if (!IsStructurallyEquivalent(Context, T1, T2))
         return false;
-    } else {
-      return false;
-    }
-  }
 
   return true;
 }
