@@ -63,10 +63,22 @@ struct StructuralEquivalenceTest : ::testing::Test {
   }
   
   bool testStructuralMatch(NamedDecl *d0, NamedDecl *d1) {
-    llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls;
-    StructuralEquivalenceContext Ctx(d0->getASTContext(), d1->getASTContext(),
-                                     NonEquivalentDecls, false, false);
-    return Ctx.IsEquivalent(d0, d1);
+    llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls01;
+    llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls10;
+    StructuralEquivalenceContext Ctx01(
+        d0->getASTContext(), d1->getASTContext(),
+        NonEquivalentDecls01, false, false);
+    StructuralEquivalenceContext Ctx10(
+        d1->getASTContext(), d0->getASTContext(),
+        NonEquivalentDecls10, false, false);
+    bool eq01 = Ctx01.IsEquivalent(d0, d1);
+    bool eq10 = Ctx10.IsEquivalent(d1, d0);
+    EXPECT_EQ(eq01, eq10);
+    return eq01;
+  }
+  
+  bool testStructuralMatch(std::tuple<NamedDecl *, NamedDecl *> d) {
+    return testStructuralMatch(std::get<0>(d), std::get<1>(d));
   }
 };
 
@@ -203,6 +215,15 @@ TEST_F(StructuralEquivalenceTest, WrongOrderOfFieldsInClass) {
 
 struct StructuralEquivalenceFunctionTest : StructuralEquivalenceTest {
 };
+
+TEST_F(StructuralEquivalenceFunctionTest, TemplateVsNonTemplate) {
+  auto t = makeDecls<FunctionDecl>(
+      "void foo();",
+      "template<class T> void foo();",
+      Lang_CXX,
+      functionDecl());
+  EXPECT_FALSE(testStructuralMatch(t));
+}
 
 TEST_F(StructuralEquivalenceFunctionTest, ParamConstWithRef) {
   auto t = makeNamedDecls("void foo(int&);",
@@ -535,6 +556,15 @@ TEST_F(StructuralEquivalenceRecordTest, Match) {
       )";
   auto t = makeNamedDecls(Code, Code, Lang_CXX);
   EXPECT_TRUE(testStructuralMatch(get<0>(t), get<1>(t)));
+}
+
+TEST_F(StructuralEquivalenceRecordTest, TemplateVsNonTemplate) {
+  auto t = makeDecls<CXXRecordDecl>(
+      "struct foo { };",
+      "template<class T> struct foo { };",
+      Lang_CXX,
+      cxxRecordDecl());
+  EXPECT_FALSE(testStructuralMatch(t));
 }
 
 TEST_F(StructuralEquivalenceTest, CompareSameDeclWithMultiple) {
