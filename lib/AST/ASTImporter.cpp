@@ -446,6 +446,8 @@ namespace clang {
 
     // Importing overrides.
     void ImportOverrides(CXXMethodDecl *ToMethod, CXXMethodDecl *FromMethod);
+
+    FunctionDecl *FindFunctionTemplateSpecialization(FunctionDecl *FromFD);
   };
 
 
@@ -2494,6 +2496,27 @@ bool ASTNodeImporter::ImportTemplateInformation(FunctionDecl *FromFD,
   llvm_unreachable("All cases should be covered!");
 }
 
+FunctionDecl *
+ASTNodeImporter::FindFunctionTemplateSpecialization(FunctionDecl *FromFD) {
+  assert(FromFD->getTemplatedKind() ==
+         FunctionDecl::TK_FunctionTemplateSpecialization);
+  auto *FTSInfo = FromFD->getTemplateSpecializationInfo();
+  auto *Template = cast_or_null<FunctionTemplateDecl>(
+      Importer.Import(FTSInfo->getTemplate()));
+  if (!Template)
+    return nullptr;
+
+  // Import template arguments.
+  auto TemplArgs = FTSInfo->TemplateArguments->asArray();
+  SmallVector<TemplateArgument, 8> ToTemplArgs;
+  if (ImportTemplateArguments(TemplArgs.data(), TemplArgs.size(), ToTemplArgs))
+    return nullptr;
+
+  void *InsertPos = nullptr;
+  auto *FoundSpec = Template->findSpecialization(ToTemplArgs, InsertPos);
+  return FoundSpec;
+}
+
 Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
 
   llvm::SmallVector<Decl*, 2> Redecls = getCanonicalForwardRedeclChain(D);
@@ -2517,9 +2540,23 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   const FunctionDecl *FoundByLookup = nullptr;
   FunctionTemplateDecl *FromFT = D->getDescribedFunctionTemplate();
 
+  // If this is a function template specialization, then try to find the same
+  // existing specialization in the "to" context.  The localUncachedLookup
+  // below will not find any specialization, but would find the primary
+  // template; thus, we have to skip normal lookup in case of specializations.
+  // FIXME handle member function templates (TK_MemberSpecialization) similarly?
+  if (D->getTemplatedKind() ==
+      FunctionDecl::TK_FunctionTemplateSpecialization) {
+    if (FunctionDecl *FoundFunction = FindFunctionTemplateSpecialization(D)) {
+      if (D->doesThisDeclarationHaveABody() &&
+          FoundFunction->hasBody())
+        return Importer.MapImported(D, FoundFunction);
+      FoundByLookup = FoundFunction;
+    }
+  }
   // Try to find a function in our own ("to") context with the same name, same
   // type, and in the same context as the function we're importing.
-  if (!LexicalDC->isFunctionOrMethod()) {
+  else if (!LexicalDC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     unsigned IDNS = Decl::IDNS_Ordinary | Decl::IDNS_OrdinaryFriend;
     SmallVector<NamedDecl *, 2> FoundDecls;
@@ -2534,7 +2571,7 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
               D->hasExternalFormalLinkage()) {
             if (IsStructuralMatch(D, FoundFunction)) {
               if (D->doesThisDeclarationHaveABody() &&
-                  FoundFunction->doesThisDeclarationHaveABody())
+                  FoundFunction->hasBody())
                 return Importer.MapImported(D, FoundFunction);
               FoundByLookup = FoundFunction;
               break;
@@ -2738,12 +2775,10 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
 
   bool IsFriend = D->isInIdentifierNamespace(Decl::IDNS_OrdinaryFriend);
 
-  // Add this function to the lexical context.
-  // NOTE: If the function is templated declaration, it should be not added into
-  // LexicalDC. But described template is imported during import of
-  // FunctionTemplateDecl (it happens later). So, we use source declaration
-  // to determine if we should add the result function.
-  if (!D->getDescribedFunctionTemplate() && !IsFriend)
+  // TODO Can we generalize this approach to other AST nodes as well?
+  if (D->getDeclContext()->containsDecl(D))
+    DC->addDeclInternal(ToFunction);
+  if (DC != LexicalDC && D->getLexicalDeclContext()->containsDecl(D))
     LexicalDC->addDeclInternal(ToFunction);
 
   // Friend declarations lexical context is the befriending class, but the

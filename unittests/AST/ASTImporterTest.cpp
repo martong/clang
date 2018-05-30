@@ -1501,6 +1501,317 @@ TEST_P(
   EXPECT_TRUE(MatchVerifier<Decl>{}.match(To, Pattern));
 }
 
+struct ImportFunctionTemplateSpecializations : ASTImporterTestBase {};
+
+TEST_P(ImportFunctionTemplateSpecializations,
+       TUshouldNotContainFunctionTemplateImplicitInstantiation) {
+
+  Decl *FromTU = getTuDecl(
+      R"(
+      template<class T>
+      int f() { return 0; }
+      void foo() { f<int>(); }
+      )",
+      Lang_CXX, "input0.cc");
+
+  //Check that the function template instantiation is NOT the child of the TU
+  auto Pattern = translationUnitDecl(
+      unless(has(functionDecl(hasName("f"), isTemplateInstantiation()))));
+  ASSERT_TRUE(MatchVerifier<Decl>{}.match(FromTU, Pattern));
+
+  auto *Foo = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("foo")));
+  ASSERT_TRUE(Import(Foo, Lang_CXX));
+
+  auto ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  EXPECT_TRUE(MatchVerifier<Decl>{}.match(ToTU, Pattern));
+}
+
+TEST_P(ImportFunctionTemplateSpecializations,
+       TUshouldNotContainFunctionTemplateExplicitInstantiation) {
+
+  Decl *FromTU = getTuDecl(
+      R"(
+      template<class T>
+      int f() { return 0; }
+      template int f<int>();
+      )",
+      Lang_CXX, "input0.cc");
+
+  //Check that the function template instantiation is NOT the child of the TU
+  auto Instantiation = functionDecl(hasName("f"), isTemplateInstantiation());
+  auto Pattern = translationUnitDecl(unless(has(Instantiation)));
+  ASSERT_TRUE(MatchVerifier<Decl>{}.match(FromTU, Pattern));
+
+  ASSERT_TRUE(Import(FirstDeclMatcher<Decl>().match(FromTU, Instantiation), Lang_CXX));
+
+  auto ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  EXPECT_TRUE(MatchVerifier<Decl>{}.match(ToTU, Pattern));
+}
+
+TEST_P(ImportFunctionTemplateSpecializations,
+       TUshouldContainFunctionTemplateSpecialization) {
+
+  Decl *FromTU = getTuDecl(
+      R"(
+      template<class T>
+      int f() { return 0; }
+      template <> int f<int>() { return 4; }
+      )",
+      Lang_CXX, "input0.cc");
+
+  //Check that the function template specialization is the child of the TU
+  auto Specialization = functionDecl(hasName("f"), isExplicitTemplateSpecialization());
+  auto Pattern = translationUnitDecl(has(Specialization));
+  ASSERT_TRUE(MatchVerifier<Decl>{}.match(FromTU, Pattern));
+
+  ASSERT_TRUE(Import(FirstDeclMatcher<Decl>().match(FromTU, Specialization), Lang_CXX));
+
+  auto ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  EXPECT_TRUE(MatchVerifier<Decl>{}.match(ToTU, Pattern));
+}
+
+TEST_P(ImportFunctionTemplateSpecializations,
+       FunctionTemplateSpecializationRedeclChain) {
+
+  Decl *FromTU = getTuDecl(
+      R"(
+      template<class T>
+      int f() { return 0; }
+      template <> int f<int>() { return 4; }
+      )",
+      Lang_CXX, "input0.cc");
+
+  auto Spec = functionDecl(hasName("f"), isExplicitTemplateSpecialization(),
+                           hasParent(translationUnitDecl()));
+  auto *FromSpecD = FirstDeclMatcher<Decl>().match(FromTU, Spec);
+  {
+    auto *TU = FromTU;
+    auto *SpecD = FromSpecD;
+    auto *TemplateD = FirstDeclMatcher<FunctionTemplateDecl>().match(
+        TU, functionTemplateDecl());
+    auto *FirstSpecD = *(TemplateD->spec_begin());
+    ASSERT_EQ(SpecD, FirstSpecD);
+    ASSERT_TRUE(SpecD->getPreviousDecl());
+    ASSERT_FALSE(cast<FunctionDecl>(SpecD->getPreviousDecl())
+                     ->doesThisDeclarationHaveABody());
+  }
+
+  ASSERT_TRUE(Import(FromSpecD, Lang_CXX));
+
+  {
+    auto *TU = ToAST->getASTContext().getTranslationUnitDecl();
+    auto *SpecD = FirstDeclMatcher<Decl>().match(TU, Spec);
+    auto *TemplateD = FirstDeclMatcher<FunctionTemplateDecl>().match(
+        TU, functionTemplateDecl());
+    auto *FirstSpecD = *(TemplateD->spec_begin());
+    EXPECT_EQ(SpecD, FirstSpecD);
+    ASSERT_TRUE(SpecD->getPreviousDecl());
+    EXPECT_FALSE(cast<FunctionDecl>(SpecD->getPreviousDecl())
+                     ->doesThisDeclarationHaveABody());
+  }
+}
+
+TEST_P(ImportFunctionTemplateSpecializations,
+       MatchNumberOfFunctionTemplateSpecializations) {
+
+  Decl *FromTU = getTuDecl(
+      R"(
+      template <typename T> constexpr int f() { return 0; }
+      template <> constexpr int f<int>() { return 4; }
+      void foo() {
+        static_assert(f<char>() == 0, "");
+        static_assert(f<int>() == 4, "");
+      }
+      )",
+      Lang_CXX11, "input0.cc");
+  auto *FromD = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("foo")));
+
+  Import(FromD, Lang_CXX11);
+  auto ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  EXPECT_EQ(
+      DeclCounter<FunctionDecl>().match(FromTU, functionDecl(hasName("f"))),
+      DeclCounter<FunctionDecl>().match(ToTU, functionDecl(hasName("f"))));
+}
+
+TEST_P(ImportFunctionTemplateSpecializations,
+       ImportPrototypes) {
+  auto Pattern = functionDecl(hasName("f"), isExplicitTemplateSpecialization());
+  auto Code =
+      R"(
+      // Proto of the primary template.
+      template <class T>
+      void f();
+      // Proto of the specialization.
+      template <>
+      void f<int>();
+      )";
+
+  Decl *ImportedD;
+  {
+    Decl *FromTU = getTuDecl(Code, Lang_CXX, "input0.cc");
+    auto FromD = LastDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+
+    ImportedD = Import(FromD, Lang_CXX);
+  }
+  {
+    Decl *FromTU = getTuDecl(Code, Lang_CXX, "input1.cc");
+    auto FromD = LastDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
+
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To0);
+  EXPECT_TRUE(ImportedD != To1);
+  EXPECT_TRUE(!To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(!To1->doesThisDeclarationHaveABody());
+  // Check that they are part of the same redecl chain.
+  EXPECT_EQ(To1->getCanonicalDecl(), To0->getCanonicalDecl());
+}
+
+TEST_P(ImportFunctionTemplateSpecializations, ImportDefinitions) {
+  auto Pattern = functionDecl(hasName("f"), isExplicitTemplateSpecialization());
+  auto Code =
+      R"(
+      // Proto of the primary template.
+      template <class T>
+      void f();
+      // Specialization and definition.
+      template <>
+      void f<int>() {}
+      )";
+
+  Decl *ImportedD;
+  {
+    Decl *FromTU = getTuDecl(Code, Lang_CXX, "input0.cc");
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD = Import(FromD, Lang_CXX);
+  }
+  {
+    Decl *FromTU = getTuDecl(Code, Lang_CXX, "input1.cc");
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
+
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 1u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To0);
+  EXPECT_TRUE(To0->doesThisDeclarationHaveABody());
+
+  auto *TemplateD = FirstDeclMatcher<FunctionTemplateDecl>().match(
+      ToTU, functionTemplateDecl());
+  auto *FirstSpecD = *(TemplateD->spec_begin());
+  EXPECT_EQ(FirstSpecD->getCanonicalDecl(), To0->getCanonicalDecl());
+}
+
+TEST_P(ImportFunctionTemplateSpecializations, PrototypeThenPrototype) {
+  auto Pattern = functionDecl(hasName("f"), isExplicitTemplateSpecialization());
+  auto Code =
+      R"(
+      // Proto of the primary template.
+      template <class T>
+      void f();
+      // Specialization proto.
+      template <>
+      void f<int>();
+      // Specialization proto.
+      template <>
+      void f<int>();
+      )";
+
+  Decl *ImportedD;
+  {
+    Decl *FromTU = getTuDecl(Code, Lang_CXX, "input0.cc");
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD = Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
+
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To0);
+  EXPECT_TRUE(ImportedD != To1);
+  EXPECT_TRUE(!To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(!To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
+}
+
+TEST_P(ImportFunctionTemplateSpecializations, PrototypeThenDefinition) {
+  auto Pattern = functionDecl(hasName("f"), isExplicitTemplateSpecialization());
+  auto Code =
+      R"(
+      // Proto of the primary template.
+      template <class T>
+      void f();
+      // Specialization proto.
+      template <>
+      void f<int>();
+      // Specialization definition.
+      template <>
+      void f<int>() {}
+      )";
+
+  Decl *ImportedD;
+  {
+    Decl *FromTU = getTuDecl(Code, Lang_CXX, "input0.cc");
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD = Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
+
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To0);
+  EXPECT_TRUE(ImportedD != To1);
+  EXPECT_TRUE(!To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
+}
+
+TEST_P(ImportFunctionTemplateSpecializations, DefinitionThenPrototype) {
+  auto Pattern = functionDecl(hasName("f"), isExplicitTemplateSpecialization());
+  auto Code =
+      R"(
+      // Proto of the primary template.
+      template <class T>
+      void f();
+      // Specialization definition.
+      template <>
+      void f<int>() {}
+      // Specialization proto.
+      template <>
+      void f<int>();
+      )";
+
+  Decl *ImportedD;
+  {
+    Decl *FromTU = getTuDecl(Code, Lang_CXX, "input0.cc");
+    auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
+    ImportedD = Import(FromD, Lang_CXX);
+  }
+
+  Decl *ToTU = ImportedD->getTranslationUnitDecl();
+
+  EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 2u);
+  auto To0 = FirstDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  auto To1 = LastDeclMatcher<FunctionDecl>().match(ToTU, Pattern);
+  EXPECT_TRUE(ImportedD == To0);
+  EXPECT_TRUE(ImportedD != To1);
+  EXPECT_TRUE(To0->doesThisDeclarationHaveABody());
+  EXPECT_TRUE(!To1->doesThisDeclarationHaveABody());
+  EXPECT_EQ(To1->getPreviousDecl(), To0);
+}
 
 TEST_P(ASTImporterTestBase, CXXRecordDeclFieldsShouldBeInCorrectOrder) {
 
@@ -2066,6 +2377,29 @@ TEST_P(ImportFunctions,
   EXPECT_TRUE(To->isVirtual());
 }
 
+TEST_P(ImportFunctions,
+       ImportDefinitionIfThereIsAnExistingDefinitionAndFwdDecl) {
+  Decl *ToTU = getToTuDecl(
+      R"(
+      void f() {}
+      void f();
+      )",
+      Lang_CXX);
+  ASSERT_EQ(1u,
+            DeclCounterWithPredicate<FunctionDecl>([](const FunctionDecl *FD) {
+              return FD->doesThisDeclarationHaveABody();
+            }).match(ToTU, functionDecl()));
+
+  Decl *FromTU = getTuDecl("void f() {}", Lang_CXX, "input0.cc");
+  auto *FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, functionDecl());
+
+  Import(FromD, Lang_CXX);
+
+  EXPECT_EQ(1u,
+            DeclCounterWithPredicate<FunctionDecl>([](const FunctionDecl *FD) {
+              return FD->doesThisDeclarationHaveABody();
+            }).match(ToTU, functionDecl()));
+}
 
 struct ImportFriendFunctions : ImportFunctions {};
 
@@ -2963,6 +3297,10 @@ INSTANTIATE_TEST_CASE_P(
 
 INSTANTIATE_TEST_CASE_P(
     ParameterizedTests, ImportFriendFunctions,
+    ::testing::Values(ArgVector(), ArgVector{"-fdelayed-template-parsing"}),);
+
+INSTANTIATE_TEST_CASE_P(
+    ParameterizedTests, ImportFunctionTemplateSpecializations,
     ::testing::Values(ArgVector(), ArgVector{"-fdelayed-template-parsing"}),);
 
 INSTANTIATE_TEST_CASE_P(
