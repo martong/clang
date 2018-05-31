@@ -46,19 +46,19 @@ using FirstDeclMatcher = DeclMatcher<NodeType, DeclMatcherKind::First>;
 template <typename NodeType>
 class DeclCounterWithPredicate : public MatchFinder::MatchCallback {
   using UnaryPredicate = std::function<bool(const NodeType *)>;
-  UnaryPredicate predicate;
-  unsigned count = 0;
+  UnaryPredicate Predicate;
+  unsigned Count = 0;
   void run(const MatchFinder::MatchResult &Result) override {
     if (auto N = Result.Nodes.getNodeAs<NodeType>("")) {
-      if (predicate(N))
-        ++count;
+      if (Predicate(N))
+        ++Count;
     }
   }
 
 public:
   DeclCounterWithPredicate()
-      : predicate([](const NodeType *) { return true; }) {}
-  DeclCounterWithPredicate(UnaryPredicate p) : predicate(p) {}
+      : Predicate([](const NodeType *) { return true; }) {}
+  DeclCounterWithPredicate(UnaryPredicate P) : Predicate(P) {}
   // Returns the number of matched nodes which satisfy the predicate under the
   // tree rooted in `D`.
   template <typename MatcherType>
@@ -66,7 +66,7 @@ public:
     MatchFinder Finder;
     Finder.addMatcher(AMatcher.bind(""), this);
     Finder.matchAST(D->getASTContext());
-    return count;
+    return Count;
   }
 };
 
