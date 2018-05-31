@@ -1352,7 +1352,31 @@ bool DeclContext::containsDecl(Decl *D) const {
           (D->NextInContextAndBits.getPointer() || D == LastDecl));
 }
 
-static bool shouldBeHidden(NamedDecl *D);
+/// shouldBeHidden - Determine whether a declaration which was declared
+/// within its semantic context should be invisible to qualified name lookup.
+static bool shouldBeHidden(NamedDecl *D) {
+  // Skip unnamed declarations.
+  if (!D->getDeclName())
+    return true;
+
+  // Skip entities that can't be found by name lookup into a particular
+  // context.
+  if ((D->getIdentifierNamespace() == 0 && !isa<UsingDirectiveDecl>(D)) ||
+      D->isTemplateParameter())
+    return true;
+
+  // Skip template specializations.
+  // FIXME: This feels like a hack. Should DeclarationName support
+  // template-ids, or is there a better way to keep specializations
+  // from being visible?
+  if (isa<ClassTemplateSpecializationDecl>(D))
+    return true;
+  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D))
+    if (FD->isFunctionTemplateSpecialization())
+      return true;
+
+  return false;
+}
 
 void DeclContext::removeDecl(Decl *D) {
   assert(D->getLexicalDeclContext() == this &&
@@ -1383,12 +1407,15 @@ void DeclContext::removeDecl(Decl *D) {
   // Remove D from the lookup table if necessary.
   if (isa<NamedDecl>(D)) {
     NamedDecl *ND = cast<NamedDecl>(D);
+
     // Do not try to remove the declaration if that is invisible to qualified
     // lookup.  E.g. template sepcializations are skipped.
-    if (shouldBeHidden(ND)) return;
+    if (shouldBeHidden(ND))
+      return;
 
     // Remove only decls that have a name
-    if (!ND->getDeclName()) return;
+    if (!ND->getDeclName())
+      return;
 
     auto *DC = D->getDeclContext();
     do {
@@ -1443,32 +1470,6 @@ void DeclContext::addDeclInternal(Decl *D) {
   if (NamedDecl *ND = dyn_cast<NamedDecl>(D))
     ND->getDeclContext()->getPrimaryContext()->
         makeDeclVisibleInContextWithFlags(ND, true, true);
-}
-
-/// shouldBeHidden - Determine whether a declaration which was declared
-/// within its semantic context should be invisible to qualified name lookup.
-static bool shouldBeHidden(NamedDecl *D) {
-  // Skip unnamed declarations.
-  if (!D->getDeclName())
-    return true;
-
-  // Skip entities that can't be found by name lookup into a particular
-  // context.
-  if ((D->getIdentifierNamespace() == 0 && !isa<UsingDirectiveDecl>(D)) ||
-      D->isTemplateParameter())
-    return true;
-
-  // Skip template specializations.
-  // FIXME: This feels like a hack. Should DeclarationName support
-  // template-ids, or is there a better way to keep specializations
-  // from being visible?
-  if (isa<ClassTemplateSpecializationDecl>(D))
-    return true;
-  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D))
-    if (FD->isFunctionTemplateSpecialization())
-      return true;
-
-  return false;
 }
 
 /// buildLookup - Build the lookup data structure with all of the
