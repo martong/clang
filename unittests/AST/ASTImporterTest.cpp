@@ -3119,7 +3119,8 @@ TEST_P(ASTImporterTestBase,
 
 TEST_P(
     ASTImporterTestBase,
-    ImportDefinitionOfClassTemplateSpecializationIfThereIsAnExistingFwdDeclAndDefinition) {
+    ImportDefinitionOfClassTemplateSpecIfThereIsAnExistingFwdDeclAndDefinition)
+{
   Decl *ToTU = getToTuDecl(
       R"(
       template <typename T>

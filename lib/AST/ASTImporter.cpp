@@ -4395,7 +4395,7 @@ ASTNodeImporter::VisitTemplateTemplateParmDecl(TemplateTemplateParmDecl *D) {
   return ToD;
 }
 
-// Returns the definition for a (forwad) declaration of a ClassTemplateDecl, if
+// Returns the definition for a (forward) declaration of a ClassTemplateDecl, if
 // it has any definition in the redecl chain.
 static ClassTemplateDecl *getDefinition(ClassTemplateDecl *D) {
   CXXRecordDecl *ToTemplatedDef = D->getTemplatedDecl()->getDefinition();
@@ -4443,11 +4443,11 @@ Decl *ASTNodeImporter::VisitClassTemplateDecl(ClassTemplateDecl *D) {
       Decl *Found = FoundDecls[I];
       if (auto *FoundTemplate = dyn_cast<ClassTemplateDecl>(Found)) {
 
-        // The class to be imported has a definition.
+        // The class to be imported is a definition.
         if (D->isThisDeclarationADefinition()) {
           // Lookup will find the fwd decl only if that is more recent than the
-          // definition. So, lets try to get the definition if that is available
-          // in the redecl chain.
+          // definition. So, try to get the definition if that is available in
+          // the redecl chain.
           ClassTemplateDecl* TemplateWithDef = getDefinition(FoundTemplate);
           if (!TemplateWithDef)
             continue;
