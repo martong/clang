@@ -1892,8 +1892,9 @@ TEST_P(ASTImporterTestBase, ShouldImportImplicitCXXRecordDecl) {
   Decl *From, *To;
   std::tie(From, To) = getImportedDecl(
       R"(
-    struct declToImport {};
-    )",
+      struct declToImport {
+      };
+      )",
       Lang_CXX, "", Lang_CXX);
 
   MatchVerifier<Decl> Verifier;
@@ -1907,10 +1908,10 @@ TEST_P(ASTImporterTestBase, ShouldImportImplicitCXXRecordDeclOfClassTemplate) {
   Decl *From, *To;
   std::tie(From, To) = getImportedDecl(
       R"(
-    template <typename U>
-    struct declToImport {
-    };
-    )",
+      template <typename U>
+      struct declToImport {
+      };
+      )",
       Lang_CXX, "", Lang_CXX);
 
   MatchVerifier<Decl> Verifier;
@@ -1926,10 +1927,10 @@ TEST_P(
   Decl *From, *To;
   std::tie(From, To) = getImportedDecl(
       R"(
-        template<class T>
-        class Base {};
-        class declToImport : public Base<declToImport> {};
-    )",
+      template<class T>
+      class Base {};
+      class declToImport : public Base<declToImport> {};
+      )",
       Lang_CXX, "", Lang_CXX);
 
   auto hasImplicitClass = has(cxxRecordDecl());
