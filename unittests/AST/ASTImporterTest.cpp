@@ -2762,9 +2762,8 @@ TEST_P(ASTImporterTestBase, ProperPrevDeclForClassTemplateDecls) {
   }
 
   Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
-  // FIXME: Check if this should actually be 2.
   EXPECT_EQ(DeclCounter<ClassTemplateSpecializationDecl>().match(ToTU, Pattern),
-            3u);
+            2u);
   ASSERT_TRUE(Imported2->getPreviousDecl());
   EXPECT_EQ(Imported2->getPreviousDecl(), Imported1);
 }

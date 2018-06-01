@@ -4646,7 +4646,7 @@ Decl *ASTNodeImporter::VisitClassTemplateSpecializationDecl(
     D2->setLexicalDeclContext(LexicalDC);
 
     // Add to the DC only if it was an explicit specialization/instantiation.
-    if (D2->getTemplateSpecializationKind() != TSK_ImplicitInstantiation) {
+    if (D2->isExplicitInstantiationOrSpecialization()) {
       LexicalDC->addDeclInternal(D2);
     }
   }
