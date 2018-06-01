@@ -1,5 +1,4 @@
 #include "clang/AST/ASTContext.h"
-#include "clang/AST/ASTImporter.h"
 #include "clang/ASTMatchers/ASTMatchers.h"
 #include "clang/AST/ASTStructuralEquivalence.h"
 #include "clang/Frontend/ASTUnit.h"
@@ -12,6 +11,8 @@
 
 namespace clang {
 namespace ast_matchers {
+
+using std::get;
 
 struct StructuralEquivalenceTest : ::testing::Test {
   std::unique_ptr<ASTUnit> AST0, AST1;
@@ -26,22 +27,21 @@ struct StructuralEquivalenceTest : ::testing::Test {
       const MatcherType &Matcher0, const MatcherType &Matcher1) {
     this->Code0 = SrcCode0;
     this->Code1 = SrcCode1;
-    StringVector Args;
-    getLangArgs(Lang, Args);
+    ArgVector Args = getBasicRunOptionsForLanguage(Lang);
 
     const char *const InputFileName = "input.cc";
 
     AST0 = tooling::buildASTFromCodeWithArgs(Code0, Args, InputFileName);
     AST1 = tooling::buildASTFromCodeWithArgs(Code1, Args, InputFileName);
 
-    NodeType *d0 = FirstDeclMatcher<NodeType>().match(
+    NodeType *D0 = FirstDeclMatcher<NodeType>().match(
         AST0->getASTContext().getTranslationUnitDecl(), Matcher0);
-    NodeType *d1 = FirstDeclMatcher<NodeType>().match(
+    NodeType *D1 = FirstDeclMatcher<NodeType>().match(
         AST1->getASTContext().getTranslationUnitDecl(), Matcher1);
 
-    return std::make_tuple(d0, d1);
+    return std::make_tuple(D0, D1);
   }
-  
+
   // Get a pair of node pointers into the synthesized AST from the given code
   // snippets. The same matcher is used for both snippets.
   template <typename NodeType, typename MatcherType>
@@ -61,7 +61,7 @@ struct StructuralEquivalenceTest : ::testing::Test {
     auto Matcher = namedDecl(hasName(Identifier));
     return makeDecls<NamedDecl>(SrcCode0, SrcCode1, Lang, Matcher);
   }
-  
+
   bool testStructuralMatch(NamedDecl *d0, NamedDecl *d1) {
     llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls01;
     llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls10;
@@ -76,141 +76,132 @@ struct StructuralEquivalenceTest : ::testing::Test {
     EXPECT_EQ(eq01, eq10);
     return eq01;
   }
-  
-  bool testStructuralMatch(std::tuple<NamedDecl *, NamedDecl *> d) {
-    return testStructuralMatch(std::get<0>(d), std::get<1>(d));
+
+  bool testStructuralMatch(std::tuple<NamedDecl *, NamedDecl *> t) {
+    return testStructuralMatch(get<0>(t), get<1>(t));
   }
 };
 
-using std::get;
-
 TEST_F(StructuralEquivalenceTest, Int) {
-  auto t = makeNamedDecls("int foo;", "int foo;", Lang_CXX);
-  EXPECT_TRUE(testStructuralMatch(get<0>(t), get<1>(t)));
+  auto Decls = makeNamedDecls("int foo;", "int foo;", Lang_CXX);
+  EXPECT_TRUE(testStructuralMatch(Decls));
 }
 
 TEST_F(StructuralEquivalenceTest, IntVsSignedInt) {
-  auto t = makeNamedDecls("int foo;", "signed int foo;", Lang_CXX);
-  EXPECT_TRUE(testStructuralMatch(get<0>(t), get<1>(t)));
+  auto Decls = makeNamedDecls("int foo;", "signed int foo;", Lang_CXX);
+  EXPECT_TRUE(testStructuralMatch(Decls));
 }
 
 TEST_F(StructuralEquivalenceTest, Char) {
-  auto t = makeNamedDecls("char foo;", "char foo;", Lang_CXX);
-  EXPECT_TRUE(testStructuralMatch(get<0>(t), get<1>(t)));
+  auto Decls = makeNamedDecls("char foo;", "char foo;", Lang_CXX);
+  EXPECT_TRUE(testStructuralMatch(Decls));
 }
 
-TEST_F(StructuralEquivalenceTest, CharVsSignedChar) {
-  auto t = makeNamedDecls("char foo;", "signed char foo;", Lang_CXX);
-  // TODO this should be false!
-  // FIXME in clang::StructuralEquivalenceContext::Finish
-  EXPECT_TRUE(testStructuralMatch(get<0>(t), get<1>(t)));
+// This test is disabled for now.
+// FIXME Whether this is equivalent is dependendant on the target.
+TEST_F(StructuralEquivalenceTest, DISABLED_CharVsSignedChar) {
+  auto Decls = makeNamedDecls("char foo;", "signed char foo;", Lang_CXX);
+  EXPECT_FALSE(testStructuralMatch(Decls));
 }
 
 TEST_F(StructuralEquivalenceTest, ForwardRecordDecl) {
-  auto t = makeNamedDecls("struct foo;", "struct foo;", Lang_CXX);
-  EXPECT_TRUE(testStructuralMatch(get<0>(t), get<1>(t)));
+  auto Decls = makeNamedDecls("struct foo;", "struct foo;", Lang_CXX);
+  EXPECT_TRUE(testStructuralMatch(Decls));
 }
 
 TEST_F(StructuralEquivalenceTest, IntVsSignedIntInStruct) {
-  auto t = makeNamedDecls("struct foo { int x; };",
-                          "struct foo { signed int x; };", Lang_CXX);
-  EXPECT_TRUE(testStructuralMatch(get<0>(t), get<1>(t)));
+  auto Decls = makeNamedDecls("struct foo { int x; };",
+                              "struct foo { signed int x; };", Lang_CXX);
+  EXPECT_TRUE(testStructuralMatch(Decls));
 }
 
 TEST_F(StructuralEquivalenceTest, CharVsSignedCharInStruct) {
-  auto t = makeNamedDecls("struct foo { char x; };",
-                          "struct foo { signed char x; };", Lang_CXX);
-  EXPECT_FALSE(testStructuralMatch(get<0>(t), get<1>(t)));
+  auto Decls = makeNamedDecls("struct foo { char x; };",
+                              "struct foo { signed char x; };", Lang_CXX);
+  EXPECT_FALSE(testStructuralMatch(Decls));
 }
 
 TEST_F(StructuralEquivalenceTest, IntVsSignedIntTemplateSpec) {
-  auto t = makeDecls<ClassTemplateSpecializationDecl>(
+  auto Decls = makeDecls<ClassTemplateSpecializationDecl>(
       R"(template <class T> struct foo; template<> struct foo<int>{};)",
       R"(template <class T> struct foo; template<> struct foo<signed int>{};)",
       Lang_CXX,
       classTemplateSpecializationDecl());
-  auto Spec0 = get<0>(t);
-  auto Spec1 = get<1>(t);
+  auto Spec0 = get<0>(Decls);
+  auto Spec1 = get<1>(Decls);
   EXPECT_TRUE(testStructuralMatch(Spec0, Spec1));
 }
 
 TEST_F(StructuralEquivalenceTest, CharVsSignedCharTemplateSpec) {
-  auto t = makeDecls<ClassTemplateSpecializationDecl>(
+  auto Decls = makeDecls<ClassTemplateSpecializationDecl>(
       R"(template <class T> struct foo; template<> struct foo<char>{};)",
       R"(template <class T> struct foo; template<> struct foo<signed char>{};)",
       Lang_CXX,
       classTemplateSpecializationDecl());
-  auto Spec0 = get<0>(t);
-  auto Spec1 = get<1>(t);
+  auto Spec0 = get<0>(Decls);
+  auto Spec1 = get<1>(Decls);
   EXPECT_FALSE(testStructuralMatch(Spec0, Spec1));
 }
 
 TEST_F(StructuralEquivalenceTest, CharVsSignedCharTemplateSpecWithInheritance) {
-  auto t = makeDecls<ClassTemplateSpecializationDecl>(
+  auto Decls = makeDecls<ClassTemplateSpecializationDecl>(
       R"(
-struct true_type{};
-template <class T> struct foo;
-template<> struct foo<char> : true_type {};
+      struct true_type{};
+      template <class T> struct foo;
+      template<> struct foo<char> : true_type {};
       )",
       R"(
-struct true_type{};
-template <class T> struct foo;
-template<> struct foo<signed char> : true_type {};
+      struct true_type{};
+      template <class T> struct foo;
+      template<> struct foo<signed char> : true_type {};
       )",
       Lang_CXX,
       classTemplateSpecializationDecl());
-  EXPECT_FALSE(testStructuralMatch(get<0>(t), get<1>(t)));
+  EXPECT_FALSE(testStructuralMatch(Decls));
 }
 
-
-TEST_F(StructuralEquivalenceTest, WrongOrderInNamespace) {
-  auto Code0 =
+// This test is disabled for now.
+// FIXME Enable it, once the check is implemented.
+TEST_F(StructuralEquivalenceTest, DISABLED_WrongOrderInNamespace) {
+  auto Code =
       R"(
-namespace NS {
-template <class T> class Base {
-    int a;
-};
-class Derived : Base<Derived> {
-};
-}
-void foo(NS::Derived &);
+      namespace NS {
+      template <class T> class Base {
+          int a;
+      };
+      class Derived : Base<Derived> {
+      };
+      }
+      void foo(NS::Derived &);
       )";
-  auto t = makeNamedDecls( Code0, Code0, Lang_CXX);
-
-  ASSERT_TRUE(get<0>(t) != nullptr);
-  ASSERT_TRUE(get<1>(t) != nullptr);
+  auto Decls = makeNamedDecls(Code, Code, Lang_CXX);
 
   NamespaceDecl *NS =
-      LastDeclMatcher<NamespaceDecl>().match(get<1>(t), namespaceDecl());
+      LastDeclMatcher<NamespaceDecl>().match(get<1>(Decls), namespaceDecl());
   ClassTemplateDecl *TD = LastDeclMatcher<ClassTemplateDecl>().match(
-      get<1>(t), classTemplateDecl(hasName("Base")));
+      get<1>(Decls), classTemplateDecl(hasName("Base")));
 
   // Reorder the decls, move the TD to the last place in the DC.
   NS->removeDecl(TD);
   NS->addDeclInternal(TD);
 
-  // TODO this should be FALSE!
-  // FIXME in clang::StructuralEquivalenceContext
-  EXPECT_TRUE(testStructuralMatch(get<0>(t), get<1>(t)));
+  EXPECT_FALSE(testStructuralMatch(Decls));
 }
 
 TEST_F(StructuralEquivalenceTest, WrongOrderOfFieldsInClass) {
-  auto Code0 = "class X { int a; int b; };";
-  auto t = makeNamedDecls( Code0, Code0, Lang_CXX, "X");
-
-  ASSERT_TRUE(get<0>(t) != nullptr);
-  ASSERT_TRUE(get<1>(t) != nullptr);
+  auto Code = "class X { int a; int b; };";
+  auto Decls = makeNamedDecls(Code, Code, Lang_CXX, "X");
 
   CXXRecordDecl *RD = FirstDeclMatcher<CXXRecordDecl>().match(
-      get<1>(t), cxxRecordDecl(hasName("X")));
+      get<1>(Decls), cxxRecordDecl(hasName("X")));
   FieldDecl *FD =
-      FirstDeclMatcher<FieldDecl>().match(get<1>(t), fieldDecl(hasName("a")));
+      FirstDeclMatcher<FieldDecl>().match(get<1>(Decls), fieldDecl(hasName("a")));
 
   // Reorder the FieldDecls
   RD->removeDecl(FD);
   RD->addDeclInternal(FD);
 
-  EXPECT_FALSE(testStructuralMatch(get<0>(t), get<1>(t)));
+  EXPECT_FALSE(testStructuralMatch(Decls));
 }
 
 struct StructuralEquivalenceFunctionTest : StructuralEquivalenceTest {

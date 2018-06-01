@@ -105,6 +105,10 @@ testing::AssertionResult MatchVerifier<NodeType>::match(
     Args.push_back("-std=c++11");
     FileName = "input.cc";
     break;
+  case Lang_CXX14:
+    Args.push_back("-std=c++14");
+    FileName = "input.cc";
+    break;
   case Lang_OpenCL:
     FileName = "input.cl";
     break;
