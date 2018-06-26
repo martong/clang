@@ -1,1 +1,2 @@
-template<class X> class C{static X x;};
+template <class X>
+class C { static X x; };

@@ -1,1 +1,2 @@
-template<class X> X C<X>::x;
+template<class X>
+X C<X>::x;
