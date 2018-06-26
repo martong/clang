@@ -7102,6 +7102,10 @@ Decl *ASTImporter::GetVAListTag(Decl *FromD) {
   return ToContext.getVaListTagDecl();
 }
 
+Decl *ASTImporter::Import(const Decl *FromD) {
+  return Import(const_cast<Decl *>(FromD));
+}
+
 Decl *ASTImporter::Import(Decl *FromD) {
   if (!FromD)
     return nullptr;

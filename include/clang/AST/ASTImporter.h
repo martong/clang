@@ -139,6 +139,7 @@ namespace clang {
     /// \returns the equivalent declaration in the "to" context, or a NULL type 
     /// if an error occurred.
     Decl *Import(Decl *FromD);
+    Decl *Import(const Decl *FromD);
 
     /// \brief Return the copy of the given declaration in the "to" context if
     /// it has already been imported from the "from" context.  Otherwise return
