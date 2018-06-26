@@ -294,7 +294,7 @@ class ASTImporterTestBase : public ParameterizedTestsFixture {
           Unit(tooling::buildASTFromCodeWithArgs(this->Code, Args,
                                                  this->FileName)),
           TUDecl(Unit->getASTContext().getTranslationUnitDecl()) {
-      Unit->beginSourceFile();
+      Unit->enableSourceFileDiagnostics();
     }
 
     void lazyInitImporter(ASTUnit *ToAST) {
@@ -332,7 +332,7 @@ class ASTImporterTestBase : public ParameterizedTestsFixture {
     ArgVector ToArgs = getArgVectorForLanguage(ToLang);
     // Build the AST from an empty file.
     ToAST = tooling::buildASTFromCodeWithArgs(/*Code=*/"", ToArgs, "empty.cc");
-    ToAST->beginSourceFile();
+    ToAST->enableSourceFileDiagnostics();
   }
 
   TU *findFromTU(Decl *From) {
@@ -367,7 +367,7 @@ public:
     ToCode = ToSrcCode;
     assert(!ToAST);
     ToAST = tooling::buildASTFromCodeWithArgs(ToCode, ToArgs, OutputFileName);
-    ToAST->beginSourceFile();
+    ToAST->enableSourceFileDiagnostics();
 
     ASTContext &FromCtx = FromTU.Unit->getASTContext();
 
@@ -412,7 +412,7 @@ public:
     ToCode = ToSrcCode;
     assert(!ToAST);
     ToAST = tooling::buildASTFromCodeWithArgs(ToCode, ToArgs, OutputFileName);
-    ToAST->beginSourceFile();
+    ToAST->enableSourceFileDiagnostics();
 
     return ToAST->getASTContext().getTranslationUnitDecl();
   }

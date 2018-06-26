@@ -401,8 +401,6 @@ public:
 
   bool isMainFileAST() const { return MainFileIsAST; }
 
-  void beginSourceFile();
-  
   bool isUnsafeToFree() const { return UnsafeToFree; }
   void setUnsafeToFree(bool Value) { UnsafeToFree = Value; }
 
@@ -421,6 +419,15 @@ public:
 
   void setASTContext(ASTContext *ctx) { Ctx = ctx; }
   void setPreprocessor(std::shared_ptr<Preprocessor> pp);
+
+  /// Enable source-range based diagnostic messages.
+  ///
+  /// If diagnostic messages with source-range information are to be expected
+  /// and AST comes not from file (e.g. after LoadFromCompilerInvocation) this
+  /// function has to be called.
+  /// The function is to be called only once and the AST should be associated
+  /// with the same source file afterwards.
+  void enableSourceFileDiagnostics();
 
   bool hasSema() const { return (bool)TheSema; }
   Sema &getSema() const { 

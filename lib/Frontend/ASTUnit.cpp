@@ -225,14 +225,14 @@ ASTUnit::~ASTUnit() {
     fprintf(stderr, "--- %u translation units\n", --ActiveASTUnitObjects);
 }
 
-void ASTUnit::beginSourceFile() {
-  assert(getDiagnostics().getClient() && PP && Ctx &&
-      "Bad context for source file");
-  getDiagnostics().getClient()->BeginSourceFile(Ctx->getLangOpts(),PP.get());
-}
-
 void ASTUnit::setPreprocessor(std::shared_ptr<Preprocessor> PP) {
   this->PP = std::move(PP);
+}
+
+void ASTUnit::enableSourceFileDiagnostics() {
+  assert(getDiagnostics().getClient() && Ctx &&
+    "Bad context for source file");
+  getDiagnostics().getClient()->BeginSourceFile(Ctx->getLangOpts(), PP.get());
 }
 
 /// \brief Determine the set of code-completion contexts in which this 
