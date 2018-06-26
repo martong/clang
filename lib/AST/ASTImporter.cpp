@@ -172,6 +172,7 @@ namespace clang {
                                   DeclarationNameInfo& To);
     void ImportDeclContext(DeclContext *FromDC, bool ForceImport = false,
                            DeclContext *ToDC = nullptr);
+    void ImportImplicitMethods(const CXXRecordDecl *From, CXXRecordDecl *To);
 
     bool ImportCastPath(CastExpr *E, CXXCastPath &Path);
 
@@ -1211,6 +1212,16 @@ void ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport,
   }
 }
 
+void ASTNodeImporter::ImportImplicitMethods(
+    const CXXRecordDecl *From, CXXRecordDecl *To) {
+  assert(From->isCompleteDefinition() && To->getDefinition() == To &&
+      "Import implicit methods to or from non-definition");
+  
+  for (CXXMethodDecl *FromM : From->methods())
+    if (FromM->isImplicit())
+      Importer.Import(FromM);
+}
+
 static void setTypedefNameForAnonDecl(TagDecl *From, TagDecl *To,
                                       ASTImporter &Importer) {
   if (TypedefNameDecl *FromTypedef = From->getTypedefNameForAnonDecl()) {
@@ -2205,8 +2216,18 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
             // The record types structurally match, or the "from" translation
             // unit only had a forward declaration anyway; call it the same
             // function.
-            // FIXME: For C++, we should also merge methods here.
-            return Importer.MapImported(D, FoundDef);
+            // FIXME: Structural equivalence check should check for same
+            // user-defined methods.
+            Importer.MapImported(D, FoundDef);
+            if (const auto *DCXX = dyn_cast<CXXRecordDecl>(D)) {
+              auto *FoundCXX = dyn_cast<CXXRecordDecl>(FoundDef);
+              assert(FoundCXX && "Record type mismatch");
+
+              if (D->isCompleteDefinition() && !Importer.isMinimalImport())
+                // FoundDef may not have every implicit method that D has.
+                ImportImplicitMethods(DCXX, FoundCXX);
+            }
+            return FoundDef;
           }
         } else if (!D->isCompleteDefinition()) {
           // We have a forward declaration of this type, so adopt that forward
