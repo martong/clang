@@ -2317,7 +2317,7 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
           return nullptr;
         D2CXX->setDescribedClassTemplate(ToDescribed);
         if (!DCXX->isInjectedClassName()) {
-          // In a record describing a template the type should be a
+          // In a record describing a template the type should be an
           // InjectedClassNameType (see Sema::CheckClassTemplate). Update the
           // previously set type to the correct value here (ToDescribed is not
           // available at record create).
