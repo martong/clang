@@ -2529,6 +2529,27 @@ TEST_P(ImportFunctions,
             }).match(ToTU, functionDecl()));
 }
 
+TEST_P(ImportFunctions,
+       ImportOfDefinitionIsMappedToExistingDefinition) {
+  Decl *ToM1;
+  {
+    Decl *FromTU = getTuDecl(
+        "void x(); void x() { }; void x();", Lang_CXX, "input0.cc");
+    auto *FromM = FirstDeclMatcher<FunctionDecl>().match(
+        FromTU, functionDecl(hasName("x"), isDefinition()));
+    ToM1 = Import(FromM, Lang_CXX);
+  }
+  Decl *ToM2;
+  {
+    Decl *FromTU = getTuDecl(
+        "void x(); void x() { }; void x();", Lang_CXX, "input1.cc");
+    auto *FromM = FirstDeclMatcher<FunctionDecl>().match(
+        FromTU, functionDecl(hasName("x"), isDefinition()));
+    ToM2 = Import(FromM, Lang_CXX);
+  }
+  EXPECT_EQ(ToM1, ToM2);
+}
+
 struct ImportFriendFunctions : ImportFunctions {};
 
 TEST_P(ImportFriendFunctions, ImportFriendList) {

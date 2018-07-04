@@ -2607,9 +2607,11 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
           if (FoundFunction->hasExternalFormalLinkage() &&
               D->hasExternalFormalLinkage()) {
             if (IsStructuralMatch(D, FoundFunction)) {
+              const FunctionDecl *Definition = nullptr;
               if (D->doesThisDeclarationHaveABody() &&
-                  FoundFunction->hasBody())
-                return Importer.MapImported(D, FoundFunction);
+                  FoundFunction->hasBody(Definition))
+                return Importer.MapImported(
+                    D, const_cast<FunctionDecl *>(Definition));
               FoundByLookup = FoundFunction;
               break;
             }
