@@ -1065,10 +1065,8 @@ TEST_P(ASTImporterTestBase, ImportOfTemplatedDeclOfFunctionTemplateDecl) {
   auto To = cast<FunctionTemplateDecl>(Import(From, Lang_CXX));
   ASSERT_TRUE(To);
   Decl *ToTemplated = To->getTemplatedDecl();
-  ToTemplated->dump();
   Decl *ToTemplated1 = Import(From->getTemplatedDecl(), Lang_CXX);
   EXPECT_TRUE(ToTemplated1);
-  ToTemplated1->dump();
   EXPECT_EQ(ToTemplated1, ToTemplated);
 }
 
@@ -1137,16 +1135,16 @@ TEST_P(ASTImporterTestBase, ImportCorrectTemplatedDecl) {
 
 TEST_P(ImportExpr, ImportClassTemplatePartialSpecialization) {
   MatchVerifier<Decl> Verifier;
-  auto Code =  R"s(
-struct declToImport {
-  template <typename T0>
-  struct X;
-   template <typename T0>
-  struct X<T0*> {};
-};
-                   )s";
-
-  testImport(Code, Lang_CXX, "", Lang_CXX, Verifier, recordDecl());
+  auto Code =
+      R"s(
+      struct declToImport {
+        template <typename T0> struct X;
+        template <typename T0> struct X<T0 *> {};
+      };
+      )s";
+  testImport(Code, Lang_CXX, "", Lang_CXX, Verifier,
+             recordDecl(has(classTemplateDecl()),
+                        has(classTemplateSpecializationDecl())));
 }
 
 TEST_P(ImportExpr, ImportClassTemplatePartialSpecializationComplex) {
