@@ -421,14 +421,14 @@ TEST_F(StructuralEquivalenceCXXMethodTest, Delete) {
 TEST_F(StructuralEquivalenceCXXMethodTest, Constructor) {
   auto t = makeDecls<FunctionDecl>(
       "void foo();", "struct foo { foo(); };", Lang_CXX,
-      functionDecl(), cxxConstructorDecl());
+      functionDecl(hasName("foo")), cxxConstructorDecl(hasName("foo")));
   EXPECT_FALSE(testStructuralMatch(get<0>(t), get<1>(t)));
 }
 
 TEST_F(StructuralEquivalenceCXXMethodTest, ConstructorParam) {
   auto t = makeDecls<CXXConstructorDecl>("struct X { X(); };",
                                          "struct X { X(int); };", Lang_CXX,
-                                         cxxConstructorDecl());
+                                         cxxConstructorDecl(hasName("X")));
   EXPECT_FALSE(testStructuralMatch(get<0>(t), get<1>(t)));
 }
 
@@ -436,7 +436,7 @@ TEST_F(StructuralEquivalenceCXXMethodTest, ConstructorExplicit) {
   auto t = makeDecls<CXXConstructorDecl>("struct X { X(int); };",
                                          "struct X { explicit X(int); };",
                                          Lang_CXX11,
-                                         cxxConstructorDecl());
+                                         cxxConstructorDecl(hasName("X")));
   EXPECT_FALSE(testStructuralMatch(get<0>(t), get<1>(t)));
 }
 
@@ -444,7 +444,7 @@ TEST_F(StructuralEquivalenceCXXMethodTest, ConstructorDefault) {
   auto t = makeDecls<CXXConstructorDecl>("struct X { X(); };",
                                          "struct X { X() = default; };",
                                          Lang_CXX11,
-                                         cxxConstructorDecl());
+                                         cxxConstructorDecl(hasName("X")));
   EXPECT_FALSE(testStructuralMatch(get<0>(t), get<1>(t)));
 }
 
@@ -491,7 +491,8 @@ TEST_F(StructuralEquivalenceRecordTest, Name) {
       "struct A{ };",
       "struct B{ };",
       Lang_CXX,
-      cxxRecordDecl());
+      cxxRecordDecl(hasName("A")),
+      cxxRecordDecl(hasName("B")));
   EXPECT_FALSE(testStructuralMatch(get<0>(t), get<1>(t)));
 }
 
@@ -504,6 +505,7 @@ TEST_F(StructuralEquivalenceRecordTest, Fields) {
 }
 
 TEST_F(StructuralEquivalenceRecordTest, DISABLED_Methods) {
+  // Currently, methods of a class are not checked at class equivalence.
   auto t = makeNamedDecls(
       "struct foo{ int x(); };",
       "struct foo{ char x(); };",

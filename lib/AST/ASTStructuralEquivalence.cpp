@@ -851,68 +851,49 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
   return true;
 }
 
-/// Determine structural equivalence of two methodss.
+/// Determine structural equivalence of two methods.
 static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
                                      CXXMethodDecl *Method1,
                                      CXXMethodDecl *Method2) {
-  if (Method1->isStatic() != Method2->isStatic())
-    return false;
-  if (Method1->isConst() != Method2->isConst())
-    return false;
-  if (Method1->isVolatile() != Method2->isVolatile())
-    return false;
-  if (Method1->isVirtual() != Method2->isVirtual())
-    return false;
-  if (Method1->isPure() != Method2->isPure())
-    return false;
-  if (Method1->isDefaulted() != Method2->isDefaulted())
-    return false;
-  if (Method1->isDeleted() != Method2->isDeleted())
+  bool PropertiesEqual =
+      Method1->getDeclKind() == Method2->getDeclKind() &&
+      Method1->getRefQualifier() == Method2->getRefQualifier() &&
+      Method1->getAccess() == Method2->getAccess() &&
+      Method1->getOverloadedOperator() == Method2->getOverloadedOperator() &&
+      Method1->isStatic() == Method2->isStatic() &&
+      Method1->isConst() == Method2->isConst() &&
+      Method1->isVolatile() == Method2->isVolatile() &&
+      Method1->isVirtual() == Method2->isVirtual() &&
+      Method1->isPure() == Method2->isPure() &&
+      Method1->isDefaulted() == Method2->isDefaulted() &&
+      Method1->isDeleted() == Method2->isDeleted();
+  if (!PropertiesEqual)
     return false;
   // FIXME: Check for 'final'.
 
-  if (Method1->getRefQualifier() != Method2->getRefQualifier())
-    return false;
-
-  if (Method1->getAccess() != Method2->getAccess())
-    return false;
-
   if (auto *Constructor1 = dyn_cast<CXXConstructorDecl>(Method1)) {
-    if (auto *Constructor2 = dyn_cast<CXXConstructorDecl>(Method2)) {
-      if (Constructor1->isExplicit() != Constructor2->isExplicit())
-        return false;
-    } else
-      return false;
-  }
-  
-  if (auto *Conversion1 = dyn_cast<CXXConversionDecl>(Method1)) {
-    if (auto *Conversion2 = dyn_cast<CXXConversionDecl>(Method2)) {
-      if (Conversion1->isExplicit() != Conversion2->isExplicit())
-        return false;
-      if (!IsStructurallyEquivalent(Context, Conversion1->getConversionType(),
-                                    Conversion2->getConversionType()))
-        return false;
-    } else
-      return false;
-  }
-  
-  if (Method1->isOverloadedOperator() && Method2->isOverloadedOperator()) {
-    if (Method1->getOverloadedOperator() != Method2->getOverloadedOperator())
-      return false;
-    const IdentifierInfo *Literal1 = Method1->getLiteralIdentifier();
-    const IdentifierInfo *Literal2 = Method2->getLiteralIdentifier();
-    if (!::IsStructurallyEquivalent(Literal1, Literal2))
+    auto *Constructor2 = cast<CXXConstructorDecl>(Method2);
+    if (Constructor1->isExplicit() != Constructor2->isExplicit())
       return false;
   }
 
-  // Check method names.
+  if (auto *Conversion1 = dyn_cast<CXXConversionDecl>(Method1)) {
+    auto *Conversion2 = cast<CXXConversionDecl>(Method2);
+    if (Conversion1->isExplicit() != Conversion2->isExplicit())
+      return false;
+    if (!IsStructurallyEquivalent(Context, Conversion1->getConversionType(),
+                                  Conversion2->getConversionType()))
+      return false;
+  }
+
   const IdentifierInfo *Name1 = Method1->getIdentifier();
   const IdentifierInfo *Name2 = Method2->getIdentifier();
   if (!::IsStructurallyEquivalent(Name1, Name2)) {
     return false;
-    // TODO: add warning
+    // TODO: Names do not match, add warning like at check for FieldDecl.
   }
 
+  // Check the prototypes.
   if (!::IsStructurallyEquivalent(Context,
                                   Method1->getType(), Method2->getType()))
     return false;
