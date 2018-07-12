@@ -304,6 +304,8 @@ class ASTImporterTestBase : public ParameterizedTestsFixture {
             ToAST->getASTContext(), ToAST->getFileManager(),
             Unit->getASTContext(), Unit->getFileManager(), false));
       }
+      assert(&ToAST->getASTContext() == &Importer->getToContext());
+      createVirtualFileIfNeeded(ToAST, FileName, Code);
     }
 
     Decl *import(ASTUnit *ToAST, Decl *FromDecl) {
@@ -343,8 +345,6 @@ class ASTImporterTestBase : public ParameterizedTestsFixture {
       return E.TUDecl == From->getTranslationUnitDecl();
     });
     assert(It != FromTUs.end());
-    assert(ToAST);
-    createVirtualFileIfNeeded(ToAST.get(), It->FileName, It->Code);
     return &*It;
   }
 
@@ -978,28 +978,23 @@ TEST_P(ImportDecl, ImportRecordDeclInFunc) {
              "  return 0;"
              "}",
              Lang_C, "", Lang_C, Verifier,
-             functionDecl(
-               hasBody(
-                 compoundStmt(
-                   has(
-                     declStmt(
-                       hasSingleDecl(
-                         varDecl(hasName("d")))))))));
+             functionDecl(hasBody(compoundStmt(
+                 has(declStmt(hasSingleDecl(varDecl(hasName("d")))))))));
 }
 
 TEST_P(ASTImporterTestBase, ImportRecordTypeInFunc) {
-  Decl *FromTU = getTuDecl(
-      "int declToImport() { "
-      "  struct data_t {int a;int b;};"
-      "  struct data_t d;"
-      "  return 0;"
-      "}",
-      Lang_C,
-      "input.c");
-  auto FromVar = FirstDeclMatcher<VarDecl>().match(FromTU, varDecl(hasName("d")));
+  Decl *FromTU = getTuDecl("int declToImport() { "
+                           "  struct data_t {int a;int b;};"
+                           "  struct data_t d;"
+                           "  return 0;"
+                           "}",
+                           Lang_C, "input.c");
+  auto FromVar =
+      FirstDeclMatcher<VarDecl>().match(FromTU, varDecl(hasName("d")));
   ASSERT_TRUE(FromVar);
-  auto ToType = ImportType(FromVar->getType().getCanonicalType(), FromVar, Lang_C);
-  ASSERT_FALSE(ToType.isNull());
+  auto ToType =
+      ImportType(FromVar->getType().getCanonicalType(), FromVar, Lang_C);
+  EXPECT_FALSE(ToType.isNull());
 }
 
 TEST_P(ASTImporterTestBase, ImportRecordDeclInFuncParams) {
