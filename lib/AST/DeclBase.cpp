@@ -1346,10 +1346,14 @@ bool DeclContext::decls_empty() const {
 }
 
 bool DeclContext::containsDecl(Decl *D) const {
-  if (hasExternalLexicalStorage())
-    LoadLexicalDeclsFromExternalStorage();
   return (D->getLexicalDeclContext() == this &&
           (D->NextInContextAndBits.getPointer() || D == LastDecl));
+}
+
+bool DeclContext::containsDeclAndLoad(Decl *D) const {
+  if (hasExternalLexicalStorage())
+    LoadLexicalDeclsFromExternalStorage();
+  return containsDecl(D);
 }
 
 /// shouldBeHidden - Determine whether a declaration which was declared
@@ -1371,7 +1375,7 @@ static bool shouldBeHidden(NamedDecl *D) {
   // from being visible?
   if (isa<ClassTemplateSpecializationDecl>(D))
     return true;
-  if (FunctionDecl *FD = dyn_cast<FunctionDecl>(D))
+  if (auto *FD = dyn_cast<FunctionDecl>(D))
     if (FD->isFunctionTemplateSpecialization())
       return true;
 
