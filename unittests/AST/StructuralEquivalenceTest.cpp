@@ -66,11 +66,11 @@ struct StructuralEquivalenceTest : ::testing::Test {
     llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls01;
     llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls10;
     StructuralEquivalenceContext Ctx01(
-        d0->getASTContext(), d1->getASTContext(),
-        NonEquivalentDecls01, false, false);
+        d0->getASTContext(), d1->getASTContext(), NonEquivalentDecls01,
+        StructuralEquivalenceKind::Default, false, false);
     StructuralEquivalenceContext Ctx10(
-        d1->getASTContext(), d0->getASTContext(),
-        NonEquivalentDecls10, false, false);
+        d1->getASTContext(), d0->getASTContext(), NonEquivalentDecls10,
+        StructuralEquivalenceKind::Default, false, false);
     bool eq01 = Ctx01.IsEquivalent(d0, d1);
     bool eq10 = Ctx10.IsEquivalent(d1, d0);
     EXPECT_EQ(eq01, eq10);
