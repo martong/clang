@@ -1594,7 +1594,7 @@ TEST_P(
       Lang_CXX, "input.cc");
 
   auto *FromD = FirstDeclMatcher<CXXRecordDecl>().match(
-      FromTu, cxxRecordDecl());
+      FromTu, cxxRecordDecl(hasName("declToImport")));
   auto *ToD = Import(FromD, Lang_CXX);
   auto Pattern = cxxRecordDecl(has(friendDecl()));
   ASSERT_TRUE(MatchVerifier<Decl>{}.match(FromD, Pattern));
@@ -3231,6 +3231,7 @@ TEST_P(ASTImporterTestBase,
 
 TEST_P(ASTImporterTestBase,
        ImportDefinitionOfClassIfThereIsAnExistingFwdDeclAndDefinition) {
+  auto Pattern = cxxRecordDecl(hasName("B"), hasParent(translationUnitDecl()));
   Decl *ToTU = getToTuDecl(
       R"(
       struct B {
@@ -3240,8 +3241,7 @@ TEST_P(ASTImporterTestBase,
       struct B;
       )",
       Lang_CXX);
-  ASSERT_EQ(2u, DeclCounter<CXXRecordDecl>().match(
-                    ToTU, cxxRecordDecl(hasParent(translationUnitDecl()))));
+  ASSERT_EQ(2u, DeclCounter<CXXRecordDecl>().match(ToTU, Pattern));
 
   Decl *FromTU = getTuDecl(
       R"(
@@ -3255,8 +3255,7 @@ TEST_P(ASTImporterTestBase,
 
   Import(FromD, Lang_CXX);
 
-  EXPECT_EQ(2u, DeclCounter<CXXRecordDecl>().match(
-                    ToTU, cxxRecordDecl(hasParent(translationUnitDecl()))));
+  EXPECT_EQ(2u, DeclCounter<CXXRecordDecl>().match(ToTU, Pattern));
 }
 
 TEST_P(
@@ -3645,8 +3644,7 @@ INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportDecl,
                         DefaultTestValuesForRunOptions, );
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ASTImporterTestBase,
-    // FIXME we have failing tests with "-fms-compatibility"
-    ::testing::Values(ArgVector(), ArgVector{"-fdelayed-template-parsing"}),);
+                        DefaultTestValuesForRunOptions, );
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFunctions,
                         DefaultTestValuesForRunOptions, );
