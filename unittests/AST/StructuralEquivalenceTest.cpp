@@ -42,6 +42,21 @@ struct StructuralEquivalenceTest : ::testing::Test {
     return std::make_tuple(D0, D1);
   }
 
+  std::tuple<TranslationUnitDecl *, TranslationUnitDecl *> makeTuDecls(
+      const std::string &SrcCode0, const std::string &SrcCode1, Language Lang) {
+    this->Code0 = SrcCode0;
+    this->Code1 = SrcCode1;
+    ArgVector Args = getBasicRunOptionsForLanguage(Lang);
+
+    const char *const InputFileName = "input.cc";
+
+    AST0 = tooling::buildASTFromCodeWithArgs(Code0, Args, InputFileName);
+    AST1 = tooling::buildASTFromCodeWithArgs(Code1, Args, InputFileName);
+
+    return std::make_tuple(AST0->getASTContext().getTranslationUnitDecl(),
+                           AST1->getASTContext().getTranslationUnitDecl());
+  }
+
   // Get a pair of node pointers into the synthesized AST from the given code
   // snippets. The same matcher is used for both snippets.
   template <typename NodeType, typename MatcherType>
@@ -62,22 +77,22 @@ struct StructuralEquivalenceTest : ::testing::Test {
     return makeDecls<NamedDecl>(SrcCode0, SrcCode1, Lang, Matcher);
   }
 
-  bool testStructuralMatch(NamedDecl *d0, NamedDecl *d1) {
+  bool testStructuralMatch(Decl *D0, Decl *D1) {
     llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls01;
     llvm::DenseSet<std::pair<Decl *, Decl *>> NonEquivalentDecls10;
     StructuralEquivalenceContext Ctx01(
-        d0->getASTContext(), d1->getASTContext(), NonEquivalentDecls01,
+        D0->getASTContext(), D1->getASTContext(), NonEquivalentDecls01,
         StructuralEquivalenceKind::Default, false, false);
     StructuralEquivalenceContext Ctx10(
-        d1->getASTContext(), d0->getASTContext(), NonEquivalentDecls10,
+        D1->getASTContext(), D0->getASTContext(), NonEquivalentDecls10,
         StructuralEquivalenceKind::Default, false, false);
-    bool eq01 = Ctx01.IsEquivalent(d0, d1);
-    bool eq10 = Ctx10.IsEquivalent(d1, d0);
+    bool eq01 = Ctx01.IsEquivalent(D0, D1);
+    bool eq10 = Ctx10.IsEquivalent(D1, D0);
     EXPECT_EQ(eq01, eq10);
     return eq01;
   }
 
-  bool testStructuralMatch(std::tuple<NamedDecl *, NamedDecl *> t) {
+  bool testStructuralMatch(std::tuple<Decl *, Decl *> t) {
     return testStructuralMatch(get<0>(t), get<1>(t));
   }
 };
@@ -484,6 +499,11 @@ TEST_F(StructuralEquivalenceCXXMethodTest, OutOfClass2) {
 }
 
 struct StructuralEquivalenceRecordTest : StructuralEquivalenceTest {
+  // FIXME Use a common getRecordDecl with ASTImporterTest.cpp!
+  RecordDecl *getRecordDecl(FieldDecl *FD) {
+    auto *ET = cast<ElaboratedType>(FD->getType().getTypePtr());
+    return cast<RecordType>(ET->getNamedType().getTypePtr())->getDecl();
+  };
 };
 
 TEST_F(StructuralEquivalenceRecordTest, Name) {
@@ -558,6 +578,69 @@ TEST_F(StructuralEquivalenceRecordTest, TemplateVsNonTemplate) {
       Lang_CXX,
       cxxRecordDecl());
   EXPECT_FALSE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceRecordTest, UnnamedRecordsShouldBeInequivalent) {
+  auto t = makeTuDecls(
+      R"(
+      struct A {
+        struct {
+          struct A *next;
+        } entry0;
+        struct {
+          struct A *next;
+        } entry1;
+      };
+      )",
+      "", Lang_C);
+  auto *TU = get<0>(t);
+  auto *Entry0 =
+      FirstDeclMatcher<FieldDecl>().match(TU, fieldDecl(hasName("entry0")));
+  auto *Entry1 =
+      FirstDeclMatcher<FieldDecl>().match(TU, fieldDecl(hasName("entry1")));
+  auto *R0 = getRecordDecl(Entry0);
+  auto *R1 = getRecordDecl(Entry1);
+
+  ASSERT_NE(R0, R1);
+  EXPECT_TRUE(testStructuralMatch(R0, R0));
+  EXPECT_TRUE(testStructuralMatch(R1, R1));
+  EXPECT_FALSE(testStructuralMatch(R0, R1));
+}
+
+TEST_F(StructuralEquivalenceRecordTest,
+       UnnamedRecordsShouldBeInequivalentEvenIfTheSecondIsBeingDefined) {
+  auto Code =
+      R"(
+      struct A {
+        struct {
+          struct A *next;
+        } entry0;
+        struct {
+          struct A *next;
+        } entry1;
+      };
+      )";
+  auto t = makeTuDecls(Code, Code, Lang_C);
+
+  auto *FromTU = get<0>(t);
+  auto *Entry1 =
+      FirstDeclMatcher<FieldDecl>().match(FromTU, fieldDecl(hasName("entry1")));
+
+  auto *ToTU = get<1>(t);
+  auto *Entry0 =
+      FirstDeclMatcher<FieldDecl>().match(ToTU, fieldDecl(hasName("entry0")));
+  auto *A =
+      FirstDeclMatcher<RecordDecl>().match(ToTU, recordDecl(hasName("A")));
+  A->startDefinition(); // Set isBeingDefined, getDefinition() will return a
+                        // nullptr. This may be the case during ASTImport.
+
+  auto *R0 = getRecordDecl(Entry0);
+  auto *R1 = getRecordDecl(Entry1);
+
+  ASSERT_NE(R0, R1);
+  EXPECT_TRUE(testStructuralMatch(R0, R0));
+  EXPECT_TRUE(testStructuralMatch(R1, R1));
+  EXPECT_FALSE(testStructuralMatch(R0, R1));
 }
 
 TEST_F(StructuralEquivalenceTest, CompareSameDeclWithMultiple) {
