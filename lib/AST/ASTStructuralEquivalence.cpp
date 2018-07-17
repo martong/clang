@@ -10,6 +10,59 @@
 //  This file implement StructuralEquivalenceContext class and helper functions
 //  for layout matching.
 //
+// The structural equivalence check could have been implemented as a parallel
+// BFS on a pair of graphs.  That must have been the original approach at the
+// beginning.
+// Let's consider this simple BFS algorithm from the `s` source:
+// ```
+// void bfs(Graph G, int s)
+// {
+//   Queue<Integer> queue = new Queue<Integer>();
+//   marked[s] = true; // Mark the source
+//   queue.enqueue(s); // and put it on the queue.
+//   while (!q.isEmpty()) {
+//     int v = queue.dequeue(); // Remove next vertex from the queue.
+//     for (int w : G.adj(v))
+//       if (!marked[w]) // For every unmarked adjacent vertex,
+//       {
+//         marked[w] = true;
+//         queue.enqueue(w);
+//       }
+//   }
+// }
+// ```
+// Indeed, it has it's queue, which holds pairs of nodes, one from each graph,
+// this is the `DeclsToCheck` and it's pair is in `TentativeEquivalences`.
+// `TentativeEquivalences` also plays the role of the marking (`marked`)
+// functionality above, we use it to check whether we've already seen a pair of
+// nodes.
+//
+// We put in the elements into the queue only in the toplevel decl check
+// function:
+// ```
+// static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
+//                                      Decl *D1, Decl *D2);
+// ```
+// The `while` loop where we iterate over the children is implemented in
+// `Finish()`.  And `Finish` is called only from the two **member** functions
+// which check the equivalency of two Decls or two Types. ASTImporter (and
+// other clients) call only these functions.
+//
+// The `static` implementation functions are called from `Finish`, these push
+// the children nodes to the queue via `static bool
+// IsStructurallyEquivalent(StructuralEquivalenceContext &Context, Decl *D1,
+// Decl *D2)`.  So far so good, this is almost like the BFS.  However, if we
+// let a static implementation function to call `Finish` via another **member**
+// function that means we end up with two nested while loops each of them
+// working on the same queue. This is wrong and nobody can reason about it's
+// doing. Thus, static implementation functions must not call the **member**
+// functions.
+//
+// So, now `TentativeEquivalences` plays two roles. It is used to store the
+// second half of the decls which we want to compare, plus it plays a role in
+// closing the recursion. On a long term, we could refactor structural
+// equivalency to be more alike to the traditional BFS.
+//
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/ASTStructuralEquivalence.h"
