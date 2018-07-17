@@ -2222,30 +2222,18 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
         if (const TagType *Tag = Typedef->getUnderlyingType()->getAs<TagType>())
           Found = Tag->getDecl();
       }
-      
+
       if (D->getDescribedTemplate()) {
         if (ClassTemplateDecl *Template = dyn_cast<ClassTemplateDecl>(Found))
           Found = Template->getTemplatedDecl();
         else
           continue;
       }
-      
-      if (RecordDecl *FoundRecord = dyn_cast<RecordDecl>(Found)) {
+
+      if (auto *FoundRecord = dyn_cast<RecordDecl>(Found)) {
         if (!SearchName) {
-          // If both unnamed structs/unions are in a record context, make sure
-          // they occur in the same location in the context records.
-          if (Optional<unsigned> Index1 =
-                  StructuralEquivalenceContext::findUntaggedStructOrUnionIndex(
-                      D)) {
-            if (Optional<unsigned> Index2 = StructuralEquivalenceContext::
-                    findUntaggedStructOrUnionIndex(FoundRecord)) {
-              if (*Index1 != *Index2)
-                continue;
-            }
-          } else {
-            if(!IsStructuralMatch(D, FoundRecord, false))
-              continue;
-          }
+          if (!IsStructuralMatch(D, FoundRecord, false))
+            continue;
         }
 
         PrevDecl = FoundRecord;
