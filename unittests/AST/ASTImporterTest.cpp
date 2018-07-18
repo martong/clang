@@ -2555,7 +2555,8 @@ TEST_P(ImportFriendFunctions, ImportFriendList) {
                            "input0.cc");
   auto FromD = FirstDeclMatcher<FunctionDecl>().match(FromTU, Pattern);
   {
-    auto *Class = FirstDeclMatcher<CXXRecordDecl>().match(FromTU, cxxRecordDecl());
+    auto *Class = FirstDeclMatcher<CXXRecordDecl>().match(
+        FromTU, cxxRecordDecl(hasName("X")));
     auto *Friend = FirstDeclMatcher<FriendDecl>().match(FromTU, friendDecl());
     auto Friends = Class->friends();
     unsigned int FrN = 0;
@@ -2567,7 +2568,8 @@ TEST_P(ImportFriendFunctions, ImportFriendList) {
   }
   Import(FromD, Lang_CXX);
   auto *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
-  auto *Class = FirstDeclMatcher<CXXRecordDecl>().match(ToTU, cxxRecordDecl());
+  auto *Class = FirstDeclMatcher<CXXRecordDecl>().match(
+      ToTU, cxxRecordDecl(hasName("X")));
   auto *Friend = FirstDeclMatcher<FriendDecl>().match(ToTU, friendDecl());
   auto Friends = Class->friends();
   unsigned int FrN = 0;
@@ -3652,8 +3654,7 @@ INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFunctions,
                         DefaultTestValuesForRunOptions, );
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFriendFunctions,
-    // FIXME we have assertion failures with "-fms-compatibility"
-    ::testing::Values(ArgVector(), ArgVector{"-fdelayed-template-parsing"}),);
+                        DefaultTestValuesForRunOptions, );
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFunctionTemplateSpecializations,
                         DefaultTestValuesForRunOptions, );
