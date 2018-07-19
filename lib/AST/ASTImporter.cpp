@@ -1104,16 +1104,23 @@ bool ASTNodeImporter::ImportDeclParts(NamedDecl *D, DeclContext *&DC,
   FunctionDecl *FunDecl;
   if (isa<RecordDecl>(D) && (FunDecl = dyn_cast<FunctionDecl>(OrigDC)) &&
       FunDecl->hasBody()) {
-    SourceRange RecR = D->getSourceRange();
-    SourceRange BodyR = FunDecl->getBody()->getSourceRange();
+    SourceManager &SM = D->getASTContext().getSourceManager();
+    SourceRange RecRange = D->getSourceRange();
+    SourceRange BodyRange = FunDecl->getBody()->getSourceRange();
     // If RecordDecl is not in Body (it is a param), we bail out.
-    if (RecR.isValid() && BodyR.isValid() &&
-        (RecR.getBegin() < BodyR.getBegin() ||
-         BodyR.getEnd() < RecR.getEnd())) {
-      Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
-          << D->getDeclKindName();
-      Importer.setEncounteredUnsupportedNode(true);
-      return true;
+    if (RecRange.isValid() && BodyRange.isValid()) {
+      SourceLocation RecStart = SM.getFileLoc(RecRange.getBegin());
+      SourceLocation RecEnd = SM.getFileLoc(RecRange.getEnd());
+      SourceLocation BodyStart = SM.getFileLoc(BodyRange.getBegin());
+      SourceLocation BodyEnd = SM.getFileLoc(BodyRange.getEnd());
+      assert(!RecStart.isMacroID() && !RecEnd.isMacroID());
+      assert(!BodyStart.isMacroID() && !BodyEnd.isMacroID());
+      if (RecStart < BodyStart || BodyEnd < RecEnd) {
+        Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
+            << D->getDeclKindName();
+        Importer.setEncounteredUnsupportedNode(true);
+        return true;
+      }
     }
   }
 

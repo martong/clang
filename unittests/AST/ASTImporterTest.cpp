@@ -274,7 +274,7 @@ public:
 template <typename T> RecordDecl *getRecordDecl(T *D) {
   auto *ET = cast<ElaboratedType>(D->getType().getTypePtr());
   return cast<RecordType>(ET->getNamedType().getTypePtr())->getDecl();
-};
+}
 
 // This class provides generic methods to write tests which can check internal
 // attributes of AST nodes like getPreviousDecl(), isVirtual(), etc.  Also,
@@ -1006,6 +1006,31 @@ TEST_P(ASTImporterTestBase, ImportRecordDeclInFuncParams) {
   // This construct is not supported by ASTImporter.
   Decl *FromTU = getTuDecl(
       "int declToImport(struct data_t{int a;int b;} *d){ return 0; }",
+      Lang_C,
+      "input.c");
+  auto From = FirstDeclMatcher<FunctionDecl>().match(FromTU, functionDecl());
+  ASSERT_TRUE(From);
+  auto To = Import(From, Lang_C);
+  EXPECT_EQ(To, nullptr);
+}
+
+TEST_P(ASTImporterTestBase, ImportRecordDeclInFuncFromMacro) {
+  Decl *FromTU = getTuDecl(
+      "#define NONAME_SIZEOF(type) sizeof(struct{type *dummy;}) \n"
+      "int declToImport(){ return NONAME_SIZEOF(int); }",
+      Lang_C,
+      "input.c");
+  auto From = FirstDeclMatcher<FunctionDecl>().match(FromTU, functionDecl());
+  ASSERT_TRUE(From);
+  auto To = Import(From, Lang_C);
+  EXPECT_TRUE(To);
+}
+
+TEST_P(ASTImporterTestBase, ImportRecordDeclInFuncParamsFromMacro) {
+  // This construct is not supported by ASTImporter.
+  Decl *FromTU = getTuDecl(
+      "#define PAIR_STRUCT(type) struct data_t{type a;type b;} \n"
+      "int declToImport(PAIR_STRUCT(int) *d){ return 0; }",
       Lang_C,
       "input.c");
   auto From = FirstDeclMatcher<FunctionDecl>().match(FromTU, functionDecl());
