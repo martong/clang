@@ -2862,13 +2862,15 @@ static unsigned getFieldIndex(Decl *F) {
     return 0;
 
   unsigned Index = 1;
-  for (const auto *D : Owner->noload_decls()) {
+  for (const auto *D : Owner->decls()) {
     if (D == F)
       return Index;
 
     if (isa<FieldDecl>(*D) || isa<IndirectFieldDecl>(*D))
       ++Index;
   }
+
+  assert(Index > 1 && "Field was not found in its parent context.");
 
   return Index;
 }
