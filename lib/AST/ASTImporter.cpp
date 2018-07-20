@@ -2255,7 +2255,8 @@ Decl *ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
               assert(FoundCXX && "Record type mismatch");
 
               if (D->isCompleteDefinition() && !Importer.isMinimalImport())
-                // FoundDef may not have every implicit method that D has.
+                // FoundDef may not have every implicit method that D has
+                // because implicit methods are created only if they are used.
                 ImportImplicitMethods(DCXX, FoundCXX);
             }
             return FoundDef;

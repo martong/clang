@@ -3342,22 +3342,22 @@ public:
         a.~A();
       })";
 
-  template<typename MatcherType>
+  template <typename MatcherType>
   void testImportOf(
       const MatcherType &MethodMatcher, const char *Code = DefaultCode) {
-    test(MethodMatcher, Code, 1u);
+    test(MethodMatcher, Code, /*ExpectedCount=*/1u);
   }
 
-  template<typename MatcherType>
+  template <typename MatcherType>
   void testNoImportOf(
       const MatcherType &MethodMatcher, const char *Code = DefaultCode) {
-    test(MethodMatcher, Code, 0u);
+    test(MethodMatcher, Code, /*ExpectedCount=*/0u);
   }
 
 private:
-  template<typename MatcherType>
+  template <typename MatcherType>
   void test(const MatcherType &MethodMatcher,
-      const char *Code = DefaultCode, unsigned int ExpectedCount = 1u) {
+      const char *Code, unsigned int ExpectedCount) {
     auto ClassMatcher = cxxRecordDecl(unless(isImplicit()));
 
     Decl *ToTU = getToTuDecl(Code, Lang_CXX11);
