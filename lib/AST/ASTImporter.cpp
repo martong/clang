@@ -2610,8 +2610,9 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
 
       NamedDecl *Found = FoundDecls[I];
 
+      // If template was found, look at the templated function.
       if (FromFT) {
-        if (auto Template = dyn_cast<FunctionTemplateDecl>(Found))
+        if (auto *Template = dyn_cast<FunctionTemplateDecl>(Found))
           Found = Template->getTemplatedDecl();
         else
           continue;
@@ -2794,9 +2795,8 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
 
   // Import the describing template function, if any.
   if (FromFT)
-    if (auto *ToFT = dyn_cast<FunctionTemplateDecl>(Importer.Import(FromFT))) {
-      ToFunction->setDescribedFunctionTemplate(ToFT);
-    }
+    if (!Importer.Import(FromFT))
+      return nullptr;
 
   if (D->doesThisDeclarationHaveABody()) {
     if (Stmt *FromBody = D->getBody()) {
