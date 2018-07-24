@@ -1104,18 +1104,17 @@ bool ASTNodeImporter::ImportDeclParts(NamedDecl *D, DeclContext *&DC,
   FunctionDecl *FunDecl;
   if (isa<RecordDecl>(D) && (FunDecl = dyn_cast<FunctionDecl>(OrigDC)) &&
       FunDecl->hasBody()) {
-    SourceManager &SM = D->getASTContext().getSourceManager();
-    SourceRange RecRange = D->getSourceRange();
-    SourceRange BodyRange = FunDecl->getBody()->getSourceRange();
-    // If RecordDecl is not in Body (it is a param), we bail out.
-    if (RecRange.isValid() && BodyRange.isValid()) {
-      SourceLocation RecStart = SM.getFileLoc(RecRange.getBegin());
-      SourceLocation RecEnd = SM.getFileLoc(RecRange.getEnd());
-      SourceLocation BodyStart = SM.getFileLoc(BodyRange.getBegin());
-      SourceLocation BodyEnd = SM.getFileLoc(BodyRange.getEnd());
-      assert(!RecStart.isMacroID() && !RecEnd.isMacroID());
-      assert(!BodyStart.isMacroID() && !BodyEnd.isMacroID());
-      if (RecStart < BodyStart || BodyEnd < RecEnd) {
+    auto getLeafPointeeType = [](const Type *T) {
+      while (T->isPointerType() || T->isArrayType()) {
+        T = T->getPointeeOrArrayElementType();
+      }
+      return T;
+    };
+    for (const ParmVarDecl *P : FunDecl->parameters()) {
+      const Type *LeafT =
+          getLeafPointeeType(P->getType().getCanonicalType().getTypePtr());
+      auto *RT = dyn_cast<RecordType>(LeafT);
+      if (RT && RT->getDecl() == D) {
         Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
             << D->getDeclKindName();
         Importer.setEncounteredUnsupportedNode(true);
