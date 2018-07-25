@@ -3637,6 +3637,51 @@ TEST_P(ASTImporterTestBase, ImportUnnamedFieldsInCorrectOrder) {
   EXPECT_EQ(FromIndex, 3u);
 }
 
+TEST_P(ASTImporterTestBase, MergeFieldDeclsOfClassTemplateSpecialization) {
+  std::string ClassTemplate =
+      R"(
+      template <typename T>
+      struct X {
+          int a{0}; // FieldDecl with InitListExpr
+          X(char) : a(3) {}     // (1)
+          X(int) {}             // (2)
+      };
+      )";
+  Decl *ToTU = getToTuDecl(ClassTemplate +
+      R"(
+      void foo() {
+          // ClassTemplateSpec with ctor (1): FieldDecl without InitlistExpr
+          X<char> xc('c');
+      }
+      )", Lang_CXX11);
+  auto *ToSpec = FirstDeclMatcher<ClassTemplateSpecializationDecl>().match(
+      ToTU, classTemplateSpecializationDecl(hasName("X")));
+  // FieldDecl without InitlistExpr:
+  auto *ToField = *ToSpec->field_begin();
+  ASSERT_TRUE(ToField);
+  ASSERT_FALSE(ToField->getInClassInitializer());
+  Decl *FromTU = getTuDecl(ClassTemplate +
+      R"(
+      void bar() {
+          // ClassTemplateSpec with ctor (2): FieldDecl WITH InitlistExpr
+          X<char> xc(1);
+      }
+      )", Lang_CXX11);
+  auto *FromSpec = FirstDeclMatcher<ClassTemplateSpecializationDecl>().match(
+      FromTU, classTemplateSpecializationDecl(hasName("X")));
+  // FieldDecl with InitlistExpr:
+  auto *FromField = *FromSpec->field_begin();
+  ASSERT_TRUE(FromField);
+  ASSERT_TRUE(FromField->getInClassInitializer());
+
+  auto *ImportedSpec = Import(FromSpec, Lang_CXX11);
+  ASSERT_TRUE(ImportedSpec);
+  EXPECT_EQ(ImportedSpec, ToSpec);
+  // After the import, the FieldDecl has to be merged, thus it should have the
+  // InitListExpr.
+  EXPECT_TRUE(ToField->getInClassInitializer());
+}
+
 struct DeclContextTest : ASTImporterTestBase {};
 
 TEST_P(DeclContextTest, removeDeclOfClassTemplateSpecialization) {

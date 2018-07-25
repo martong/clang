@@ -2899,6 +2899,22 @@ Decl *ASTNodeImporter::VisitFieldDecl(FieldDecl *D) {
       if (Importer.IsStructurallyEquivalent(D->getType(),
                                             FoundField->getType())) {
         Importer.MapImported(D, FoundField);
+        // In case of a FieldDecl of a ClassTemplateSpecializationDecl, the
+        // initializer of a FieldDecl might not had been instantiated in the
+        // "To" context.  However, the "From" context might instantiated that,
+        // thus we have to merge that.
+        if (Expr *FromInitializer = D->getInClassInitializer()) {
+          // We don't have yet the initializer set.
+          if (FoundField->hasInClassInitializer() &&
+              !FoundField->getInClassInitializer()) {
+            Expr *ToInitializer = Importer.Import(FromInitializer);
+            if (!ToInitializer)
+              // We can't return a nullptr here,
+              // since we already mapped D as imported.
+              return FoundField;
+            FoundField->setInClassInitializer(ToInitializer);
+          }
+        }
         return FoundField;
       }
 
@@ -4575,14 +4591,36 @@ Decl *ASTNodeImporter::VisitClassTemplateSpecializationDecl(
   if (FoundDef) {
     // We already have a class template specialization with these template
     // arguments.
-    
-    // FIXME: Check for specialization vs. instantiation errors.
-    if (!D->isCompleteDefinition() || IsStructuralMatch(D, FoundDef)) {
-      // The record types structurally match, or the "from" translation
-      // unit only had a forward declaration anyway; call it the same
-      // function.
+
+    if (!D->isCompleteDefinition()) {
+      // The "From" translation unit only had a forward declaration; call it
+      // the same declaration.
       return Importer.MapImported(D, FoundDef);
     }
+
+    if (IsStructuralMatch(D, FoundDef)) {
+
+      Importer.MapImported(D, FoundDef);
+
+      // Check and merge those fields which have been instantiated
+      // in the "From" context, but not in the "To" context.
+      for (auto *FromField : D->fields()) {
+        Importer.Import(FromField);
+      }
+
+      // TODO
+      // Check and merge those METHODS (especially ctors) which have been
+      // instantiated in the "From" context, but not in the "To" context.
+      //
+      // Check and merge instantiated default argument.
+      //
+      // Generally,
+      // ASTCommon.h/DeclUpdateKind enum gives a very good hint what could be
+      // updated during an AST merge.
+
+      return FoundDef;
+    }
+
   } else {
     // Create a new specialization.
     if (ClassTemplatePartialSpecializationDecl *PartialSpec =
