@@ -6891,7 +6891,7 @@ Expr *ASTNodeImporter::VisitCXXInheritedCtorInitExpr(
   if (T.isNull())
     return nullptr;
 
-  auto *Ctor = dyn_cast<CXXConstructorDecl>(Importer.Import(
+  auto *Ctor = cast_or_null<CXXConstructorDecl>(Importer.Import(
       E->getConstructor()));
   if (!Ctor)
     return nullptr;
