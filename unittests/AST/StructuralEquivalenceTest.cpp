@@ -651,5 +651,32 @@ TEST_F(StructuralEquivalenceTest, CompareSameDeclWithMultiple) {
   EXPECT_FALSE(testStructuralMatch(get<0>(t), get<1>(t)));
 }
 
+struct StructuralEquivalenceEnumTest : StructuralEquivalenceTest {};
+
+TEST_F(StructuralEquivalenceEnumTest, FwdDeclEnumShouldBeEqualWithFwdDeclEnum) {
+  auto t = makeNamedDecls("enum class foo;", "enum class foo;", Lang_CXX11);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceEnumTest,
+       FwdDeclEnumShouldBeEqualWithEnumWhichHasDefinition) {
+  auto t =
+      makeNamedDecls("enum class foo;", "enum class foo { A };", Lang_CXX11);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceEnumTest,
+       EnumShouldBeEqualWithEnumWhichHasDefinition) {
+  auto t = makeNamedDecls("enum class foo { A };", "enum class foo { A };",
+                          Lang_CXX11);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceEnumTest, EnumsWithDifferentBody) {
+  auto t = makeNamedDecls("enum class foo { B };", "enum class foo { A };",
+                          Lang_CXX11);
+  EXPECT_FALSE(testStructuralMatch(t));
+}
+
 } // end namespace ast_matchers
 } // end namespace clang
