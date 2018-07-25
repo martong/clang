@@ -4610,19 +4610,18 @@ Decl *ASTNodeImporter::VisitClassTemplateSpecializationDecl(
 
       // Check and merge those fields which have been instantiated
       // in the "From" context, but not in the "To" context.
-      for (auto *FromField : D->fields()) {
+      for (auto *FromField : D->fields())
         Importer.Import(FromField);
-      }
 
-      // TODO
-      // Check and merge those METHODS (especially ctors) which have been
-      // instantiated in the "From" context, but not in the "To" context.
+      // Check and merge those methods which have been instantiated in the
+      // "From" context, but not in the "To" context.
+      for (CXXMethodDecl *FromM : D->methods())
+        Importer.Import(FromM);
+
+      // TODO  Check and merge instantiated default arguments.
       //
-      // Check and merge instantiated default argument.
-      //
-      // Generally,
-      // ASTCommon.h/DeclUpdateKind enum gives a very good hint what could be
-      // updated during an AST merge.
+      // Generally, ASTCommon.h/DeclUpdateKind enum gives a very good hint what
+      // else could be fused during an AST merge.
 
       return FoundDef;
     }

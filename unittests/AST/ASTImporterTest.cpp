@@ -3726,6 +3726,91 @@ TEST_P(ASTImporterTestBase, MergeFieldDeclsOfClassTemplateSpecialization) {
   EXPECT_TRUE(ToField->getInClassInitializer());
 }
 
+TEST_P(ASTImporterTestBase, MergeFunctionOfClassTemplateSpecialization) {
+  std::string ClassTemplate =
+      R"(
+      template <typename T>
+      struct X {
+        void f() {}
+        void g() {}
+      };
+      )";
+  Decl *ToTU = getToTuDecl(ClassTemplate +
+      R"(
+      void foo() {
+          X<char> x;
+          x.f();
+      }
+      )", Lang_CXX11);
+  Decl *FromTU = getTuDecl(ClassTemplate +
+      R"(
+      void bar() {
+          X<char> x;
+          x.g();
+      }
+      )", Lang_CXX11);
+  auto *FromSpec = FirstDeclMatcher<ClassTemplateSpecializationDecl>().match(
+      FromTU, classTemplateSpecializationDecl(hasName("X")));
+  auto FunPattern = functionDecl(hasName("g"),
+                         hasParent(classTemplateSpecializationDecl()));
+  auto *FromFun =
+      FirstDeclMatcher<FunctionDecl>().match(FromTU, FunPattern);
+  auto *ToFun =
+      FirstDeclMatcher<FunctionDecl>().match(ToTU, FunPattern);
+  ASSERT_TRUE(FromFun->hasBody());
+  ASSERT_FALSE(ToFun->hasBody());
+
+  auto *ImportedSpec = Import(FromSpec, Lang_CXX11);
+
+  ASSERT_TRUE(ImportedSpec);
+  auto *ToSpec = FirstDeclMatcher<ClassTemplateSpecializationDecl>().match(
+      ToTU, classTemplateSpecializationDecl(hasName("X")));
+  EXPECT_EQ(ImportedSpec, ToSpec);
+  EXPECT_TRUE(ToFun->hasBody());
+}
+
+TEST_P(ASTImporterTestBase, MergeCtorOfClassTemplateSpecialization) {
+  std::string ClassTemplate =
+      R"(
+      template <typename T>
+      struct X {
+          X(char) {}
+          X(int) {}
+      };
+      )";
+  Decl *ToTU = getToTuDecl(ClassTemplate +
+      R"(
+      void foo() {
+          X<char> x('c');
+      }
+      )", Lang_CXX11);
+  Decl *FromTU = getTuDecl(ClassTemplate +
+      R"(
+      void bar() {
+          X<char> x(1);
+      }
+      )", Lang_CXX11);
+  auto *FromSpec = FirstDeclMatcher<ClassTemplateSpecializationDecl>().match(
+      FromTU, classTemplateSpecializationDecl(hasName("X")));
+  // Match the void(int) ctor.
+  auto CtorPattern =
+      cxxConstructorDecl(hasParameter(0, varDecl(hasType(asString("int")))),
+                         hasParent(classTemplateSpecializationDecl()));
+  auto *FromCtor =
+      FirstDeclMatcher<CXXConstructorDecl>().match(FromTU, CtorPattern);
+  auto *ToCtor =
+      FirstDeclMatcher<CXXConstructorDecl>().match(ToTU, CtorPattern);
+  ASSERT_TRUE(FromCtor->hasBody());
+  ASSERT_FALSE(ToCtor->hasBody());
+
+  auto *ImportedSpec = Import(FromSpec, Lang_CXX11);
+  ASSERT_TRUE(ImportedSpec);
+  auto *ToSpec = FirstDeclMatcher<ClassTemplateSpecializationDecl>().match(
+      ToTU, classTemplateSpecializationDecl(hasName("X")));
+  EXPECT_EQ(ImportedSpec, ToSpec);
+  EXPECT_TRUE(ToCtor->hasBody());
+}
+
 struct DeclContextTest : ASTImporterTestBase {};
 
 TEST_P(DeclContextTest, removeDeclOfClassTemplateSpecialization) {
