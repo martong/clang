@@ -331,19 +331,22 @@ llvm::Expected<ASTUnit *> CrossTranslationUnitContext::loadExternalAST(
 
 llvm::Expected<const FunctionDecl *>
 CrossTranslationUnitContext::importDefinition(const FunctionDecl *FD) {
+  assert(FD->hasBody() && "Functions to be imported should have body.");
+
   ASTImporter &Importer = getOrCreateASTImporter(FD->getASTContext());
   auto *ToDecl = cast_or_null<FunctionDecl>(
       Importer.Import(const_cast<FunctionDecl *>(FD)));
-  if (Importer.hasEncounteredUnsupportedNode()) {
+  if (Importer.hasEncounteredUnsupportedConstruct()) {
     if (ToDecl)
       InvalidFunctions.insert(ToDecl);
-    Importer.setEncounteredUnsupportedNode(false);
+    Importer.setEncounteredUnsupportedConstruct(false);
     NumUnsupportedNodeFound++;
     return nullptr;
   }
-  assert(ToDecl);
-  assert(ToDecl->hasBody());
-  assert(FD->hasBody() && "Functions already imported should have body.");
+
+  assert(ToDecl && "Failed to import function.");
+  assert(ToDecl->hasBody() && "Imported functions should have body.");
+
   ++NumGetCTUSuccess;
   return ToDecl;
 }

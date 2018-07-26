@@ -91,9 +91,9 @@ namespace clang {
     /// (which we have already complained about).
     NonEquivalentDeclSet NonEquivalentDecls;
 
-    /// This flag signs if the Importer encountered an unsupported node during
-    /// the last import process.
-    bool encounteredUnsupportedNode;
+    /// This flag signs if the Importer encountered an unsupported construct
+    /// during the last import process.
+    bool EncounteredUnsupportedConstruct;
 
   public:
     /// \brief Create a new AST importer.
@@ -327,11 +327,13 @@ namespace clang {
     bool IsStructurallyEquivalent(QualType From, QualType To,
                                   bool Complain = true);
 
-    void setEncounteredUnsupportedNode(bool B) {
-      encounteredUnsupportedNode = B;
+    void setEncounteredUnsupportedConstruct(bool B) {
+      EncounteredUnsupportedConstruct = B;
     }
 
-    bool hasEncounteredUnsupportedNode() { return encounteredUnsupportedNode; }
+    bool hasEncounteredUnsupportedConstruct() const {
+      return EncounteredUnsupportedConstruct;
+    }
   };
 }
 
