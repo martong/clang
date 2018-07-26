@@ -264,6 +264,7 @@ namespace clang {
     bool IsStructuralMatch(ClassTemplateDecl *From, ClassTemplateDecl *To);
     bool IsStructuralMatch(VarTemplateDecl *From, VarTemplateDecl *To);
     Decl *VisitDecl(Decl *D);
+    Decl *VisitImportDecl(ImportDecl *D);
     Decl *VisitEmptyDecl(EmptyDecl *D);
     Decl *VisitAccessSpecDecl(AccessSpecDecl *D);
     Decl *VisitStaticAssertDecl(StaticAssertDecl *D);
@@ -527,9 +528,7 @@ ASTNodeImporter::ImportFunctionTemplateWithTemplateArgsFromSpecialization(
 using namespace clang;
 
 QualType ASTNodeImporter::VisitType(const Type *T) {
-  Importer.FromDiag(SourceLocation(), diag::err_unsupported_ast_node)
-    << T->getTypeClassName();
-  Importer.setEncounteredUnsupportedNode(true);
+  assert(false && "Unsupported Type at import");
   return QualType();
 }
 
@@ -1117,7 +1116,7 @@ bool ASTNodeImporter::ImportDeclParts(NamedDecl *D, DeclContext *&DC,
       if (RT && RT->getDecl() == D) {
         Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
             << D->getDeclKindName();
-        Importer.setEncounteredUnsupportedNode(true);
+        Importer.setEncounteredUnsupportedConstruct(true);
         return true;
       }
     }
@@ -1690,9 +1689,14 @@ bool ASTNodeImporter::IsStructuralMatch(VarTemplateDecl *From,
 }
 
 Decl *ASTNodeImporter::VisitDecl(Decl *D) {
+  assert(false && "Unsupported Decl at import");
+  return nullptr;
+}
+
+Decl *ASTNodeImporter::VisitImportDecl(ImportDecl *D) {
   Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
-    << D->getDeclKindName();
-  Importer.setEncounteredUnsupportedNode(true);
+      << D->getDeclKindName();
+  Importer.setEncounteredUnsupportedConstruct(true);
   return nullptr;
 }
 
@@ -5024,9 +5028,7 @@ DeclGroupRef ASTNodeImporter::ImportDeclGroup(DeclGroupRef DG) {
 }
 
  Stmt *ASTNodeImporter::VisitStmt(Stmt *S) {
-   Importer.FromDiag(S->getLocStart(), diag::err_unsupported_ast_node)
-     << S->getStmtClassName();
-   Importer.setEncounteredUnsupportedNode(true);
+   assert(false && "Unsupported Stmt at import");
    return nullptr;
  }
 
@@ -5551,9 +5553,7 @@ Stmt *ASTNodeImporter::VisitObjCAutoreleasePoolStmt
 // Import Expressions
 //----------------------------------------------------------------------------
 Expr *ASTNodeImporter::VisitExpr(Expr *E) {
-  Importer.FromDiag(E->getLocStart(), diag::err_unsupported_ast_node)
-    << E->getStmtClassName();
-  Importer.setEncounteredUnsupportedNode(true);
+  assert(false && "Unsupported Expr at import");
   return nullptr;
 }
 
@@ -7088,7 +7088,7 @@ ASTImporter::ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,
     : ToContext(ToContext), FromContext(FromContext),
       ToFileManager(ToFileManager), FromFileManager(FromFileManager),
       Minimal(MinimalImport), LastDiagFromFrom(false),
-      encounteredUnsupportedNode(false) {
+      EncounteredUnsupportedConstruct(false) {
   ImportedDecls[FromContext.getTranslationUnitDecl()]
     = ToContext.getTranslationUnitDecl();
 }
