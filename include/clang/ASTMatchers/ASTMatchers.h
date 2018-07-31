@@ -1949,6 +1949,12 @@ extern const internal::VariadicDynCastAllOfMatcher<Stmt, IntegerLiteral>
 extern const internal::VariadicDynCastAllOfMatcher<Stmt, FloatingLiteral>
     floatLiteral;
 
+/// \brief Matches imaginary literals, which are based on integer and floating
+/// point literals
+/// e.g.: 1i, 1.0i
+extern const internal::VariadicDynCastAllOfMatcher<Stmt, ImaginaryLiteral>
+    imaginaryLiteral;
+
 /// \brief Matches user defined literal operator call.
 ///
 /// Example match: "foo"_suffix

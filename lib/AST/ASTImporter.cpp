@@ -370,6 +370,7 @@ namespace clang {
     Expr *VisitCXXNullPtrLiteralExpr(CXXNullPtrLiteralExpr *E);
     Expr *VisitIntegerLiteral(IntegerLiteral *E);
     Expr *VisitFloatingLiteral(FloatingLiteral *E);
+    Expr *VisitImaginaryLiteral(ImaginaryLiteral *E);
     Expr *VisitCharacterLiteral(CharacterLiteral *E);
     Expr *VisitStringLiteral(StringLiteral *E);
     Expr *VisitCompoundLiteralExpr(CompoundLiteralExpr *E);
@@ -5720,6 +5721,7 @@ Expr *ASTNodeImporter::VisitIntegerLiteral(IntegerLiteral *E) {
                                 Importer.Import(E->getLocation()));
 }
 
+
 Expr *ASTNodeImporter::VisitFloatingLiteral(FloatingLiteral *E) {
   QualType T = Importer.Import(E->getType());
   if (T.isNull())
@@ -5728,6 +5730,19 @@ Expr *ASTNodeImporter::VisitFloatingLiteral(FloatingLiteral *E) {
   return FloatingLiteral::Create(Importer.getToContext(),
                                 E->getValue(), E->isExact(), T,
                                 Importer.Import(E->getLocation()));
+}
+
+Expr *ASTNodeImporter::VisitImaginaryLiteral(ImaginaryLiteral *E) {
+  QualType T = Importer.Import(E->getType());
+  if (T.isNull())
+    return nullptr;
+
+  Expr *SubE = Importer.Import(E->getSubExpr());
+  if (!SubE)
+    return nullptr;
+
+  return new (Importer.getToContext())
+      ImaginaryLiteral(SubE, T);
 }
 
 Expr *ASTNodeImporter::VisitCharacterLiteral(CharacterLiteral *E) {
