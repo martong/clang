@@ -3905,6 +3905,11 @@ TEST_P(ASTImporterTestBase, ClassTemplateFullAndPartialSpecsShouldNotBeMixed) {
 struct DeclContextTest : ASTImporterTestBase {};
 
 TEST_P(DeclContextTest, removeDeclOfClassTemplateSpecialization) {
+
+  int *array = new int[100];
+  delete[] array;
+  array[3] = 13;
+
   Decl *TU = getTuDecl(
       R"(
       namespace NS {
