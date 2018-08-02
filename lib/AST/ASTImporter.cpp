@@ -4602,7 +4602,7 @@ Decl *ASTNodeImporter::VisitClassTemplateSpecializationDecl(
     D2 = ClassTemplate->findPartialSpecialization(TemplateArgs, InsertPos);
   else
     D2 = ClassTemplate->findSpecialization(TemplateArgs, InsertPos);
-  ClassTemplateSpecializationDecl *PrevDecl = D2;
+  ClassTemplateSpecializationDecl * const PrevDecl = D2;
   RecordDecl *FoundDef = D2 ? D2->getDefinition() : nullptr;
   if (FoundDef) {
     if (!D->isCompleteDefinition()) {
@@ -4662,9 +4662,10 @@ Decl *ASTNodeImporter::VisitClassTemplateSpecializationDecl(
               cast_or_null<ClassTemplatePartialSpecializationDecl>(PrevDecl)))
         return D2;
 
-      // Add this partial specialization to the class template.
-      ClassTemplate->AddPartialSpecialization(
-          cast<ClassTemplatePartialSpecializationDecl>(D2), InsertPos);
+      if (!PrevDecl) // We could not find any existing specialization.
+        // Add this partial specialization to the class template.
+        ClassTemplate->AddPartialSpecialization(
+            cast<ClassTemplatePartialSpecializationDecl>(D2), InsertPos);
 
     } else { // Not a partial specialization.
       if (GetImportedOrCreateDecl(
@@ -4672,8 +4673,9 @@ Decl *ASTNodeImporter::VisitClassTemplateSpecializationDecl(
               IdLoc, ClassTemplate, TemplateArgs, PrevDecl))
         return D2;
 
-      // Add this specialization to the class template.
-      ClassTemplate->AddSpecialization(D2, InsertPos);
+      if (!PrevDecl) // We could not find any existing specialization.
+        // Add this specialization to the class template.
+        ClassTemplate->AddSpecialization(D2, InsertPos);
     }
 
     D2->setSpecializationKind(D->getSpecializationKind());
