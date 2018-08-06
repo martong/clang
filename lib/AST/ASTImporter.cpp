@@ -4662,7 +4662,9 @@ Decl *ASTNodeImporter::VisitClassTemplateSpecializationDecl(
               cast_or_null<ClassTemplatePartialSpecializationDecl>(PrevDecl)))
         return D2;
 
-      if (!PrevDecl) // We could not find any existing specialization.
+      // Update InsertPos, because preceding import calls may have invalidated
+      // it by adding new specializations.
+      if (!ClassTemplate->findPartialSpecialization(TemplateArgs, InsertPos))
         // Add this partial specialization to the class template.
         ClassTemplate->AddPartialSpecialization(
             cast<ClassTemplatePartialSpecializationDecl>(D2), InsertPos);
@@ -4673,7 +4675,9 @@ Decl *ASTNodeImporter::VisitClassTemplateSpecializationDecl(
               IdLoc, ClassTemplate, TemplateArgs, PrevDecl))
         return D2;
 
-      if (!PrevDecl) // We could not find any existing specialization.
+      // Update InsertPos, because preceding import calls may have invalidated
+      // it by adding new specializations.
+      if (!ClassTemplate->findSpecialization(TemplateArgs, InsertPos))
         // Add this specialization to the class template.
         ClassTemplate->AddSpecialization(D2, InsertPos);
     }
