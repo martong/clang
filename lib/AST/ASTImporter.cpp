@@ -28,6 +28,28 @@
 
 namespace clang {
 
+  unsigned ASTImporter::getFieldIndex(Decl *F) {
+    assert(F && (isa<FieldDecl>(*F) || isa<IndirectFieldDecl>(*F)) &&
+        "Try to get field index for non-field.");
+
+    auto *Owner = dyn_cast<RecordDecl>(F->getDeclContext());
+    if (!Owner)
+      return 0;
+
+    unsigned Index = 1;
+    for (const auto *D : Owner->decls()) {
+      if (D == F)
+        return Index;
+
+      if (isa<FieldDecl>(*D) || isa<IndirectFieldDecl>(*D))
+        ++Index;
+    }
+
+    llvm_unreachable("Field was not found in its parent context.");
+
+    return 0;
+  }
+
   template <class T>
   SmallVector<Decl*, 2>
   getCanonicalForwardRedeclChain(Redeclarable<T>* D) {
@@ -2868,25 +2890,6 @@ Decl *ASTNodeImporter::VisitCXXConversionDecl(CXXConversionDecl *D) {
   return VisitCXXMethodDecl(D);
 }
 
-static unsigned getFieldIndex(Decl *F) {
-  RecordDecl *Owner = dyn_cast<RecordDecl>(F->getDeclContext());
-  if (!Owner)
-    return 0;
-
-  unsigned Index = 1;
-  for (const auto *D : Owner->decls()) {
-    if (D == F)
-      return Index;
-
-    if (isa<FieldDecl>(*D) || isa<IndirectFieldDecl>(*D))
-      ++Index;
-  }
-
-  assert(Index > 1 && "Field was not found in its parent context.");
-
-  return Index;
-}
-
 Decl *ASTNodeImporter::VisitFieldDecl(FieldDecl *D) {
   // Import the major distinguishing characteristics of a variable.
   DeclContext *DC, *LexicalDC;
@@ -2904,7 +2907,9 @@ Decl *ASTNodeImporter::VisitFieldDecl(FieldDecl *D) {
   for (unsigned I = 0, N = FoundDecls.size(); I != N; ++I) {
     if (FieldDecl *FoundField = dyn_cast<FieldDecl>(FoundDecls[I])) {
       // For anonymous fields, match up by index.
-      if (!Name && getFieldIndex(D) != getFieldIndex(FoundField))
+      if (!Name &&
+          ASTImporter::getFieldIndex(D) !=
+          ASTImporter::getFieldIndex(FoundField))
         continue;
 
       if (Importer.IsStructurallyEquivalent(D->getType(),
@@ -2986,7 +2991,9 @@ Decl *ASTNodeImporter::VisitIndirectFieldDecl(IndirectFieldDecl *D) {
     if (IndirectFieldDecl *FoundField 
                                 = dyn_cast<IndirectFieldDecl>(FoundDecls[I])) {
       // For anonymous indirect fields, match up by index.
-      if (!Name && getFieldIndex(D) != getFieldIndex(FoundField))
+      if (!Name &&
+          ASTImporter::getFieldIndex(D) !=
+          ASTImporter::getFieldIndex(FoundField))
         continue;
 
       if (Importer.IsStructurallyEquivalent(D->getType(),
