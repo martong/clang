@@ -642,6 +642,32 @@ TEST_F(StructuralEquivalenceRecordTest,
   EXPECT_FALSE(testStructuralMatch(R0, R1));
 }
 
+TEST_F(StructuralEquivalenceRecordTest,
+    FwdDeclRecordShouldBeEqualWithFwdDeclRecord) {
+  auto t = makeNamedDecls("class foo;", "class foo;", Lang_CXX11);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceRecordTest,
+       FwdDeclRecordShouldBeEqualWithRecordWhichHasDefinition) {
+  auto t =
+      makeNamedDecls("class foo;", "class foo { int A; };", Lang_CXX11);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceRecordTest,
+       RecordShouldBeEqualWithRecordWhichHasDefinition) {
+  auto t = makeNamedDecls("class foo { int A; };", "class foo { int A; };",
+                          Lang_CXX11);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceRecordTest, RecordsWithDifferentBody) {
+  auto t = makeNamedDecls("class foo { int B; };", "class foo { int A; };",
+                          Lang_CXX11);
+  EXPECT_FALSE(testStructuralMatch(t));
+}
+
 TEST_F(StructuralEquivalenceTest, CompareSameDeclWithMultiple) {
   auto t = makeNamedDecls(
       "struct A{ }; struct B{ }; void foo(A a, A b);",

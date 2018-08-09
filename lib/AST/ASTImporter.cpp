@@ -5754,8 +5754,7 @@ Expr *ASTNodeImporter::VisitImaginaryLiteral(ImaginaryLiteral *E) {
   if (!SubE)
     return nullptr;
 
-  return new (Importer.getToContext())
-      ImaginaryLiteral(SubE, T);
+  return new (Importer.getToContext()) ImaginaryLiteral(SubE, T);
 }
 
 Expr *ASTNodeImporter::VisitCharacterLiteral(CharacterLiteral *E) {
