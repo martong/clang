@@ -3666,7 +3666,7 @@ TEST_P(ASTImporterTestBase, ImportUnnamedFieldsInCorrectOrder) {
   CXXRecordDecl *FromLambda =
       cast<LambdaExpr>(cast<CStyleCastExpr>(cast<CompoundStmt>(
           FromF->getBody())->body_front())->getSubExpr())->getLambdaClass();
-  
+
   auto *ToLambda = cast_or_null<CXXRecordDecl>(Import(FromLambda, Lang_CXX11));
   EXPECT_TRUE(ToLambda);
 
@@ -3676,13 +3676,8 @@ TEST_P(ASTImporterTestBase, ImportUnnamedFieldsInCorrectOrder) {
     ASSERT_FALSE(FromField->getDeclName());
     auto *ToField = cast_or_null<FieldDecl>(Import(FromField, Lang_CXX11));
     EXPECT_TRUE(ToField);
-    unsigned ToIndex = 0u;
-    for (auto *F : ToLambda->fields()) {
-      if (F == ToField)
-        break;
-      ++ToIndex;
-    }
-    EXPECT_EQ(ToIndex, FromIndex);
+    unsigned ToIndex = ASTImporter::getFieldIndex(ToField);
+    EXPECT_EQ(ToIndex, FromIndex + 1);
     ++FromIndex;
   }
 
