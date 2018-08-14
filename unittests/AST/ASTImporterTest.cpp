@@ -1598,12 +1598,12 @@ TEST_P(
     ImportOfFriendRecordDoesNotMergeDefinition) {
   Decl *FromTU = getTuDecl(
       R"(
-    class A {
-      template<int I> class F {};
-      class X {
-        template<int I> friend class F;
+      class A {
+        template <int I> class F {};
+        class X {
+          template <int I> friend class F;
+        };
       };
-    };
       )",
       Lang_CXX, "input0.cc");
 
@@ -1624,12 +1624,12 @@ TEST_P(
   auto *ToClass = cast<CXXRecordDecl>(Import(FromClass, Lang_CXX));
   auto *ToFriendClass = cast<CXXRecordDecl>(Import(FromFriendClass, Lang_CXX));
 
-  ASSERT_TRUE(ToClass);
-  ASSERT_TRUE(ToFriendClass);
+  EXPECT_TRUE(ToClass);
+  EXPECT_TRUE(ToFriendClass);
   EXPECT_NE(ToClass, ToFriendClass);
   EXPECT_EQ(ToFriendClass->getDefinition(), ToClass);
-  ASSERT_EQ(ToFriendClass->getPreviousDecl(), ToClass);
-  ASSERT_EQ(
+  EXPECT_EQ(ToFriendClass->getPreviousDecl(), ToClass);
+  EXPECT_EQ(
       ToFriendClass->getDescribedClassTemplate()->getPreviousDecl(),
       ToClass->getDescribedClassTemplate());
 }
