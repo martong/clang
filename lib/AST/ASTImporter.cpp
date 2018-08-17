@@ -6935,9 +6935,18 @@ Expr *ASTNodeImporter::VisitInitListExpr(InitListExpr *ILE) {
     To->setSyntacticForm(ToSyntForm);
   }
 
+  // Copy InitListExprBitfields, which are not handled in the ctor of
+  // InitListExpr.
   To->sawArrayRangeDesignator(ILE->hadArrayRangeDesignator());
+
+  // Copy ExprBitfields, which are not handled in the ctor of InitListExpr.
+  To->setValueKind(ILE->getValueKind());
+  To->setObjectKind(ILE->getObjectKind());
+  To->setTypeDependent(ILE->isTypeDependent());
   To->setValueDependent(ILE->isValueDependent());
   To->setInstantiationDependent(ILE->isInstantiationDependent());
+  To->setContainsUnexpandedParameterPack(
+      ILE->containsUnexpandedParameterPack());
 
   return To;
 }
