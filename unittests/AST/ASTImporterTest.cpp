@@ -3762,14 +3762,59 @@ TEST_P(ASTImporterTestBase, MergeFunctionOfClassTemplateSpecialization) {
       FirstDeclMatcher<FunctionDecl>().match(ToTU, FunPattern);
   ASSERT_TRUE(FromFun->hasBody());
   ASSERT_FALSE(ToFun->hasBody());
-
   auto *ImportedSpec = Import(FromSpec, Lang_CXX11);
-
   ASSERT_TRUE(ImportedSpec);
   auto *ToSpec = FirstDeclMatcher<ClassTemplateSpecializationDecl>().match(
       ToTU, classTemplateSpecializationDecl(hasName("X")));
   EXPECT_EQ(ImportedSpec, ToSpec);
   EXPECT_TRUE(ToFun->hasBody());
+}
+
+TEST_P(ASTImporterTestBase,
+       ODRViolationOfClassTemplateSpecializationsShouldBeReported) {
+  std::string ClassTemplate =
+      R"(
+      template <typename T>
+      struct X {};
+      )";
+  Decl *ToTU = getToTuDecl(ClassTemplate +
+                               R"(
+      template <>
+      struct X<char> {
+          int a;
+      };
+      void foo() {
+          X<char> x;
+      }
+      )",
+                           Lang_CXX11);
+  Decl *FromTU = getTuDecl(ClassTemplate +
+                               R"(
+      template <>
+      struct X<char> {
+          int b;
+      };
+      void foo() {
+          X<char> x;
+      }
+      )",
+                           Lang_CXX11);
+  auto *FromSpec = FirstDeclMatcher<ClassTemplateSpecializationDecl>().match(
+      FromTU, classTemplateSpecializationDecl(hasName("X")));
+  auto *ImportedSpec = Import(FromSpec, Lang_CXX11);
+
+  // We expect one (ODR) warning during the import.
+  EXPECT_EQ(1u, ToTU->getASTContext().getDiagnostics().getNumWarnings());
+
+  // The second specialization is different from the first, thus it violates
+  // ODR, consequently we expect to keep the first specialization only, which is
+  // already in the "To" context.
+  EXPECT_TRUE(ImportedSpec);
+  auto *ToSpec = FirstDeclMatcher<ClassTemplateSpecializationDecl>().match(
+      ToTU, classTemplateSpecializationDecl(hasName("X")));
+  EXPECT_EQ(ImportedSpec, ToSpec);
+  EXPECT_EQ(1u, DeclCounter<ClassTemplateSpecializationDecl>().match(
+                    ToTU, classTemplateSpecializationDecl()));
 }
 
 TEST_P(ASTImporterTestBase, MergeCtorOfClassTemplateSpecialization) {
@@ -3805,7 +3850,6 @@ TEST_P(ASTImporterTestBase, MergeCtorOfClassTemplateSpecialization) {
       FirstDeclMatcher<CXXConstructorDecl>().match(ToTU, CtorPattern);
   ASSERT_TRUE(FromCtor->hasBody());
   ASSERT_FALSE(ToCtor->hasBody());
-
   auto *ImportedSpec = Import(FromSpec, Lang_CXX11);
   ASSERT_TRUE(ImportedSpec);
   auto *ToSpec = FirstDeclMatcher<ClassTemplateSpecializationDecl>().match(
