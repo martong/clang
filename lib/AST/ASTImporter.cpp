@@ -4623,17 +4623,18 @@ Decl *ASTNodeImporter::VisitClassTemplateSpecializationDecl(
 
       Importer.MapImported(D, FoundDef);
 
-      // Check and merge those fields which have been instantiated
-      // in the "From" context, but not in the "To" context.
+      // Import those those default field initializers which have been
+      // instantiated in the "From" context, but not in the "To" context.
       for (auto *FromField : D->fields())
         Importer.Import(FromField);
 
-      // Check and merge those methods which have been instantiated in the
+      // Import those methods which have been instantiated in the
       // "From" context, but not in the "To" context.
       for (CXXMethodDecl *FromM : D->methods())
         Importer.Import(FromM);
 
-      // TODO  Check and merge instantiated default arguments.
+      // TODO Import instantiated default arguments.
+      // TODO Import instantiated exception specifications.
       //
       // Generally, ASTCommon.h/DeclUpdateKind enum gives a very good hint what
       // else could be fused during an AST merge.
