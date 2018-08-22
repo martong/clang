@@ -1,7 +1,8 @@
-// RUN: mkdir -p %T/ctudir2
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -emit-pch -o %T/ctudir2/ctu-other.c.ast %S/Inputs/ctu-other.c
-// RUN: cp %S/Inputs/externalFnMap2.txt %T/ctudir2/externalFnMap.txt
-// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fsyntax-only -std=c89 -analyze -analyzer-checker=core,debug.ExprInspection  -analyzer-config experimental-enable-naive-ctu-analysis=true -analyzer-config ctu-dir=%T/ctudir2 -verify %s
+// RUN: rm -rf %t && mkdir %t
+// RUN: mkdir -p %t/ctudir2
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -emit-pch -o %t/ctudir2/ctu-other.c.ast %S/Inputs/ctu-other.c
+// RUN: cp %S/Inputs/externalFnMap2.txt %t/ctudir2/externalFnMap.txt
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fsyntax-only -std=c89 -analyze -analyzer-checker=core,debug.ExprInspection  -analyzer-config experimental-enable-naive-ctu-analysis=true -analyzer-config ctu-dir=%t/ctudir2 -verify %s
 
 void clang_analyzer_eval(int);
 
