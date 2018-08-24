@@ -11,8 +11,11 @@ find_first_existing_vc_file(clang_vc "${CLANG_SOURCE_DIR}")
 set(version_inc "${CMAKE_CURRENT_BINARY_DIR}/SVNVersion.inc")
 
 set(get_svn_script "${LLVM_CMAKE_PATH}/GetSVN.cmake")
+if(DEFINED NO_REV_GEN)
+	message(STATUS "No revision include generation ${NO_REV_GEN}")
+endif()
 
-if(DEFINED llvm_vc AND DEFINED clang_vc)
+if(NOT DEFINED NO_REV_GEN AND DEFINED llvm_vc AND DEFINED clang_vc)
   # Create custom target to generate the VC revision include.
   add_custom_command(OUTPUT "${version_inc}"
     DEPENDS "${llvm_vc}" "${clang_vc}" "${get_svn_script}"
