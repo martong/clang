@@ -3997,9 +3997,9 @@ TEST_P(ASTImporterTestBase, InitListExprValueKindShouldBeImported) {
   ASSERT_TRUE(InitExpr->isGLValue());
 
   auto *ToD = Import(FromD, Lang_CXX11);
-  ASSERT_TRUE(ToD);
+  EXPECT_TRUE(ToD);
   auto *ToInitExpr = cast<VarDecl>(ToD)->getAnyInitializer();
-  ASSERT_TRUE(ToInitExpr);
+  EXPECT_TRUE(ToInitExpr);
   EXPECT_TRUE(ToInitExpr->isGLValue());
 }
 
