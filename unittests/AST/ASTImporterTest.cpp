@@ -4048,14 +4048,14 @@ TEST_P(ImportVariables, ImportOfOneDeclBringsInTheWholeChain) {
   auto *FromDWithDef = LastDeclMatcher<VarDecl>().match(
       FromTU, varDecl(hasName("a"))); // Decl with definition
   ASSERT_NE(FromDWithInit, FromDWithDef);
-  ASSERT_EQ(FromDWithDef->getPreviousDecl() ,FromDWithInit);
+  ASSERT_EQ(FromDWithDef->getPreviousDecl(), FromDWithInit);
 
   auto *ToD0 = cast<VarDecl>(Import(FromDWithInit, Lang_CXX11));
   auto *ToD1 = cast<VarDecl>(Import(FromDWithDef, Lang_CXX11));
   ASSERT_TRUE(ToD0);
   ASSERT_TRUE(ToD1);
   EXPECT_NE(ToD0, ToD1);
-  EXPECT_EQ(ToD1->getPreviousDecl() ,ToD0);
+  EXPECT_EQ(ToD1->getPreviousDecl(), ToD0);
 }
 
 TEST_P(ImportVariables, InitAndDefinitionAreInDifferentTUs) {

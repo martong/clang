@@ -3215,7 +3215,7 @@ Decl *ASTNodeImporter::VisitVarDecl(VarDecl *D) {
                                                 FoundVar->getType())) {
 
             // The VarDecl in the "From" context has a definition, but in the
-            // "To" context we already has a definition.
+            // "To" context we already have a definition.
             VarDecl *FoundDef = FoundVar->getDefinition();
             if (D->isThisDeclarationADefinition() && FoundDef)
               // FIXME Check for ODR error if the two definitions have
@@ -3223,7 +3223,7 @@ Decl *ASTNodeImporter::VisitVarDecl(VarDecl *D) {
               return Importer.MapImported(D, FoundDef);
 
             // The VarDecl in the "From" context has an initializer, but in the
-            // "To" context we already has an initializer.
+            // "To" context we already have an initializer.
             const VarDecl *FoundDInit = nullptr;
             if (D->getInit() && FoundVar->getAnyInitializer(FoundDInit))
               // FIXME Diagnose ODR error if the two initializers are different?
