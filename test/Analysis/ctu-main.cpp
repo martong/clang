@@ -3,6 +3,10 @@
 // RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -emit-pch -o %T/ctudir/ctu-chain.cpp.ast %S/Inputs/ctu-chain.cpp
 // RUN: cp %S/Inputs/externalFnMap.txt %T/ctudir/
 // RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fsyntax-only -analyze -analyzer-checker=core,debug.ExprInspection -analyzer-config experimental-enable-naive-ctu-analysis=true -analyzer-config ctu-dir=%T/ctudir -verify %s
+// RUN: %clang_cc1 -triple x86_64-pc-linux-gnu -fsyntax-only -analyze -analyzer-checker=core,debug.ExprInspection -analyzer-config experimental-enable-naive-ctu-analysis=true -analyzer-config ctu-dir=%T/ctudir -analyzer-display-ctu-progress 2>&1 %s | FileCheck %s
+
+// CHECK: ANALYZE (CTU loaded AST for source file): {{.*}}/ctu-other.cpp
+// CHECK: ANALYZE (CTU loaded AST for source file): {{.*}}/ctu-chain.cpp
 
 #include "ctu-hdr.h"
 
