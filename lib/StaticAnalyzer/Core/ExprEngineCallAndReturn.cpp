@@ -19,6 +19,7 @@
 #include "clang/Analysis/ConstructionContext.h"
 #include "clang/StaticAnalyzer/Core/CheckerManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/CallEvent.h"
+#include "clang/CrossTU/CrossTranslationUnit.h"
 #include "llvm/ADT/SmallSet.h"
 #include "llvm/ADT/Statistic.h"
 #include "llvm/Support/SaveAndRestore.h"
@@ -843,6 +844,9 @@ bool ExprEngine::shouldInlineCall(const CallEvent &Call, const Decl *D,
                                   const ExplodedNode *Pred,
                                   const EvalCallOptions &CallOpts) {
   if (!D)
+    return false;
+
+  if (CTU.isInvalidFunction(dyn_cast<FunctionDecl>(D)))
     return false;
 
   AnalysisManager &AMgr = getAnalysisManager();

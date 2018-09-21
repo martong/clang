@@ -98,6 +98,10 @@ class Attr;
     /// (which we have already complained about).
     NonEquivalentDeclSet NonEquivalentDecls;
 
+    /// This flag signs if the Importer encountered an unsupported construct
+    /// during the last import process.
+    bool EncounteredUnsupportedConstruct;
+
   public:
     /// Create a new AST importer.
     ///
@@ -333,6 +337,14 @@ class Attr;
     /// equivalent.
     bool IsStructurallyEquivalent(QualType From, QualType To,
                                   bool Complain = true);
+
+    void setEncounteredUnsupportedConstruct(bool B) {
+      EncounteredUnsupportedConstruct = B;
+    }
+
+    bool hasEncounteredUnsupportedConstruct() const {
+      return EncounteredUnsupportedConstruct;
+    }
 
     /// Determine the index of a field in its parent record.
     /// F should be a field (or indirect field) declaration.

@@ -1187,6 +1187,7 @@ bool ASTNodeImporter::ImportDeclParts(NamedDecl *D, DeclContext *&DC,
       if (RT && RT->getDecl() == D) {
         Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
             << D->getDeclKindName();
+        Importer.setEncounteredUnsupportedConstruct(true);
         return true;
       }
     }
@@ -1768,6 +1769,7 @@ Decl *ASTNodeImporter::VisitDecl(Decl *D) {
 Decl *ASTNodeImporter::VisitImportDecl(ImportDecl *D) {
   Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
       << D->getDeclKindName();
+  Importer.setEncounteredUnsupportedConstruct(true);
   return nullptr;
 }
 
@@ -7063,7 +7065,7 @@ ASTImporter::ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,
                          bool MinimalImport)
     : ToContext(ToContext), FromContext(FromContext),
       ToFileManager(ToFileManager), FromFileManager(FromFileManager),
-      Minimal(MinimalImport) {
+      Minimal(MinimalImport), EncounteredUnsupportedConstruct(false) {
   ImportedDecls[FromContext.getTranslationUnitDecl()]
     = ToContext.getTranslationUnitDecl();
 }

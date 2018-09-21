@@ -71,6 +71,8 @@ STATISTIC(
     "The # of getCTUDefinition called but the function is not in other TU");
 STATISTIC(NumGetCTUSuccess, "The # of getCTUDefinition successfully return the "
                             "requested function's body");
+STATISTIC(NumUnsupportedNodeFound, "The # of imports when the ASTImporter "
+                                   "encountered an unsupported AST Node");
 STATISTIC(NumTripleMismatch, "The # of triple mismatches");
 STATISTIC(NumLangMismatch, "The # of language mismatches");
 
@@ -332,10 +334,19 @@ CrossTranslationUnitContext::importDefinition(const FunctionDecl *FD) {
   assert(FD->hasBody() && "Functions to be imported should have body.");
 
   ASTImporter &Importer = getOrCreateASTImporter(FD->getASTContext());
-  auto *ToDecl =
-      cast<FunctionDecl>(Importer.Import(const_cast<FunctionDecl *>(FD)));
-  assert(ToDecl->hasBody());
-  assert(FD->hasBody() && "Functions already imported should have body.");
+  auto *ToDecl = cast_or_null<FunctionDecl>(
+      Importer.Import(const_cast<FunctionDecl *>(FD)));
+  if (Importer.hasEncounteredUnsupportedConstruct()) {
+    if (ToDecl)
+      InvalidFunctions.insert(ToDecl);
+    Importer.setEncounteredUnsupportedConstruct(false);
+    NumUnsupportedNodeFound++;
+    return nullptr;
+  }
+
+  assert(ToDecl && "Failed to import function.");
+  assert(ToDecl->hasBody() && "Imported functions should have body.");
+
   ++NumGetCTUSuccess;
   return ToDecl;
 }
@@ -350,6 +361,10 @@ CrossTranslationUnitContext::getOrCreateASTImporter(ASTContext &From) {
                       From, From.getSourceManager().getFileManager(), false);
   ASTUnitImporterMap[From.getTranslationUnitDecl()].reset(NewImporter);
   return *NewImporter;
+}
+
+bool CrossTranslationUnitContext::isInvalidFunction(const FunctionDecl *FD) {
+  return InvalidFunctions.find(FD) != InvalidFunctions.end();
 }
 
 } // namespace cross_tu

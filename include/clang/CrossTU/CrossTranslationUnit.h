@@ -142,6 +142,10 @@ public:
   /// Emit diagnostics for the user for potential configuration errors.
   void emitCrossTUDiagnostics(const IndexError &IE);
 
+  /// Returns if FD is an imported function which import process encountered an
+  /// unsupported AST node.
+  bool isInvalidFunction(const FunctionDecl *FD);
+
 private:
   ASTImporter &getOrCreateASTImporter(ASTContext &From);
   const FunctionDecl *findFunctionInDeclContext(const DeclContext *DC,
@@ -152,6 +156,7 @@ private:
   llvm::StringMap<std::string> FunctionFileMap;
   llvm::DenseMap<TranslationUnitDecl *, std::unique_ptr<ASTImporter>>
       ASTUnitImporterMap;
+  llvm::SmallPtrSet<const FunctionDecl *, 8> InvalidFunctions;
   CompilerInstance &CI;
   ASTContext &Context;
 };
