@@ -21,6 +21,7 @@
 #include "clang/Frontend/TextDiagnosticPrinter.h"
 #include "clang/Index/USRGeneration.h"
 #include "llvm/ADT/Triple.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Support/ManagedStatic.h"
 #include "llvm/Support/Path.h"
@@ -32,6 +33,15 @@ namespace clang {
 namespace cross_tu {
 
 namespace {
+#define DEBUG_TYPE "CrossTranslationUnit"
+STATISTIC(NumGetCTUCalled, "The # of getCTUDefinition function called");
+STATISTIC(NumNoUnit, "The # of getCTUDefinition NoUnit");
+STATISTIC(
+    NumNotInOtherTU,
+    "The # of getCTUDefinition called but the function is not in other TU");
+STATISTIC(NumGetCTUSuccess, "The # of getCTUDefinition successfully return the "
+                            "requested function's body");
+
 // FIXME: This class is will be removed after the transition to llvm::Error.
 class IndexErrorCategory : public std::error_category {
 public:
@@ -151,18 +161,23 @@ CrossTranslationUnitContext::getCrossTUDefinition(const FunctionDecl *FD,
                                                   StringRef CrossTUDir,
                                                   StringRef IndexName) {
   assert(!FD->hasBody() && "FD has a definition in current translation unit!");
+  ++NumGetCTUCalled;
   const std::string LookupFnName = getLookupName(FD);
   if (LookupFnName.empty())
     return llvm::make_error<IndexError>(
         index_error_code::failed_to_generate_usr);
   llvm::Expected<ASTUnit *> ASTUnitOrError =
       loadExternalAST(LookupFnName, CrossTUDir, IndexName);
-  if (!ASTUnitOrError)
+  if (!ASTUnitOrError) {
+    ++NumNoUnit;
     return ASTUnitOrError.takeError();
+  }
   ASTUnit *Unit = *ASTUnitOrError;
-  if (!Unit)
+  if (!Unit) {
+    ++NumNoUnit;
     return llvm::make_error<IndexError>(
         index_error_code::failed_to_get_external_ast);
+  }
   assert(&Unit->getFileManager() ==
          &Unit->getASTContext().getSourceManager().getFileManager());
 
@@ -216,8 +231,10 @@ llvm::Expected<ASTUnit *> CrossTranslationUnitContext::loadExternalAST(
     }
 
     auto It = FunctionFileMap.find(LookupName);
-    if (It == FunctionFileMap.end())
+    if (It == FunctionFileMap.end()) {
+      ++NumNotInOtherTU;
       return llvm::make_error<IndexError>(index_error_code::missing_definition);
+    }
     StringRef ASTFileName = It->second;
     auto ASTCacheEntry = FileASTUnitMap.find(ASTFileName);
     if (ASTCacheEntry == FileASTUnitMap.end()) {
@@ -250,6 +267,7 @@ CrossTranslationUnitContext::importDefinition(const FunctionDecl *FD) {
       cast<FunctionDecl>(Importer.Import(const_cast<FunctionDecl *>(FD)));
   assert(ToDecl->hasBody());
   assert(FD->hasBody() && "Functions already imported should have body.");
+  ++NumGetCTUSuccess;
   return ToDecl;
 }
 
