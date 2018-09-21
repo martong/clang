@@ -158,6 +158,7 @@ public:
   unsigned ShowEnabledCheckerList : 1;
   unsigned AnalyzeAll : 1;
   unsigned AnalyzerDisplayProgress : 1;
+  unsigned AnalyzerDisplayCtuProgress : 1;
   unsigned AnalyzeNestedBlocks : 1;
 
   /// The flag regulates if we should eagerly assume evaluations of
@@ -364,9 +365,9 @@ public:
   AnalyzerOptions()
       : DisableAllChecks(false), ShowCheckerHelp(false),
         ShowEnabledCheckerList(false), AnalyzeAll(false),
-        AnalyzerDisplayProgress(false), AnalyzeNestedBlocks(false),
-        eagerlyAssumeBinOpBifurcation(false), TrimGraph(false),
-        visualizeExplodedGraphWithGraphViz(false),
+        AnalyzerDisplayProgress(false), AnalyzerDisplayCtuProgress(false),
+        AnalyzeNestedBlocks(false), eagerlyAssumeBinOpBifurcation(false),
+        TrimGraph(false), visualizeExplodedGraphWithGraphViz(false),
         visualizeExplodedGraphWithUbiGraph(false), UnoptimizedCFG(false),
         PrintStats(false), NoRetryExhausted(false), CXXMemberInliningMode() {}
 
