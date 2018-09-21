@@ -334,6 +334,7 @@ namespace clang {
     bool IsStructuralMatch(ClassTemplateDecl *From, ClassTemplateDecl *To);
     bool IsStructuralMatch(VarTemplateDecl *From, VarTemplateDecl *To);
     Decl *VisitDecl(Decl *D);
+    Decl *VisitImportDecl(ImportDecl *D);
     Decl *VisitEmptyDecl(EmptyDecl *D);
     Decl *VisitAccessSpecDecl(AccessSpecDecl *D);
     Decl *VisitStaticAssertDecl(StaticAssertDecl *D);
@@ -596,9 +597,8 @@ ASTNodeImporter::ImportFunctionTemplateWithTemplateArgsFromSpecialization(
 using namespace clang;
 
 QualType ASTNodeImporter::VisitType(const Type *T) {
-  Importer.FromDiag(SourceLocation(), diag::err_unsupported_ast_node)
-    << T->getTypeClassName();
-  return {};
+  assert(false && "Unsupported Type at import");
+  return QualType();
 }
 
 QualType ASTNodeImporter::VisitAtomicType(const AtomicType *T){
@@ -1761,8 +1761,13 @@ bool ASTNodeImporter::IsStructuralMatch(VarTemplateDecl *From,
 }
 
 Decl *ASTNodeImporter::VisitDecl(Decl *D) {
+  assert(false && "Unsupported Decl at import");
+  return nullptr;
+}
+
+Decl *ASTNodeImporter::VisitImportDecl(ImportDecl *D) {
   Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
-    << D->getDeclKindName();
+      << D->getDeclKindName();
   return nullptr;
 }
 
@@ -5054,11 +5059,11 @@ DeclGroupRef ASTNodeImporter::ImportDeclGroup(DeclGroupRef DG) {
                               NumDecls);
 }
 
-Stmt *ASTNodeImporter::VisitStmt(Stmt *S) {
-  Importer.FromDiag(S->getLocStart(), diag::err_unsupported_ast_node)
-    << S->getStmtClassName();
-  return nullptr;
-}
+ Stmt *ASTNodeImporter::VisitStmt(Stmt *S) {
+   assert(false && "Unsupported Stmt at import");
+   return nullptr;
+ }
+
 
 Stmt *ASTNodeImporter::VisitGCCAsmStmt(GCCAsmStmt *S) {
   SmallVector<IdentifierInfo *, 4> Names;
@@ -5572,8 +5577,7 @@ Stmt *ASTNodeImporter::VisitObjCAutoreleasePoolStmt
 // Import Expressions
 //----------------------------------------------------------------------------
 Expr *ASTNodeImporter::VisitExpr(Expr *E) {
-  Importer.FromDiag(E->getLocStart(), diag::err_unsupported_ast_node)
-    << E->getStmtClassName();
+  assert(false && "Unsupported Expr at import");
   return nullptr;
 }
 
