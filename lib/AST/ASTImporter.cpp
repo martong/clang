@@ -6526,7 +6526,8 @@ Expr *ASTNodeImporter::VisitMemberExpr(MemberExpr *E) {
   if (!ToBase && E->getBase())
     return nullptr;
 
-  auto *ToMember = dyn_cast<ValueDecl>(Importer.Import(E->getMemberDecl()));
+  ValueDecl *ToMember =
+    dyn_cast_or_null<ValueDecl>(Importer.Import(E->getMemberDecl()));
   if (!ToMember && E->getMemberDecl())
     return nullptr;
 
