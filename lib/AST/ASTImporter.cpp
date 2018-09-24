@@ -7055,9 +7055,9 @@ Expr *ASTNodeImporter::VisitCXXTypeidExpr(CXXTypeidExpr *E) {
 void ASTNodeImporter::ImportOverrides(CXXMethodDecl *ToMethod,
                                       CXXMethodDecl *FromMethod) {
   for (auto *FromOverriddenMethod : FromMethod->overridden_methods())
-    ToMethod->addOverriddenMethod(
-      cast<CXXMethodDecl>(Importer.Import(const_cast<CXXMethodDecl*>(
-                                            FromOverriddenMethod))));
+    ToMethod->getCanonicalDecl()->addOverriddenMethod(cast<CXXMethodDecl>(
+        Importer.Import(const_cast<CXXMethodDecl *>(FromOverriddenMethod))
+            ->getCanonicalDecl()));
 }
 
 ASTImporter::ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,
