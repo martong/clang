@@ -1993,9 +1993,15 @@ Decl *ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
       if (auto *FoundTypedef = dyn_cast<TypedefNameDecl>(FoundDecl)) {
-        if (Importer.IsStructurallyEquivalent(D->getUnderlyingType(),
-                                            FoundTypedef->getUnderlyingType()))
-          return Importer.MapImported(D, FoundTypedef);
+        if (Importer.IsStructurallyEquivalent(
+                D->getUnderlyingType(), FoundTypedef->getUnderlyingType())) {
+          QualType FromUT = D->getUnderlyingType();
+          QualType FoundUT = FoundTypedef->getUnderlyingType();
+          // If the "From" context has a complete underlying type but we
+          // already have a complete underlying type then return with that.
+          if (!FromUT->isIncompleteType() && !FoundUT->isIncompleteType())
+            return Importer.MapImported(D, FoundTypedef);
+        }
       }
 
       ConflictingDecls.push_back(FoundDecl);
