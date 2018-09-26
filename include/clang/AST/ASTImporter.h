@@ -31,6 +31,7 @@
 namespace clang {
 
 class ASTContext;
+class Attr;
 class CXXBaseSpecifier;
 class CXXCtorInitializer;
 class Decl;
@@ -40,8 +41,8 @@ class FileManager;
 class NamedDecl;
 class Stmt;
 class TagDecl;
+class TranslationUnitDecl;
 class TypeSourceInfo;
-class Attr;
 
   // \brief Returns with a list of declarations started from the canonical decl
   // then followed by subsequent decls in the translation unit.
@@ -80,6 +81,10 @@ class Attr;
     /// Mapping from the already-imported declarations in the "from"
     /// context to the corresponding declarations in the "to" context.
     llvm::DenseMap<Decl *, Decl *> ImportedDecls;
+
+    /// Mapping from the already-imported declarations in the "to"
+    /// context to the corresponding declarations in the "from" context.
+    llvm::DenseMap<Decl *, Decl *> ImportedFromDecls;
 
     /// Mapping from the already-imported statements in the "from"
     /// context to the corresponding statements in the "to" context.
@@ -158,8 +163,12 @@ class Attr;
 
     /// Return the copy of the given declaration in the "to" context if
     /// it has already been imported from the "from" context.  Otherwise return
-    /// NULL.
+    /// nullptr.
     Decl *GetAlreadyImportedOrNull(Decl *FromD);
+
+    /// Return the translation unit from where the declaration was
+    /// imported. If it does not exist nullptr is returned.
+    TranslationUnitDecl *GetFromTU(Decl *ToD);
 
     /// Import the given declaration context from the "from"
     /// AST context into the "to" AST context.

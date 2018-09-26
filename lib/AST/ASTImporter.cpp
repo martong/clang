@@ -321,6 +321,8 @@ namespace clang {
 
     bool ImportTemplateInformation(FunctionDecl *FromFD, FunctionDecl *ToFD);
 
+    bool hasSameVisibilityContext(FunctionDecl *Found, FunctionDecl *From);
+
     bool IsStructuralMatch(Decl *From, Decl *To, bool Complain);
     bool IsStructuralMatch(RecordDecl *FromRecord, RecordDecl *ToRecord,
                            bool Complain = true);
@@ -2618,6 +2620,20 @@ ASTNodeImporter::FindFunctionTemplateSpecialization(FunctionDecl *FromFD) {
   return FoundSpec;
 }
 
+bool ASTNodeImporter::hasSameVisibilityContext(FunctionDecl *Found,
+                                               FunctionDecl *From) {
+  if (From->hasExternalFormalLinkage())
+    return Found->hasExternalFormalLinkage();
+  else if (Importer.GetFromTU(Found) == From->getTranslationUnitDecl()) {
+    if (From->isInAnonymousNamespace())
+      return Found->isInAnonymousNamespace();
+    else
+      return !Found->isInAnonymousNamespace() &&
+             !Found->hasExternalFormalLinkage();
+  }
+  return false;
+}
+
 Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
 
   SmallVector<Decl*, 2> Redecls = getCanonicalForwardRedeclChain(D);
@@ -2676,33 +2692,31 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
       }
 
       if (auto *FoundFunction = dyn_cast<FunctionDecl>(FoundDecl)) {
-        if (FoundFunction->hasExternalFormalLinkage() &&
-            D->hasExternalFormalLinkage()) {
-          if (IsStructuralMatch(D, FoundFunction)) {
-            const FunctionDecl *Definition = nullptr;
-            if (D->doesThisDeclarationHaveABody() &&
-                FoundFunction->hasBody(Definition)) {
-              return Importer.MapImported(
-                  D, const_cast<FunctionDecl *>(Definition));
-            }
-            FoundByLookup = FoundFunction;
-            break;
-          }
+        if (!hasSameVisibilityContext(FoundFunction, D))
+          continue;
 
-          // FIXME: Check for overloading more carefully, e.g., by boosting
-          // Sema::IsOverload out to the AST library.
-
-          // Function overloading is okay in C++.
-          if (Importer.getToContext().getLangOpts().CPlusPlus)
-            continue;
-
-          // Complain about inconsistent function types.
-          Importer.ToDiag(Loc, diag::err_odr_function_type_inconsistent)
-            << Name << D->getType() << FoundFunction->getType();
-          Importer.ToDiag(FoundFunction->getLocation(),
-                          diag::note_odr_value_here)
-            << FoundFunction->getType();
+        if (IsStructuralMatch(D, FoundFunction)) {
+          const FunctionDecl *Definition = nullptr;
+          if (D->doesThisDeclarationHaveABody() &&
+              FoundFunction->hasBody(Definition))
+            return Importer.MapImported(D,
+                                        const_cast<FunctionDecl *>(Definition));
+          FoundByLookup = FoundFunction;
+          break;
         }
+
+        // FIXME: Check for overloading more carefully, e.g., by boosting
+        // Sema::IsOverload out to the AST library.
+
+        // Function overloading is okay in C++.
+        if (Importer.getToContext().getLangOpts().CPlusPlus)
+          continue;
+
+        // Complain about inconsistent function types.
+        Importer.ToDiag(Loc, diag::err_odr_function_type_inconsistent)
+            << Name << D->getType() << FoundFunction->getType();
+        Importer.ToDiag(FoundFunction->getLocation(), diag::note_odr_value_here)
+            << FoundFunction->getType();
       }
 
       ConflictingDecls.push_back(FoundDecl);
@@ -7135,6 +7149,13 @@ Decl *ASTImporter::GetAlreadyImportedOrNull(Decl *FromD) {
   }
 }
 
+TranslationUnitDecl *ASTImporter::GetFromTU(Decl *ToD) {
+  auto FromDPos = ImportedFromDecls.find(ToD);
+  if (FromDPos == ImportedFromDecls.end())
+    return nullptr;
+  return FromDPos->second->getTranslationUnitDecl();
+}
+
 Decl *ASTImporter::Import(Decl *FromD) {
   if (!FromD)
     return nullptr;
@@ -7785,6 +7806,9 @@ Decl *ASTImporter::MapImported(Decl *From, Decl *To) {
   if (Pos != ImportedDecls.end())
     return Pos->second;
   ImportedDecls[From] = To;
+  // This mapping should be maintained only in this function. Therefore do not
+  // check for additional consistency.
+  ImportedFromDecls[To] = From;
   return To;
 }
 
