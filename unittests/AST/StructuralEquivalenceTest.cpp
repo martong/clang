@@ -370,6 +370,15 @@ TEST_F(StructuralEquivalenceFunctionTest, NameInParenWithConst) {
   EXPECT_FALSE(testStructuralMatch(t));
 }
 
+TEST_F(StructuralEquivalenceFunctionTest,
+    FunctionsWithDifferentAttributesButSameTypesShouldBeEqual) {
+  auto t = makeNamedDecls(
+      "__attribute__((noreturn)) void foo();",
+      "                          void foo();",
+      Lang_C);
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
 struct StructuralEquivalenceCXXMethodTest : StructuralEquivalenceTest {
 };
 
