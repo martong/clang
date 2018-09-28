@@ -1417,7 +1417,8 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     if (EquivToD1 != D2->getCanonicalDecl()) {
       auto *D2First = dyn_cast<NamedDecl>(EquivToD1);
       auto *D2Second = dyn_cast<NamedDecl>(D2);
-      if (D2First && D2Second) {
+      if (D2First && D2Second &&
+          D2First->getDeclContext() == D2Second->getDeclContext()) {
         IdentifierInfo *Name1 = D2First->getIdentifier();
         IdentifierInfo *Name2 = D2Second->getIdentifier();
         if (IsStructurallyEquivalent(Name1, Name2)) {
