@@ -2082,7 +2082,8 @@ bool SourceManager::isBeforeInTranslationUnit(SourceLocation LHS,
       return LIsScratch;
     return LOffs.second < ROffs.second;
   }
-  llvm_unreachable("Unsortable locations found");
+  //llvm_unreachable("Unsortable locations found");
+  return LB < RB;
 }
 
 std::pair<bool, bool> SourceManager::isInTheSameTranslationUnit(
