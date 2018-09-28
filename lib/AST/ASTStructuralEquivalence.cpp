@@ -1415,8 +1415,33 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
 
   // Determine whether we've already produced a tentative equivalence for D1.
   Decl *&EquivToD1 = Context.TentativeEquivalences[D1->getCanonicalDecl()];
-  if (EquivToD1)
-    return EquivToD1 == D2->getCanonicalDecl();
+  if (EquivToD1) {
+    if (EquivToD1 != D2->getCanonicalDecl()) {
+      auto *D2First = dyn_cast<NamedDecl>(EquivToD1);
+      auto *D2Second = dyn_cast<NamedDecl>(D2);
+      if (D2First && D2Second) {
+        IdentifierInfo *Name1 = D2First->getIdentifier();
+        IdentifierInfo *Name2 = D2Second->getIdentifier();
+        if (IsStructurallyEquivalent(Name1, Name2)) {
+          // At this point we have two Decls which does not form a redecl
+          // chain, but they should.  This is a true ASTImporter failure, most
+          // probably a lookup failure because we could not find an existing
+          // Decl.  We could use llvm_unreachable here, but perhaps it is
+          // better to see subsequent instances of these of errors too.
+          llvm::errs()
+              << "===== ERROR ===== Non equivalent Decls with same name: '";
+          if (Name1)
+            llvm::errs() << Name1->getName();
+          llvm::errs() << "'\n";
+          D2First->dump();
+          llvm::errs() << "-- vs --\n";
+          D2Second->dump();
+        }
+      }
+      return false;
+    }
+    return true;
+  }
 
   // Produce a tentative equivalence D1 <-> D2, which will be checked later.
   EquivToD1 = D2->getCanonicalDecl();
