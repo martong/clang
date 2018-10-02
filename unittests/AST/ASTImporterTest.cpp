@@ -4970,6 +4970,33 @@ TEST_P(ASTImporterLookupTableTest, LookupSearchesInTheWholeRedeclChain) {
   EXPECT_EQ(*Res.begin(), A);
 }
 
+struct ImportFriendFunctionTemplates : ASTImporterOptionSpecificTestBase {};
+
+TEST_P(ImportFriendFunctionTemplates, LookupShouldFindPreviousFriend) {
+  Decl *ToTU = getToTuDecl(
+      R"(
+      class X {
+        template <typename T> friend void foo();
+      };
+      )",
+      Lang_CXX);
+  auto *Friend = FirstDeclMatcher<FunctionTemplateDecl>().match(
+      ToTU, functionTemplateDecl(hasName("foo")));
+
+  Decl *FromTU = getTuDecl(
+      R"(
+      template <typename T> void foo();
+      )",
+      Lang_CXX);
+  auto *FromFoo = FirstDeclMatcher<FunctionTemplateDecl>().match(
+      FromTU, functionTemplateDecl(hasName("foo")));
+  auto *Imported = Import(FromFoo, Lang_CXX);
+
+  // Currently chains of FunctionTemplateDecls are not implemented
+  //EXPECT_EQ(Imported->getPreviousDecl(), Friend);
+  EXPECT_EQ(Imported, Friend);
+}
+
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ASTImporterLookupTableTest,
                         DefaultTestValuesForRunOptions, );
 
@@ -4996,6 +5023,9 @@ INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFunctions,
                         DefaultTestValuesForRunOptions, );
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFriendFunctions,
+                        DefaultTestValuesForRunOptions, );
+
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFriendFunctionTemplates,
                         DefaultTestValuesForRunOptions, );
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportClasses,
