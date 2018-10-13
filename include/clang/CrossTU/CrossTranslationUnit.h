@@ -15,6 +15,7 @@
 #ifndef LLVM_CLANG_CROSSTU_CROSSTRANSLATIONUNIT_H
 #define LLVM_CLANG_CROSSTU_CROSSTRANSLATIONUNIT_H
 
+#include "clang/AST/ASTImporterLookupTable.h"
 #include "clang/Basic/LLVM.h"
 #include "llvm/ADT/DenseMap.h"
 #include "llvm/ADT/SmallPtrSet.h"
@@ -147,6 +148,7 @@ public:
   bool isInvalidFunction(const FunctionDecl *FD);
 
 private:
+  void lazyInitLookupTable(TranslationUnitDecl *ToTU);
   ASTImporter &getOrCreateASTImporter(ASTContext &From);
   const FunctionDecl *findFunctionInDeclContext(const DeclContext *DC,
                                                 StringRef LookupFnName);
@@ -159,6 +161,7 @@ private:
   llvm::SmallPtrSet<const FunctionDecl *, 8> InvalidFunctions;
   CompilerInstance &CI;
   ASTContext &Context;
+  std::unique_ptr<ASTImporterLookupTable> LookupTable;
 };
 
 } // namespace cross_tu
