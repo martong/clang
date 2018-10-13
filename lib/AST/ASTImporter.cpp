@@ -2906,13 +2906,13 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     DC->makeDeclVisibleInContext(ToFunction);
   }
 
+  if (auto *FromCXXMethod = dyn_cast<CXXMethodDecl>(D))
+    ImportOverrides(cast<CXXMethodDecl>(ToFunction), FromCXXMethod);
+
   // Import the rest of the chain. I.e. import all subsequent declarations.
   for (++RedeclIt; RedeclIt != Redecls.end(); ++RedeclIt)
     if (!Importer.Import(*RedeclIt))
       return nullptr;
-
-  if (auto *FromCXXMethod = dyn_cast<CXXMethodDecl>(D))
-    ImportOverrides(cast<CXXMethodDecl>(ToFunction), FromCXXMethod);
 
   return ToFunction;
 }
