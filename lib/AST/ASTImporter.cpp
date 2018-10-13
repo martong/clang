@@ -2782,21 +2782,6 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
             InnerLocStart, NameInfo, T, TInfo, FromConstructor->isExplicit(),
             D->isInlineSpecified(), D->isImplicit(), D->isConstexpr()))
       return ToFunction;
-    if (unsigned NumInitializers = FromConstructor->getNumCtorInitializers()) {
-      SmallVector<CXXCtorInitializer *, 4> CtorInitializers;
-      for (auto *I : FromConstructor->inits()) {
-        auto *ToI = cast_or_null<CXXCtorInitializer>(Importer.Import(I));
-        if (!ToI && I)
-          return nullptr;
-        CtorInitializers.push_back(ToI);
-      }
-      auto **Memory =
-          new (Importer.getToContext()) CXXCtorInitializer *[NumInitializers];
-      std::copy(CtorInitializers.begin(), CtorInitializers.end(), Memory);
-      auto *ToCtor = cast<CXXConstructorDecl>(ToFunction);
-      ToCtor->setCtorInitializers(Memory);
-      ToCtor->setNumCtorInitializers(NumInitializers);
-    }
   } else if (isa<CXXDestructorDecl>(D)) {
     if (GetImportedOrCreateDecl<CXXDestructorDecl>(
             ToFunction, D, Importer.getToContext(), cast<CXXRecordDecl>(DC),
@@ -2824,6 +2809,32 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
       return ToFunction;
   }
 
+  // Connect the redecl chain.
+  if (FoundByLookup) {
+    auto *Recent = const_cast<FunctionDecl *>(
+          FoundByLookup->getMostRecentDecl());
+    ToFunction->setPreviousDecl(Recent);
+  }
+
+  // Import Ctor initializers.
+  if (auto *FromConstructor = dyn_cast<CXXConstructorDecl>(D)) {
+    if (unsigned NumInitializers = FromConstructor->getNumCtorInitializers()) {
+      SmallVector<CXXCtorInitializer *, 4> CtorInitializers;
+      for (auto *I : FromConstructor->inits()) {
+        auto *ToI = cast_or_null<CXXCtorInitializer>(Importer.Import(I));
+        if (!ToI && I)
+          return nullptr;
+        CtorInitializers.push_back(ToI);
+      }
+      auto **Memory =
+          new (Importer.getToContext()) CXXCtorInitializer *[NumInitializers];
+      std::copy(CtorInitializers.begin(), CtorInitializers.end(), Memory);
+      auto *ToCtor = cast<CXXConstructorDecl>(ToFunction);
+      ToCtor->setCtorInitializers(Memory);
+      ToCtor->setNumCtorInitializers(NumInitializers);
+    }
+  }
+
   // Import the qualifier, if any.
   ToFunction->setQualifierInfo(Importer.Import(D->getQualifierLoc()));
   ToFunction->setAccess(D->getAccess());
@@ -2839,12 +2850,6 @@ Decl *ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     ToFunction->addDeclInternal(Param);
   }
   ToFunction->setParams(Parameters);
-
-  if (FoundByLookup) {
-    auto *Recent = const_cast<FunctionDecl *>(
-          FoundByLookup->getMostRecentDecl());
-    ToFunction->setPreviousDecl(Recent);
-  }
 
   // We need to complete creation of FunctionProtoTypeLoc manually with setting
   // params it refers to.
