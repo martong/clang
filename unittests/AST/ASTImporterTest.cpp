@@ -4005,9 +4005,8 @@ INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainClass,
                         DefaultTestValuesForRunOptions, );
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainVariable,
                         DefaultTestValuesForRunOptions, );
-// FIXME Enable these tests, once we import function templates chains correctly.
-//INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainFunctionTemplate,
-                        //DefaultTestValuesForRunOptions, );
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainFunctionTemplate,
+                        DefaultTestValuesForRunOptions, );
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainClassTemplate,
                         DefaultTestValuesForRunOptions, );
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainFunctionTemplateSpec,
@@ -4991,9 +4990,7 @@ TEST_P(ImportFriendFunctionTemplates, LookupShouldFindPreviousFriend) {
       FromTU, functionTemplateDecl(hasName("foo")));
   auto *Imported = Import(FromFoo, Lang_CXX);
 
-  // Currently chains of FunctionTemplateDecls are not implemented
-  //EXPECT_EQ(Imported->getPreviousDecl(), Friend);
-  EXPECT_EQ(Imported, Friend);
+  EXPECT_EQ(Imported->getPreviousDecl(), Friend);
 }
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ASTImporterLookupTableTest,
