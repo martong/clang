@@ -8905,6 +8905,8 @@ Sema::AddArgumentDependentLookupCandidates(DeclarationName Name,
   // set.
   for (ADLResult::iterator I = Fns.begin(), E = Fns.end(); I != E; ++I) {
     DeclAccessPair FoundDecl = DeclAccessPair::make(*I, AS_none);
+    llvm::errs() << "ADL candidate: \n";
+    (*I)->dump();
     if (FunctionDecl *FD = dyn_cast<FunctionDecl>(*I)) {
       if (ExplicitTemplateArgs)
         continue;
