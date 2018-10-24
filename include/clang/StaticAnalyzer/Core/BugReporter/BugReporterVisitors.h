@@ -352,6 +352,24 @@ public:
                        BugReport &BR) override;
 };
 
+class SpecialReturnValueBRVisitor final : public BugReporterVisitor {
+
+  bool Satisfied;
+
+public:
+  SpecialReturnValueBRVisitor() : Satisfied(false) {}
+
+  void Profile(llvm::FoldingSetNodeID &ID) const override {
+    static int x = 0;
+    ID.AddPointer(&x);
+  }
+
+  std::shared_ptr<PathDiagnosticPiece> VisitNode(const ExplodedNode *Succ,
+                                                 const ExplodedNode *Pred,
+                                                 BugReporterContext &BRC,
+                                                 BugReport &BR) override;
+};
+
 namespace bugreporter {
 
 /// Attempts to add visitors to trace a null or undefined value back to its
