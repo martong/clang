@@ -13,6 +13,7 @@
 //===----------------------------------------------------------------------===//
 
 #include "clang/AST/ASTImporter.h"
+#include "clang/AST/ASTImporterLookupTable.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTDiagnostic.h"
 #include "clang/AST/ASTStructuralEquivalence.h"
@@ -132,28 +133,6 @@ namespace clang {
     // FIXME: Other flags or attrs?
     if (From->isUsed(false) && !To->isUsed(false))
       To->setIsUsed();
-  }
-
-  Optional<unsigned> ASTImporter::getFieldIndex(Decl *F) {
-    assert(F && (isa<FieldDecl>(*F) || isa<IndirectFieldDecl>(*F)) &&
-        "Try to get field index for non-field.");
-
-    auto *Owner = dyn_cast<RecordDecl>(F->getDeclContext());
-    if (!Owner)
-      return None;
-
-    unsigned Index = 0;
-    for (const auto *D : Owner->decls()) {
-      if (D == F)
-        return Index;
-
-      if (isa<FieldDecl>(*D) || isa<IndirectFieldDecl>(*D))
-        ++Index;
-    }
-
-    llvm_unreachable("Field was not found in its parent context.");
-
-    return None;
   }
 
   // FIXME: Temporary until every import returns Expected.
@@ -313,12 +292,14 @@ namespace clang {
       if (ToD)
         return true; // Already imported.
       ToD = CreateFun(std::forward<Args>(args)...);
+      // Keep track of imported Decls.
+      Importer.MapImported(FromD, ToD);
+      Importer.AddToLookupTable(ToD);
       InitializeImportedDecl(FromD, ToD);
       return false; // A new Decl is created.
     }
 
     void InitializeImportedDecl(Decl *FromD, Decl *ToD) {
-      Importer.MapImported(FromD, ToD);
       ToD->IdentifierNamespace = FromD->IdentifierNamespace;
       if (FromD->hasAttrs())
         for (const Attr *FromAttr : FromD->getAttrs())
@@ -2228,8 +2209,7 @@ ExpectedDecl ASTNodeImporter::VisitNamespaceDecl(NamespaceDecl *D) {
       MergeWithNamespace = cast<NamespaceDecl>(DC)->getAnonymousNamespace();
   } else {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
-    SmallVector<NamedDecl *, 2> FoundDecls;
-    DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(Decl::IDNS_Namespace))
         continue;
@@ -2340,8 +2320,7 @@ ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
   if (!DC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     unsigned IDNS = Decl::IDNS_Ordinary;
-    SmallVector<NamedDecl *, 2> FoundDecls;
-    DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -2428,8 +2407,7 @@ ASTNodeImporter::VisitTypeAliasTemplateDecl(TypeAliasTemplateDecl *D) {
   if (!DC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     unsigned IDNS = Decl::IDNS_Ordinary;
-    SmallVector<NamedDecl *, 2> FoundDecls;
-    DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -2531,8 +2509,8 @@ ExpectedDecl ASTNodeImporter::VisitEnumDecl(EnumDecl *D) {
   // We may already have an enum of the same name; try to find and match it.
   if (!DC->isFunctionOrMethod() && SearchName) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
-    SmallVector<NamedDecl *, 2> FoundDecls;
-    DC->getRedeclContext()->localUncachedLookup(SearchName, FoundDecls);
+    auto FoundDecls =
+        Importer.FindDeclsInToCtx(DC, SearchName);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -2644,9 +2622,8 @@ ExpectedDecl ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
   RecordDecl *PrevDecl = nullptr;
   if (!DC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
-    SmallVector<NamedDecl *, 2> FoundDecls;
-    DC->getRedeclContext()->localUncachedLookup(SearchName, FoundDecls);
-
+    auto FoundDecls =
+        Importer.FindDeclsInToCtx(DC, SearchName);
     if (!FoundDecls.empty()) {
       // We're going to have to compare D against potentially conflicting Decls, so complete it.
       if (D->hasExternalLexicalStorage() && !D->isCompleteDefinition())
@@ -2661,15 +2638,6 @@ ExpectedDecl ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
       if (auto *Typedef = dyn_cast<TypedefNameDecl>(Found)) {
         if (const auto *Tag = Typedef->getUnderlyingType()->getAs<TagType>())
           Found = Tag->getDecl();
-      }
-
-      if (D->getDescribedTemplate()) {
-        if (auto *Template = dyn_cast<ClassTemplateDecl>(Found)) {
-          Found = Template->getTemplatedDecl();
-        } else {
-          ConflictingDecls.push_back(FoundDecl);
-          continue;
-        }
       }
 
       if (auto *FoundRecord = dyn_cast<RecordDecl>(Found)) {
@@ -2869,8 +2837,7 @@ ExpectedDecl ASTNodeImporter::VisitEnumConstantDecl(EnumConstantDecl *D) {
   if (!LexicalDC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     unsigned IDNS = Decl::IDNS_Ordinary;
-    SmallVector<NamedDecl *, 2> FoundDecls;
-    DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -3050,9 +3017,9 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   FunctionTemplateDecl *FromFT = D->getDescribedFunctionTemplate();
 
   // If this is a function template specialization, then try to find the same
-  // existing specialization in the "to" context. The localUncachedLookup
-  // below will not find any specialization, but would find the primary
-  // template; thus, we have to skip normal lookup in case of specializations.
+  // existing specialization in the "to" context. The lookup below will not
+  // find any specialization, but would find the primary template; thus, we
+  // have to skip normal lookup in case of specializations.
   // FIXME handle member function templates (TK_MemberSpecialization) similarly?
   if (D->getTemplatedKind() ==
       FunctionDecl::TK_FunctionTemplateSpecialization) {
@@ -3070,19 +3037,10 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   else if (!LexicalDC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     unsigned IDNS = Decl::IDNS_Ordinary | Decl::IDNS_OrdinaryFriend;
-    SmallVector<NamedDecl *, 2> FoundDecls;
-    DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
-
-      // If template was found, look at the templated function.
-      if (FromFT) {
-        if (auto *Template = dyn_cast<FunctionTemplateDecl>(FoundDecl))
-          FoundDecl = Template->getTemplatedDecl();
-        else
-          continue;
-      }
 
       if (auto *FoundFunction = dyn_cast<FunctionDecl>(FoundDecl)) {
         if (!hasSameVisibilityContext(FoundFunction, D))
@@ -3342,8 +3300,7 @@ ExpectedDecl ASTNodeImporter::VisitFieldDecl(FieldDecl *D) {
     return ToD;
 
   // Determine whether we've already imported this field.
-  SmallVector<NamedDecl *, 2> FoundDecls;
-  DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (FieldDecl *FoundField = dyn_cast<FieldDecl>(FoundDecl)) {
       // For anonymous fields, match up by index.
@@ -3428,8 +3385,7 @@ ExpectedDecl ASTNodeImporter::VisitIndirectFieldDecl(IndirectFieldDecl *D) {
     return ToD;
 
   // Determine whether we've already imported this field.
-  SmallVector<NamedDecl *, 2> FoundDecls;
-  DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
   for (unsigned I = 0, N = FoundDecls.size(); I != N; ++I) {
     if (auto *FoundField = dyn_cast<IndirectFieldDecl>(FoundDecls[I])) {
       // For anonymous indirect fields, match up by index.
@@ -3497,7 +3453,7 @@ ExpectedDecl ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
     return std::move(Err);
 
   // Determine whether we've already imported this decl.
-  // FriendDecl is not a NamedDecl so we cannot use localUncachedLookup.
+  // FriendDecl is not a NamedDecl so we cannot use lookup.
   auto *RD = cast<CXXRecordDecl>(DC);
   FriendDecl *ImportedFriend = RD->getFirstFriend();
 
@@ -3575,8 +3531,7 @@ ExpectedDecl ASTNodeImporter::VisitObjCIvarDecl(ObjCIvarDecl *D) {
     return ToD;
 
   // Determine whether we've already imported this ivar
-  SmallVector<NamedDecl *, 2> FoundDecls;
-  DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (ObjCIvarDecl *FoundIvar = dyn_cast<ObjCIvarDecl>(FoundDecl)) {
       if (Importer.IsStructurallyEquivalent(D->getType(),
@@ -3646,8 +3601,7 @@ ExpectedDecl ASTNodeImporter::VisitVarDecl(VarDecl *D) {
   if (D->isFileVarDecl()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     unsigned IDNS = Decl::IDNS_Ordinary;
-    SmallVector<NamedDecl *, 2> FoundDecls;
-    DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -3857,8 +3811,7 @@ ExpectedDecl ASTNodeImporter::VisitObjCMethodDecl(ObjCMethodDecl *D) {
   if (ToD)
     return ToD;
 
-  SmallVector<NamedDecl *, 2> FoundDecls;
-  DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (auto *FoundMethod = dyn_cast<ObjCMethodDecl>(FoundDecl)) {
       if (FoundMethod->isInstanceMethod() != D->isInstanceMethod())
@@ -4165,8 +4118,7 @@ ExpectedDecl ASTNodeImporter::VisitObjCProtocolDecl(ObjCProtocolDecl *D) {
     return ToD;
 
   ObjCProtocolDecl *MergeWithProtocol = nullptr;
-  SmallVector<NamedDecl *, 2> FoundDecls;
-  DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (!FoundDecl->isInIdentifierNamespace(Decl::IDNS_ObjCProtocol))
       continue;
@@ -4591,8 +4543,7 @@ ExpectedDecl ASTNodeImporter::VisitObjCInterfaceDecl(ObjCInterfaceDecl *D) {
 
   // Look for an existing interface with the same name.
   ObjCInterfaceDecl *MergeWithIface = nullptr;
-  SmallVector<NamedDecl *, 2> FoundDecls;
-  DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (!FoundDecl->isInIdentifierNamespace(Decl::IDNS_Ordinary))
       continue;
@@ -4767,8 +4718,7 @@ ExpectedDecl ASTNodeImporter::VisitObjCPropertyDecl(ObjCPropertyDecl *D) {
     return ToD;
 
   // Check whether we have already imported this property.
-  SmallVector<NamedDecl *, 2> FoundDecls;
-  DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (auto *FoundProp = dyn_cast<ObjCPropertyDecl>(FoundDecl)) {
       // Check property types.
@@ -5038,8 +4988,7 @@ ExpectedDecl ASTNodeImporter::VisitClassTemplateDecl(ClassTemplateDecl *D) {
   // We may already have a template of the same name; try to find and match it.
   if (!DC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
-    SmallVector<NamedDecl *, 2> FoundDecls;
-    DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(Decl::IDNS_Ordinary |
                                               Decl::IDNS_TagFriend))
@@ -5347,8 +5296,7 @@ ExpectedDecl ASTNodeImporter::VisitVarTemplateDecl(VarTemplateDecl *D) {
   assert(!DC->isFunctionOrMethod() &&
          "Variable templates cannot be declared at function scope");
   SmallVector<NamedDecl *, 4> ConflictingDecls;
-  SmallVector<NamedDecl *, 2> FoundDecls;
-  DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (!FoundDecl->isInIdentifierNamespace(Decl::IDNS_Ordinary))
       continue;
@@ -5580,8 +5528,7 @@ ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
   // type, and in the same context as the function we're importing.
   if (!LexicalDC->isFunctionOrMethod()) {
     unsigned IDNS = Decl::IDNS_Ordinary;
-    SmallVector<NamedDecl *, 2> FoundDecls;
-    DC->getRedeclContext()->localUncachedLookup(Name, FoundDecls);
+    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -7703,11 +7650,76 @@ ASTImporter::ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,
     : ToContext(ToContext), FromContext(FromContext),
       ToFileManager(ToFileManager), FromFileManager(FromFileManager),
       Minimal(MinimalImport) {
-  ImportedDecls[FromContext.getTranslationUnitDecl()]
-    = ToContext.getTranslationUnitDecl();
+
+  ImportedDecls[FromContext.getTranslationUnitDecl()] =
+      ToContext.getTranslationUnitDecl();
+}
+
+ASTImporter::ASTImporter(ASTImporterLookupTable *LookupTable,
+                         ASTContext &ToContext, FileManager &ToFileManager,
+                         ASTContext &FromContext, FileManager &FromFileManager,
+                         bool MinimalImport)
+    : LookupTable(LookupTable), ToContext(ToContext), FromContext(FromContext),
+      ToFileManager(ToFileManager), FromFileManager(FromFileManager),
+      Minimal(MinimalImport) {
+
+  assert(LookupTable);
+  ImportedDecls[FromContext.getTranslationUnitDecl()] =
+      ToContext.getTranslationUnitDecl();
 }
 
 ASTImporter::~ASTImporter() = default;
+
+Optional<unsigned> ASTImporter::getFieldIndex(Decl *F) {
+  assert(F && (isa<FieldDecl>(*F) || isa<IndirectFieldDecl>(*F)) &&
+      "Try to get field index for non-field.");
+
+  auto *Owner = dyn_cast<RecordDecl>(F->getDeclContext());
+  if (!Owner)
+    return None;
+
+  unsigned Index = 0;
+  for (const auto *D : Owner->decls()) {
+    if (D == F)
+      return Index;
+
+    if (isa<FieldDecl>(*D) || isa<IndirectFieldDecl>(*D))
+      ++Index;
+  }
+
+  llvm_unreachable("Field was not found in its parent context.");
+
+  return None;
+}
+
+ASTImporter::FoundDeclsTy
+ASTImporter::FindDeclsInToCtx(DeclContext *DC, DeclarationName Name) {
+  // We search in the redecl context because of transparent contexts.
+  // E.g. a simple C language enum is a transparent context:
+  //   enum E { A, B };
+  // Now if we had a global variable in the TU
+  //   int A;
+  // then the enum constant 'A' and the variable 'A' violates ODR.
+  // We can diagnose this only if we search in the redecl context.
+  DeclContext *ReDC = DC->getRedeclContext();
+  if (LookupTable) {
+    ASTImporterLookupTable::LookupResult LookupResult =
+        LookupTable->lookup(ReDC, Name);
+    return FoundDeclsTy(LookupResult.begin(), LookupResult.end());
+  } else {
+    // FIXME Can we remove this kind of lookup?
+    // Or lldb really needs this C/C++ lookup?
+    FoundDeclsTy Result;
+    ReDC->localUncachedLookup(Name, Result);
+    return Result;
+  }
+}
+
+void ASTImporter::AddToLookupTable(Decl *ToD) {
+  if (LookupTable)
+    if (auto *ToND = dyn_cast<NamedDecl>(ToD))
+      LookupTable->add(ToND);
+}
 
 QualType ASTImporter::Import(QualType FromT) {
   if (FromT.isNull())
@@ -7796,6 +7808,11 @@ Decl *ASTImporter::Import(Decl *FromD) {
     return nullptr;
   }
   ToD = *ToDOrErr;
+
+  // Once the decl is connected to the existing declarations, i.e. when the
+  // redecl chain is properly set then we populate the lookup again.
+  // This way the primary context will be able to find all decls.
+  AddToLookupTable(ToD);
 
   // Notify subclasses.
   Imported(FromD, ToD);
