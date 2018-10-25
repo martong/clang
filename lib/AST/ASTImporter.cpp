@@ -4948,15 +4948,14 @@ ASTNodeImporter::VisitTemplateTemplateParmDecl(TemplateTemplateParmDecl *D) {
   return ToD;
 }
 
-// Returns the definition for a (forward) declaration of a ClassTemplateDecl, if
+// Returns the definition for a (forward) declaration of a TemplateDecl, if
 // it has any definition in the redecl chain.
-static ClassTemplateDecl *getDefinition(ClassTemplateDecl *D) {
-  CXXRecordDecl *ToTemplatedDef = D->getTemplatedDecl()->getDefinition();
+template <typename T> static auto getDefinition(T *D) -> T * {
+  auto *ToTemplatedDef = D->getTemplatedDecl()->getDefinition();
   if (!ToTemplatedDef)
     return nullptr;
-  ClassTemplateDecl *TemplateWithDef =
-      ToTemplatedDef->getDescribedClassTemplate();
-  return TemplateWithDef;
+  auto *TemplateWithDef = ToTemplatedDef->getDescribedTemplate();
+  return cast_or_null<T>(TemplateWithDef);
 }
 
 ExpectedDecl ASTNodeImporter::VisitClassTemplateDecl(ClassTemplateDecl *D) {
@@ -5524,6 +5523,8 @@ ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
   if (ToD)
     return ToD;
 
+  const FunctionTemplateDecl *FoundByLookup = nullptr;
+
   // Try to find a function in our own ("to") context with the same name, same
   // type, and in the same context as the function we're importing.
   if (!LexicalDC->isFunctionOrMethod()) {
@@ -5533,19 +5534,22 @@ ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
 
-      if (auto *FoundFunction =
-          dyn_cast<FunctionTemplateDecl>(FoundDecl)) {
-        if (FoundFunction->hasExternalFormalLinkage() &&
+      if (auto *FoundTemplate = dyn_cast<FunctionTemplateDecl>(FoundDecl)) {
+        if (FoundTemplate->hasExternalFormalLinkage() &&
             D->hasExternalFormalLinkage()) {
-          if (IsStructuralMatch(D, FoundFunction)) {
-            Importer.MapImported(D, FoundFunction);
-            // FIXME: Actually try to merge the body and other attributes.
-            return FoundFunction;
+          if (IsStructuralMatch(D, FoundTemplate)) {
+            FunctionTemplateDecl *TemplateWithDef =
+                getDefinition(FoundTemplate);
+            if (D->isThisDeclarationADefinition() && TemplateWithDef) {
+              return Importer.MapImported(D, TemplateWithDef);
+            }
+            FoundByLookup = FoundTemplate;
+            break;
           }
-        }
-      }
+        } // linkage
+      }   // template
       // TODO: handle conflicting names
-    }
+    } // for
   }
 
   auto ParamsOrErr = ImportTemplateParameterList(
@@ -5563,10 +5567,23 @@ ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
     return ToFunc;
 
   TemplatedFD->setDescribedFunctionTemplate(ToFunc);
+
   ToFunc->setAccess(D->getAccess());
   ToFunc->setLexicalDeclContext(LexicalDC);
-
   LexicalDC->addDeclInternal(ToFunc);
+
+  if (FoundByLookup) {
+    auto *Recent =
+        const_cast<FunctionTemplateDecl *>(FoundByLookup->getMostRecentDecl());
+    if (!TemplatedFD->getPreviousDecl()) {
+      auto *PrevTemplated =
+          FoundByLookup->getTemplatedDecl()->getMostRecentDecl();
+      if (TemplatedFD != PrevTemplated)
+        TemplatedFD->setPreviousDecl(PrevTemplated);
+    }
+    ToFunc->setPreviousDecl(Recent);
+  }
+
   return ToFunc;
 }
 
