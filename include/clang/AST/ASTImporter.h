@@ -33,6 +33,7 @@
 namespace clang {
 
 class ASTContext;
+class ASTImporterLookupTable;
 class Attr;
 class CXXBaseSpecifier;
 class CXXCtorInitializer;
@@ -81,12 +82,21 @@ class TypeSourceInfo;
   /// Imports selected nodes from one AST context into another context,
   /// merging AST nodes where appropriate.
   class ASTImporter {
+    friend class ASTNodeImporter;
   public:
     using NonEquivalentDeclSet = llvm::DenseSet<std::pair<Decl *, Decl *>>;
     using ImportedCXXBaseSpecifierMap =
         llvm::DenseMap<const CXXBaseSpecifier *, CXXBaseSpecifier *>;
 
   private:
+
+    /// Pointer to the import specific lookup table, which may be shared
+    /// amongst several ASTImporter objects.
+    /// This is an externally managed resource (and should exist during the
+    /// lifetime of the ASTImporter object)
+    /// If not set then the original C/C++ lookup is used.
+    ASTImporterLookupTable *LookupTable = nullptr;
+
     /// The contexts we're importing to and from.
     ASTContext &ToContext, &FromContext;
 
@@ -128,9 +138,12 @@ class TypeSourceInfo;
     /// (which we have already complained about).
     NonEquivalentDeclSet NonEquivalentDecls;
 
+    using FoundDeclsTy = SmallVector<NamedDecl *, 2>;
+    FoundDeclsTy FindDeclsInToCtx(DeclContext *DC, DeclarationName Name);
+
+    void AddToLookupTable(Decl *ToD);
+
   public:
-    /// Create a new AST importer.
-    ///
     /// \param ToContext The context we'll be importing into.
     ///
     /// \param ToFileManager The file manager we'll be importing into.
@@ -145,6 +158,24 @@ class TypeSourceInfo;
     ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,
                 ASTContext &FromContext, FileManager &FromFileManager,
                 bool MinimalImport);
+
+    /// \param LookupTable The importer specific lookup table which may be
+    /// shared amongst several ASTImporter objects.
+    ///
+    /// \param ToContext The context we'll be importing into.
+    ///
+    /// \param ToFileManager The file manager we'll be importing into.
+    ///
+    /// \param FromContext The context we'll be importing from.
+    ///
+    /// \param FromFileManager The file manager we'll be importing into.
+    ///
+    /// \param MinimalImport If true, the importer will attempt to import
+    /// as little as it can, e.g., by importing declarations as forward
+    /// declarations that can be completed at a later point.
+    ASTImporter(ASTImporterLookupTable *LookupTable, ASTContext &ToContext,
+                FileManager &ToFileManager, ASTContext &FromContext,
+                FileManager &FromFileManager, bool MinimalImport);
 
     virtual ~ASTImporter();
 
