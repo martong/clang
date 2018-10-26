@@ -372,8 +372,7 @@ namespace clang {
     Error ImportDefinitionIfNeeded(Decl *FromD, Decl *ToD = nullptr);
     Error ImportDeclarationNameLoc(
         const DeclarationNameInfo &From, DeclarationNameInfo &To);
-    Error ImportDeclContext(DeclContext *FromDC, bool ForceImport = false,
-                            DeclContext *ToDC = nullptr);
+    Error ImportDeclContext(DeclContext *FromDC, bool ForceImport = false);
     Error ImportDeclContext(
         Decl *From, DeclContext *&ToDC, DeclContext *&ToLexicalDC);
     Error ImportImplicitMethods(const CXXRecordDecl *From, CXXRecordDecl *To);
@@ -1642,8 +1641,7 @@ ASTNodeImporter::ImportDeclarationNameLoc(
   llvm_unreachable("Unknown name kind.");
 }
 
-Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport,
-                                         DeclContext *ToDC) {
+Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) {
   if (Importer.isMinimalImport() && !ForceImport) {
     auto ToDCOrErr = Importer.ImportContext(FromDC);
     return ToDCOrErr.takeError();
@@ -1656,39 +1654,48 @@ Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport,
       // Ignore the error, continue with next Decl.
       // FIXME: Handle this case somehow better.
       consumeError(ImportedOrErr.takeError());
+    else
+      ImportedDecls.push_back(*ImportedOrErr);
   }
 
-  if (ToDC) { // Restore the order. O(n*n) in worst case, because the remove.
-    llvm::SmallDenseSet<Decl *, 2> MissingDecls;
+  // Reorder declarations in RecordDecls because they may have another
+  // order. Keeping field order is vitable because it determines structure
+  // layout.
+  const auto *FromRD = dyn_cast<RecordDecl>(FromDC);
+  if (!FromRD)
+    return Error::success();
+  auto ToDCOrErr = Importer.ImportContext(FromDC);
+  if (!ToDCOrErr)
+    return ToDCOrErr.takeError();
+  DeclContext *ToDC = *ToDCOrErr;
+  llvm::SmallDenseSet<Decl *, 2> MissingDecls;
+  // Frist, remove all declarations, which may be in wrong order in the
+  // lexical DeclContext.
+  for (Decl *ToD : ImportedDecls) { // O(n)
+    if (ToD && ToD->getLexicalDeclContext() == ToDC) {
+      if (ToDC->containsDecl(ToD)) { // containsDecl is O(1)
+        ToDC->removeDecl(ToD);       // O(n)
+      } else {
+        MissingDecls.insert(ToD);
 
-    // Frist, remove all declarations, which may be in wrong order in the
-    // lexical DeclContext.
-    for (Decl *ToD : ImportedDecls) { // O(n)
-      if (ToD && ToD->getLexicalDeclContext() == ToDC) {
-        if (ToDC->containsDecl(ToD)) { // containsDecl is O(1)
-          ToDC->removeDecl(ToD);       // O(n)
-        } else {
-          MissingDecls.insert(ToD);
+        const SourceLocation &Loc = ToD->getLocation();
+        const SourceManager &SM = ToD->getASTContext().getSourceManager();
+        SourceLocation SpellingLoc = SM.getSpellingLoc(Loc);
+        PresumedLoc PLoc = SM.getPresumedLoc(SpellingLoc);
 
-          const SourceLocation &Loc = ToD->getLocation();
-          const SourceManager &SM = ToD->getASTContext().getSourceManager();
-          SourceLocation SpellingLoc = SM.getSpellingLoc(Loc);
-          PresumedLoc PLoc = SM.getPresumedLoc(SpellingLoc);
-
-          FromDC->getParentASTContext().getDiagnostics().Report(
-              diag::warn_ast_importer_missing_decl_in_decl_context)
-              << ToD->getDeclKindName() << PLoc.getFilename() << PLoc.getLine()
-              << PLoc.getColumn();
-        }
+        FromDC->getParentASTContext().getDiagnostics().Report(
+            diag::warn_ast_importer_missing_decl_in_decl_context)
+            << ToD->getDeclKindName() << PLoc.getFilename() << PLoc.getLine()
+            << PLoc.getColumn();
       }
     }
-    // Add the declarations, but this time in the correct order.
-    for (Decl *ToD : ImportedDecls) {
-      if (ToD && ToD->getLexicalDeclContext() == ToDC) {
-        // FIXME remove this if, when all Decls are properly imported
-        if (MissingDecls.count(ToD) == 0) {
-          ToDC->addDeclInternal(ToD);
-        }
+  }
+  // Add the declarations, but this time in the correct order.
+  for (Decl *ToD : ImportedDecls) {
+    if (ToD && ToD->getLexicalDeclContext() == ToDC) {
+      // FIXME remove this if, when all Decls are properly imported
+      if (MissingDecls.count(ToD) == 0) {
+        ToDC->addDeclInternal(ToD);
       }
     }
   }
@@ -1750,7 +1757,7 @@ Error ASTNodeImporter::ImportDefinition(
     RecordDecl *From, RecordDecl *To, ImportDefinitionKind Kind) {
   if (To->getDefinition() || To->isBeingDefined()) {
     if (Kind == IDK_Everything)
-      return ImportDeclContext(From, /*ForceImport=*/true, To);
+      return ImportDeclContext(From, /*ForceImport=*/true);
 
     return Error::success();
   }
@@ -1873,7 +1880,7 @@ Error ASTNodeImporter::ImportDefinition(
   }
 
   if (shouldForceImportDeclContext(Kind))
-    if (Error Err = ImportDeclContext(From, /*ForceImport=*/true, To))
+    if (Error Err = ImportDeclContext(From, /*ForceImport=*/true))
       return Err;
 
   To->completeDefinition();
