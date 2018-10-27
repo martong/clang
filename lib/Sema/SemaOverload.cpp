@@ -9363,6 +9363,22 @@ OverloadCandidateSet::BestViableFunction(Sema &S, SourceLocation Loc,
     S.diagnoseEquivalentInternalLinkageDeclarations(Loc, Best->Function,
                                                     EquivalentCands);
 
+  assert(Best != end());
+  // FIXME handle when Cand->Function is NULL (i.e. built-in candidate)
+  //llvm::errs() << "Place of call:\n";
+  llvm::errs() << "==== Call expr location:\n";
+  this->getLocation().dump(S.SourceMgr);
+  llvm::errs() << "== List of all candidates:\n";
+  for (auto *Cand : Candidates) {
+      Cand->Function->dump();
+  }
+  llvm::errs() << "== List of viable candidates:\n";
+  for (auto *Cand : Candidates) {
+    if (Cand->Viable)
+      Cand->Function->dump();
+  }
+  llvm::errs() << "== Found best viable function:\n";
+  Best->Function->dump();
   return OR_Success;
 }
 

@@ -1,0 +1,7 @@
+ExprResult Sema::BuildOverloadedCallExpr(Scope *S, Expr *Fn,
+  bool Sema::buildOverloadedCallSet(Scope *S, Expr *Fn, // populates the OverloadCandidateSet
+  OverloadingResult OverloadResult =
+      CandidateSet.BestViableFunction(*this, Fn->getBeginLoc(), Best); // tries to find the best candidate
+  FinishOverloadedCallExpr(*this, S, Fn, ULE, LParenLoc, Args, // creates the CallExpr node and emits diagnostics
+    BuildRecoveryCallExpr(SemaRef, S, Fn, ULE, LParenLoc, Args, // failback mechanism if overload set is empty (when could that happen?)
+      may create an UnresolvedMemberExpr [via BuildPossibleImplicitMemberExpr] or an UnresolvedLookupExpr [via BuildTemplateIdExpr] (which are both the descendant of OverloadExpr)

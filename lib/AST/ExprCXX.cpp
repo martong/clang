@@ -361,11 +361,6 @@ OverloadExpr::OverloadExpr(StmtClass K, const ASTContext &C,
 
   if (isTypeDependent())
     setType(C.DependentTy);
-
-  for (auto *D : decls()) {
-    D->dump();
-  }
-  llvm::errs() << "=======================\n";
 }
 
 void OverloadExpr::initializeResults(const ASTContext &C,
