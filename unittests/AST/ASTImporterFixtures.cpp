@@ -56,13 +56,23 @@ void ASTImporterTestBase::TU::lazyInitImporter(
 Decl *ASTImporterTestBase::TU::import(ASTImporterLookupTable &LookupTable,
                                       ASTUnit *ToAST, Decl *FromDecl) {
   lazyInitImporter(LookupTable, ToAST);
-  return Importer->Import(FromDecl);
+  if (auto ImportedOrErr = Importer->Import(FromDecl))
+    return *ImportedOrErr;
+  else {
+    llvm::consumeError(ImportedOrErr.takeError());
+    return nullptr;
+  }
 }
 
 QualType ASTImporterTestBase::TU::import(ASTImporterLookupTable &LookupTable,
                                          ASTUnit *ToAST, QualType FromType) {
   lazyInitImporter(LookupTable, ToAST);
-  return Importer->Import(FromType);
+  if (auto ImportedOrErr = Importer->Import(FromType))
+    return *ImportedOrErr;
+  else {
+    llvm::consumeError(ImportedOrErr.takeError());
+    return QualType{};
+  }
 }
 
 ASTImporterTestBase::TU::~TU() {}

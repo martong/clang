@@ -117,6 +117,14 @@ class TypeSourceInfo;
     /// context to the corresponding declarations in the "to" context.
     llvm::DenseMap<Decl *, Decl *> ImportedDecls;
 
+    /// \brief Mapping from the already-imported declarations in the "from"
+    /// context to the error status of the import of that declaration.
+    /// This map contains only the declarations that were not correctly
+    /// imported. The same declaration may or may not be included in
+    /// ImportedDecls. This map is updated continuously during imports and never
+    /// cleared (like ImportedDecls).
+    llvm::DenseMap<Decl *, ImportError> ImportDeclErrors;
+
     /// Mapping from the already-imported declarations in the "to"
     /// context to the corresponding declarations in the "from" context.
     llvm::DenseMap<Decl *, Decl *> ImportedFromDecls;
@@ -190,44 +198,39 @@ class TypeSourceInfo;
     /// \return Error information (success or error).
     template <typename ImportT>
     LLVM_NODISCARD llvm::Error importInto(ImportT &To, const ImportT &From) {
-      To = Import(From);
-      if (From && !To)
-          return llvm::make_error<ImportError>();
-      return llvm::Error::success();
-      // FIXME: this should be the final code
-      //auto ToOrErr = Import(From);
-      //if (ToOrErr)
-      //  To = *ToOrErr;
-      //return ToOrErr.takeError();
+      auto ToOrErr = Import(From);
+      if (ToOrErr)
+        To = *ToOrErr;
+      return ToOrErr.takeError();
     }
 
     /// Import the given type from the "from" context into the "to"
-    /// context.
+    /// context. A null type is imported as a null type (no error).
     ///
-    /// \returns the equivalent type in the "to" context, or a NULL type if
-    /// an error occurred.
-    QualType Import(QualType FromT);
+    /// \returns The equivalent type in the "to" context, or the import error.
+    llvm::Expected<QualType> Import(QualType FromT);
 
     /// Import the given type source information from the
     /// "from" context into the "to" context.
     ///
-    /// \returns the equivalent type source information in the "to"
-    /// context, or NULL if an error occurred.
-    TypeSourceInfo *Import(TypeSourceInfo *FromTSI);
+    /// \returns The equivalent type source information in the "to"
+    /// context, or the import error.
+    llvm::Expected<TypeSourceInfo *> Import(TypeSourceInfo *FromTSI);
 
     /// Import the given attribute from the "from" context into the
     /// "to" context.
     ///
-    /// \returns the equivalent attribute in the "to" context.
-    Attr *Import(const Attr *FromAttr);
+    /// \returns The equivalent attribute in the "to" context, or the import
+    /// error.
+    llvm::Expected<Attr *> Import(const Attr *FromAttr);
 
     /// Import the given declaration from the "from" context into the
     /// "to" context.
     ///
-    /// \returns the equivalent declaration in the "to" context, or a NULL type
-    /// if an error occurred.
-    Decl *Import(Decl *FromD);
-    Decl *Import(const Decl *FromD) {
+    /// \returns The equivalent declaration in the "to" context, or the import
+    /// error.
+    llvm::Expected<Decl *> Import(Decl *FromD);
+    llvm::Expected<Decl *> Import(const Decl *FromD) {
       return Import(const_cast<Decl *>(FromD));
     }
 
@@ -250,88 +253,91 @@ class TypeSourceInfo;
     /// Import the given expression from the "from" context into the
     /// "to" context.
     ///
-    /// \returns the equivalent expression in the "to" context, or NULL if
-    /// an error occurred.
-    Expr *Import(Expr *FromE);
+    /// \returns The equivalent expression in the "to" context, or the import
+    /// error.
+    llvm::Expected<Expr *> Import(Expr *FromE);
 
     /// Import the given statement from the "from" context into the
     /// "to" context.
     ///
-    /// \returns the equivalent statement in the "to" context, or NULL if
-    /// an error occurred.
-    Stmt *Import(Stmt *FromS);
+    /// \returns The equivalent statement in the "to" context, or the import
+    /// error.
+    llvm::Expected<Stmt *> Import(Stmt *FromS);
 
     /// Import the given nested-name-specifier from the "from"
     /// context into the "to" context.
     ///
-    /// \returns the equivalent nested-name-specifier in the "to"
-    /// context, or NULL if an error occurred.
-    NestedNameSpecifier *Import(NestedNameSpecifier *FromNNS);
+    /// \returns The equivalent nested-name-specifier in the "to"
+    /// context, or the import error.
+    llvm::Expected<NestedNameSpecifier *> Import(NestedNameSpecifier *FromNNS);
 
-    /// Import the given nested-name-specifier from the "from"
+    /// Import the given nested-name-specifier-loc from the "from"
     /// context into the "to" context.
     ///
-    /// \returns the equivalent nested-name-specifier in the "to"
-    /// context.
-    NestedNameSpecifierLoc Import(NestedNameSpecifierLoc FromNNS);
+    /// \returns The equivalent nested-name-specifier-loc in the "to"
+    /// context, or the import error.
+    llvm::Expected<NestedNameSpecifierLoc>
+    Import(NestedNameSpecifierLoc FromNNS);
 
-    /// Import the goven template name from the "from" context into the
-    /// "to" context.
-    TemplateName Import(TemplateName From);
+    /// Import the given template name from the "from" context into the
+    /// "to" context, or the import error.
+    llvm::Expected<TemplateName> Import(TemplateName From);
 
     /// Import the given source location from the "from" context into
     /// the "to" context.
     ///
-    /// \returns the equivalent source location in the "to" context, or an
-    /// invalid source location if an error occurred.
-    SourceLocation Import(SourceLocation FromLoc);
+    /// \returns The equivalent source location in the "to" context, or the
+    /// import error.
+    llvm::Expected<SourceLocation> Import(SourceLocation FromLoc);
 
     /// Import the given source range from the "from" context into
     /// the "to" context.
     ///
-    /// \returns the equivalent source range in the "to" context, or an
-    /// invalid source location if an error occurred.
-    SourceRange Import(SourceRange FromRange);
+    /// \returns The equivalent source range in the "to" context, or the import
+    /// error.
+    llvm::Expected<SourceRange> Import(SourceRange FromRange);
 
     /// Import the given declaration name from the "from"
     /// context into the "to" context.
     ///
-    /// \returns the equivalent declaration name in the "to" context,
-    /// or an empty declaration name if an error occurred.
-    DeclarationName Import(DeclarationName FromName);
+    /// \returns The equivalent declaration name in the "to" context, or the
+    /// import error.
+    llvm::Expected<DeclarationName> Import(DeclarationName FromName);
 
     /// Import the given identifier from the "from" context
     /// into the "to" context.
     ///
-    /// \returns the equivalent identifier in the "to" context. Note: It
+    /// \returns The equivalent identifier in the "to" context. Note: It
     /// returns nullptr only if the FromId was nullptr.
     IdentifierInfo *Import(const IdentifierInfo *FromId);
 
     /// Import the given Objective-C selector from the "from"
     /// context into the "to" context.
     ///
-    /// \returns the equivalent selector in the "to" context.
-    Selector Import(Selector FromSel);
+    /// \returns The equivalent selector in the "to" context, or the import
+    /// error.
+    llvm::Expected<Selector> Import(Selector FromSel);
 
     /// Import the given file ID from the "from" context into the
     /// "to" context.
     ///
-    /// \returns the equivalent file ID in the source manager of the "to"
-    /// context.
-    FileID Import(FileID);
+    /// \returns The equivalent file ID in the source manager of the "to"
+    /// context, or the import error.
+    llvm::Expected<FileID> Import(FileID);
 
     /// Import the given C++ constructor initializer from the "from"
     /// context into the "to" context.
     ///
-    /// \returns the equivalent initializer in the "to" context.
-    CXXCtorInitializer *Import(CXXCtorInitializer *FromInit);
+    /// \returns The equivalent initializer in the "to" context, or the import
+    /// error.
+    llvm::Expected<CXXCtorInitializer *> Import(CXXCtorInitializer *FromInit);
 
     /// Import the given CXXBaseSpecifier from the "from" context into
     /// the "to" context.
     ///
-    /// \returns the equivalent CXXBaseSpecifier in the source manager of the
-    /// "to" context.
-    CXXBaseSpecifier *Import(const CXXBaseSpecifier *FromSpec);
+    /// \returns The equivalent CXXBaseSpecifier in the source manager of the
+    /// "to" context, or the import error.
+    llvm::Expected<CXXBaseSpecifier *> Import(const CXXBaseSpecifier *FromSpec);
 
     /// Import the definition of the given declaration, including all of
     /// the declarations it contains.
@@ -414,6 +420,14 @@ class TypeSourceInfo;
     /// RecordDecl can be found, we can complete it without the need for
     /// importation, eliminating this loop.
     virtual Decl *GetOriginalDecl(Decl *To) { return nullptr; }
+
+    /// Return if import of the given declaration has failed and if yes
+    /// the kind of the problem. This gives the first error encountered with
+    /// the node.
+    llvm::Optional<ImportError> getImportDeclErrorIfAny(Decl *FromD) const;
+
+    /// Mark (newly) imported declaration with error.
+    void setImportDeclError(Decl *From, ImportError Error);
 
     /// Determine whether the given types are structurally
     /// equivalent.

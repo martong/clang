@@ -332,10 +332,26 @@ CrossTranslationUnitContext::importDefinition(const FunctionDecl *FD) {
   assert(FD->hasBody() && "Functions to be imported should have body.");
 
   ASTImporter &Importer = getOrCreateASTImporter(FD->getASTContext());
-  auto *ToDecl =
-      cast<FunctionDecl>(Importer.Import(const_cast<FunctionDecl *>(FD)));
+  auto ToDeclOrError = Importer.Import(FD);
+  if (!ToDeclOrError) {
+    handleAllErrors(ToDeclOrError.takeError(),
+                    [&](const ImportError &IE) {
+                      switch (IE.Error) {
+                      case ImportError::NameConflict:
+                        // FIXME: Add statistic?
+                        break;
+                      case ImportError::UnsupportedConstruct:
+                        // FIXME: Add statistic?
+                        break;
+                      case ImportError::Unknown:
+                        llvm_unreachable("Unknown import error happened.");
+                        break;
+                      }
+                    });
+    return llvm::make_error<IndexError>(index_error_code::failed_import);
+  }
+  auto *ToDecl = cast<FunctionDecl>(*ToDeclOrError);
   assert(ToDecl->hasBody());
-  assert(FD->hasBody() && "Functions already imported should have body.");
   ++NumGetCTUSuccess;
   return ToDecl;
 }
