@@ -248,12 +248,21 @@ TEST_F(StructuralEquivalenceFunctionTest, SameOperators) {
   EXPECT_TRUE(testStructuralMatch(t));
 }
 
-TEST_F(StructuralEquivalenceFunctionTest, CtorVsDtor) {
+TEST_F(StructuralEquivalenceFunctionTest, EqualLiteralOperators) {
   auto t = makeDecls<FunctionDecl>(
-      "struct X{ X(); };",
-      "struct X{ ~X(); };", Lang_CXX,
-      cxxConstructorDecl(),
-      cxxDestructorDecl());
+      "int operator \"\"_a(const char*);",
+      "int operator \"\"_a(const char*);",
+      Lang_CXX11,
+      functionDecl());
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceFunctionTest, NotEqualLiteralOperators) {
+  auto t = makeDecls<FunctionDecl>(
+      "int operator \"\"_a(const char*);",
+      "int operator \"\"_b(const char*);",
+      Lang_CXX11,
+      functionDecl());
   EXPECT_FALSE(testStructuralMatch(t));
 }
 
@@ -300,8 +309,7 @@ TEST_F(StructuralEquivalenceFunctionTest, ThrowVsNoexceptTrue) {
   EXPECT_FALSE(testStructuralMatch(t));
 }
 
-TEST_F(StructuralEquivalenceFunctionTest, DISABLED_NoexceptNonMatch) {
-  // The expression is not checked yet.
+TEST_F(StructuralEquivalenceFunctionTest, NoexceptNonMatch) {
   auto t = makeNamedDecls("void foo() noexcept(false);",
                           "void foo() noexcept(true);", Lang_CXX11);
   EXPECT_FALSE(testStructuralMatch(t));
@@ -436,6 +444,12 @@ TEST_F(StructuralEquivalenceCXXMethodTest, Const) {
   EXPECT_FALSE(testStructuralMatch(t));
 }
 
+TEST_F(StructuralEquivalenceCXXMethodTest, DifferentClasses) {
+  auto t = makeNamedDecls("struct X { void foo(); };",
+                          "struct Y { void foo(); };", Lang_CXX);
+  EXPECT_FALSE(testStructuralMatch(t));
+}
+
 TEST_F(StructuralEquivalenceCXXMethodTest, Static) {
   auto t = makeNamedDecls("struct X { void foo(); };",
                           "struct X { static void foo(); };", Lang_CXX);
@@ -475,6 +489,47 @@ TEST_F(StructuralEquivalenceCXXMethodTest, Constructor) {
   EXPECT_FALSE(testStructuralMatch(t));
 }
 
+TEST_F(StructuralEquivalenceCXXMethodTest, EqualConstructors) {
+  auto t = makeDecls<FunctionDecl>(
+      "struct X{ X(); };",
+      "struct X{ X(); };", Lang_CXX,
+      cxxConstructorDecl());
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceCXXMethodTest, NotEqualConstructors) {
+  auto t = makeDecls<FunctionDecl>(
+      "struct X{ X(); };",
+      "struct Y{ Y(); };", Lang_CXX,
+      cxxConstructorDecl());
+  EXPECT_FALSE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceCXXMethodTest, CtorVsDtor) {
+  auto t = makeDecls<FunctionDecl>(
+      "struct X{ X(); };",
+      "struct X{ ~X(); };", Lang_CXX,
+      cxxConstructorDecl(),
+      cxxDestructorDecl());
+  EXPECT_FALSE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceCXXMethodTest, EqualDestructors) {
+  auto t = makeDecls<FunctionDecl>(
+      "struct X{ ~X(); };",
+      "struct X{ ~X(); };", Lang_CXX,
+      cxxDestructorDecl());
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceCXXMethodTest, NotEqualDestructors) {
+  auto t = makeDecls<FunctionDecl>(
+      "struct X{ ~X(); };",
+      "struct Y{ ~Y(); };", Lang_CXX,
+      cxxDestructorDecl());
+  EXPECT_FALSE(testStructuralMatch(t));
+}
+
 TEST_F(StructuralEquivalenceCXXMethodTest, ConstructorParam) {
   auto t = makeDecls<CXXConstructorDecl>("struct X { X(); };",
                                          "struct X { X(int); };", Lang_CXX,
@@ -498,7 +553,16 @@ TEST_F(StructuralEquivalenceCXXMethodTest, ConstructorDefault) {
   EXPECT_FALSE(testStructuralMatch(t));
 }
 
-TEST_F(StructuralEquivalenceCXXMethodTest, Conversion) {
+TEST_F(StructuralEquivalenceCXXMethodTest, EqualConversionFunctions) {
+  auto t = makeDecls<FunctionDecl>(
+      "struct X { operator bool(); };",
+      "struct X { operator bool(); };",
+      Lang_CXX11,
+      cxxConversionDecl());
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(StructuralEquivalenceCXXMethodTest, NotEqualConversionFunctions) {
   auto t = makeDecls<CXXConversionDecl>("struct X { operator bool(); };",
                                         "struct X { operator char(); };",
                                          Lang_CXX11,
