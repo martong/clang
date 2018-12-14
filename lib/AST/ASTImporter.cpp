@@ -7035,6 +7035,8 @@ ExpectedStmt ASTNodeImporter::VisitMemberExpr(MemberExpr *E) {
 
   if (E->hasExplicitTemplateArgs()) {
     // FIXME: handle template arguments
+    Importer.FromDiag(E->getBeginLoc(), diag::err_unsupported_ast_node)
+        << E->getStmtClassName();
     return make_error<ImportError>(ImportError::UnsupportedConstruct);
   }
 
