@@ -920,6 +920,7 @@ using namespace clang;
 ExpectedType ASTNodeImporter::VisitType(const Type *T) {
   Importer.FromDiag(SourceLocation(), diag::err_unsupported_ast_node)
     << T->getTypeClassName();
+  llvm_unreachable("Unsupported");
   return make_error<ImportError>(ImportError::UnsupportedConstruct);
 }
 
@@ -1506,6 +1507,7 @@ Error ASTNodeImporter::ImportDeclParts(
       if (RT && RT->getDecl() == D) {
         Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
             << D->getDeclKindName();
+        llvm_unreachable("Unsupported");
         return make_error<ImportError>(ImportError::UnsupportedConstruct);
       }
     }
@@ -2064,12 +2066,14 @@ bool ASTNodeImporter::IsStructuralMatch(VarTemplateDecl *From,
 ExpectedDecl ASTNodeImporter::VisitDecl(Decl *D) {
   Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
     << D->getDeclKindName();
+  llvm_unreachable("Unsupported");
   return make_error<ImportError>(ImportError::UnsupportedConstruct);
 }
 
 ExpectedDecl ASTNodeImporter::VisitImportDecl(ImportDecl *D) {
   Importer.FromDiag(D->getLocation(), diag::err_unsupported_ast_node)
       << D->getDeclKindName();
+  llvm_unreachable("Unsupported");
   return make_error<ImportError>(ImportError::UnsupportedConstruct);
 }
 
@@ -5524,6 +5528,7 @@ ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
 ExpectedStmt ASTNodeImporter::VisitStmt(Stmt *S) {
   Importer.FromDiag(S->getBeginLoc(), diag::err_unsupported_ast_node)
       << S->getStmtClassName();
+  llvm_unreachable("Unsupported");
   return make_error<ImportError>(ImportError::UnsupportedConstruct);
 }
 
@@ -6049,6 +6054,7 @@ ExpectedStmt ASTNodeImporter::VisitObjCAutoreleasePoolStmt(
 ExpectedStmt ASTNodeImporter::VisitExpr(Expr *E) {
   Importer.FromDiag(E->getBeginLoc(), diag::err_unsupported_ast_node)
       << E->getStmtClassName();
+  llvm_unreachable("Unsupported");
   return make_error<ImportError>(ImportError::UnsupportedConstruct);
 }
 
@@ -7037,6 +7043,7 @@ ExpectedStmt ASTNodeImporter::VisitMemberExpr(MemberExpr *E) {
     // FIXME: handle template arguments
     Importer.FromDiag(E->getBeginLoc(), diag::err_unsupported_ast_node)
         << E->getStmtClassName();
+    llvm_unreachable("Unsupported");
     return make_error<ImportError>(ImportError::UnsupportedConstruct);
   }
 
