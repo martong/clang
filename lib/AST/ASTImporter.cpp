@@ -7033,17 +7033,19 @@ ExpectedStmt ASTNodeImporter::VisitMemberExpr(MemberExpr *E) {
 
   DeclarationNameInfo ToMemberNameInfo(ToName, ToLoc);
 
+  TemplateArgumentListInfo ToTAInfo, *ResInfo = nullptr;
   if (E->hasExplicitTemplateArgs()) {
-    // FIXME: handle template arguments
-    Importer.FromDiag(E->getBeginLoc(), diag::err_unsupported_ast_node)
-        << E->getStmtClassName();
-    return make_error<ImportError>(ImportError::UnsupportedConstruct);
+    if (Error Err =
+            ImportTemplateArgumentListInfo(E->getLAngleLoc(), E->getRAngleLoc(),
+                                           E->template_arguments(), ToTAInfo))
+      return std::move(Err);
+    ResInfo = &ToTAInfo;
   }
 
   return MemberExpr::Create(
       Importer.getToContext(), ToBase, E->isArrow(), ToOperatorLoc,
       ToQualifierLoc, ToTemplateKeywordLoc, ToMemberDecl, ToFoundDecl,
-      ToMemberNameInfo, nullptr, ToType, E->getValueKind(), E->getObjectKind());
+      ToMemberNameInfo, ResInfo, ToType, E->getValueKind(), E->getObjectKind());
 }
 
 ExpectedStmt
@@ -8309,7 +8311,7 @@ ASTImporter::Import(const CXXBaseSpecifier *BaseSpec) {
 Error ASTImporter::ImportDefinition_New(Decl *From) {
   Decl *To;
   if (Error Err = importInto(To, From))
-    return std::move(Err);
+    return Err;
 
   if (auto *FromDC = cast<DeclContext>(From)) {
     ASTNodeImporter Importer(*this);
