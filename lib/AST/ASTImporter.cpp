@@ -8424,7 +8424,7 @@ DeclarationName ASTImporter::HandleNameConflict(DeclarationName Name,
                                                 unsigned IDNS,
                                                 NamedDecl **Decls,
                                                 unsigned NumDecls) {
-  return Name;
+  return DeclarationName();
 }
 
 DiagnosticBuilder ASTImporter::ToDiag(SourceLocation Loc, unsigned DiagID) {
