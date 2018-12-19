@@ -2007,6 +2007,64 @@ TEST_P(ImportFunctions, ImportImplicitFunctionsInLambda) {
   EXPECT_TRUE(LambdaRec->getDestructor());
 }
 
+struct ImportFunctionTemplates : ASTImporterOptionSpecificTestBase {};
+
+TEST_P(ImportFunctionTemplates,
+       ImportFunctionWhenThereIsAFunTemplateWithSameName) {
+  getToTuDecl(
+      R"(
+      template <typename T>
+      void foo(T) {}
+      void foo();
+      )",
+      Lang_CXX);
+  Decl *FromTU = getTuDecl("void foo();", Lang_CXX);
+  auto *FromD = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("foo")));
+  auto *ImportedD = Import(FromD, Lang_CXX);
+  EXPECT_TRUE(ImportedD);
+}
+
+TEST_P(ImportFunctionTemplates,
+       ImportConstructorWhenThereIsAFunTemplateWithSameName) {
+  auto Code =
+      R"(
+      struct Foo {
+        template <typename T>
+        Foo(T) {}
+        Foo();
+      };
+      )";
+  getToTuDecl(Code, Lang_CXX);
+  Decl *FromTU = getTuDecl(Code, Lang_CXX);
+  auto *FromD =
+      LastDeclMatcher<CXXConstructorDecl>().match(FromTU, cxxConstructorDecl());
+  auto *ImportedD = Import(FromD, Lang_CXX);
+  EXPECT_TRUE(ImportedD);
+}
+
+TEST_P(ImportFunctionTemplates,
+       ImportOperatorWhenThereIsAFunTemplateWithSameName) {
+  getToTuDecl(
+      R"(
+      template <typename T>
+      void operator<(T,T) {}
+      struct X{};
+      void operator<(X, X);
+      )",
+      Lang_CXX);
+  Decl *FromTU = getTuDecl(
+      R"(
+      struct X{};
+      void operator<(X, X);
+      )",
+      Lang_CXX);
+  auto *FromD = LastDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasOverloadedOperatorName("<")));
+  auto *ImportedD = Import(FromD, Lang_CXX);
+  EXPECT_TRUE(ImportedD);
+}
+
 struct ImportFriendFunctions : ImportFunctions {};
 
 TEST_P(ImportFriendFunctions, ImportFriendFunctionRedeclChainProto) {
@@ -4336,6 +4394,9 @@ INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFunctions,
                         DefaultTestValuesForRunOptions, );
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFriendFunctions,
+                        DefaultTestValuesForRunOptions, );
+
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFunctionTemplates,
                         DefaultTestValuesForRunOptions, );
 
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportFriendFunctionTemplates,
