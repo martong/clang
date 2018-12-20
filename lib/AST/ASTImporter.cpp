@@ -1983,15 +1983,6 @@ bool ASTNodeImporter::IsStructuralMatch(Decl *From, Decl *To, bool Complain) {
 
 bool ASTNodeImporter::IsStructuralMatch(RecordDecl *FromRecord,
                                         RecordDecl *ToRecord, bool Complain) {
-  // Eliminate a potential failure point where we attempt to re-import
-  // something we're trying to import while completing ToRecord.
-  Decl *ToOrigin = Importer.GetOriginalDecl(ToRecord);
-  if (ToOrigin) {
-    auto *ToOriginRecord = dyn_cast<RecordDecl>(ToOrigin);
-    if (ToOriginRecord)
-      ToRecord = ToOriginRecord;
-  }
-
   StructuralEquivalenceContext Ctx(Importer.getFromContext(),
                                    ToRecord->getASTContext(),
                                    Importer.getNonEquivalentDecls(),
