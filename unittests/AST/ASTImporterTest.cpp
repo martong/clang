@@ -2300,7 +2300,7 @@ TEST_P(ImportFriendFunctions, ImportFriendChangesLookup) {
   LookupRes = ToTU->noload_lookup(ToName);
   EXPECT_EQ(LookupRes.size(), 1u);
   EXPECT_EQ(DeclCounter<FunctionDecl>().match(ToTU, Pattern), 1u);
-  
+
   auto *ToFriendF = cast<FunctionDecl>(Import(FromFriendF, Lang_CXX));
   LookupRes = ToTU->noload_lookup(ToName);
   EXPECT_EQ(LookupRes.size(), 1u);
