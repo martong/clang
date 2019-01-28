@@ -1983,15 +1983,6 @@ bool ASTNodeImporter::IsStructuralMatch(Decl *From, Decl *To, bool Complain) {
 
 bool ASTNodeImporter::IsStructuralMatch(RecordDecl *FromRecord,
                                         RecordDecl *ToRecord, bool Complain) {
-  // Eliminate a potential failure point where we attempt to re-import
-  // something we're trying to import while completing ToRecord.
-  Decl *ToOrigin = Importer.GetOriginalDecl(ToRecord);
-  if (ToOrigin) {
-    auto *ToOriginRecord = dyn_cast<RecordDecl>(ToOrigin);
-    if (ToOriginRecord)
-      ToRecord = ToOriginRecord;
-  }
-
   StructuralEquivalenceContext Ctx(Importer.getFromContext(),
                                    ToRecord->getASTContext(),
                                    Importer.getNonEquivalentDecls(),
@@ -2302,10 +2293,9 @@ ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
           // already have a complete underlying type then return with that.
           if (!FromUT->isIncompleteType() && !FoundUT->isIncompleteType())
             return Importer.MapImported(D, FoundTypedef);
-        }
+        } else
+          ConflictingDecls.push_back(FoundDecl);
       }
-
-      ConflictingDecls.push_back(FoundDecl);
     }
 
     if (!ConflictingDecls.empty()) {
@@ -2492,9 +2482,8 @@ ExpectedDecl ASTNodeImporter::VisitEnumDecl(EnumDecl *D) {
       if (auto *FoundEnum = dyn_cast<EnumDecl>(FoundDecl)) {
         if (IsStructuralMatch(D, FoundEnum))
           return Importer.MapImported(D, FoundEnum);
+        ConflictingDecls.push_back(FoundDecl);
       }
-
-      ConflictingDecls.push_back(FoundDecl);
     }
 
     if (!ConflictingDecls.empty()) {
@@ -2624,9 +2613,8 @@ ExpectedDecl ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
           PrevDecl = FoundRecord->getMostRecentDecl();
           break;
         }
-      }
-
-      ConflictingDecls.push_back(FoundDecl);
+        ConflictingDecls.push_back(FoundDecl);
+      } // kind is RecordDecl
     } // for
 
     if (!ConflictingDecls.empty() && SearchName) {
@@ -2790,9 +2778,8 @@ ExpectedDecl ASTNodeImporter::VisitEnumConstantDecl(EnumConstantDecl *D) {
       if (auto *FoundEnumConstant = dyn_cast<EnumConstantDecl>(FoundDecl)) {
         if (IsStructuralMatch(D, FoundEnumConstant))
           return Importer.MapImported(D, FoundEnumConstant);
+        ConflictingDecls.push_back(FoundDecl);
       }
-
-      ConflictingDecls.push_back(FoundDecl);
     }
 
     if (!ConflictingDecls.empty()) {
@@ -3020,9 +3007,8 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
             << Name << D->getType() << FoundFunction->getType();
         Importer.ToDiag(FoundFunction->getLocation(), diag::note_odr_value_here)
             << FoundFunction->getType();
+        ConflictingDecls.push_back(FoundDecl);
       }
-
-      ConflictingDecls.push_back(FoundDecl);
     }
 
     if (!ConflictingDecls.empty()) {
@@ -3598,9 +3584,8 @@ ExpectedDecl ASTNodeImporter::VisitVarDecl(VarDecl *D) {
           << Name << D->getType() << FoundVar->getType();
         Importer.ToDiag(FoundVar->getLocation(), diag::note_odr_value_here)
           << FoundVar->getType();
+        ConflictingDecls.push_back(FoundDecl);
       }
-
-      ConflictingDecls.push_back(FoundDecl);
     }
 
     if (!ConflictingDecls.empty()) {
@@ -4933,19 +4918,17 @@ ExpectedDecl ASTNodeImporter::VisitClassTemplateDecl(ClassTemplateDecl *D) {
           FoundByLookup = FoundTemplate;
           break;
         }
+        ConflictingDecls.push_back(FoundDecl);
       }
-
-      ConflictingDecls.push_back(FoundDecl);
     }
 
     if (!ConflictingDecls.empty()) {
       Name = Importer.HandleNameConflict(Name, DC, Decl::IDNS_Ordinary,
                                          ConflictingDecls.data(),
                                          ConflictingDecls.size());
+      if (!Name)
+        return make_error<ImportError>(ImportError::NameConflict);
     }
-
-    if (!Name)
-      return make_error<ImportError>(ImportError::NameConflict);
   }
 
   CXXRecordDecl *FromTemplated = D->getTemplatedDecl();
@@ -5216,21 +5199,17 @@ ExpectedDecl ASTNodeImporter::VisitVarTemplateDecl(VarTemplateDecl *D) {
                              FoundTemplate->getTemplatedDecl());
         return Importer.MapImported(D, FoundTemplate);
       }
+      ConflictingDecls.push_back(FoundDecl);
     }
-
-    ConflictingDecls.push_back(FoundDecl);
   }
 
   if (!ConflictingDecls.empty()) {
     Name = Importer.HandleNameConflict(Name, DC, Decl::IDNS_Ordinary,
                                        ConflictingDecls.data(),
                                        ConflictingDecls.size());
+    if (!Name)
+      return make_error<ImportError>(ImportError::NameConflict);
   }
-
-  if (!Name)
-    // FIXME: Is it possible to get other error than name conflict?
-    // (Put this `if` into the previous `if`?)
-    return make_error<ImportError>(ImportError::NameConflict);
 
   VarDecl *DTemplated = D->getTemplatedDecl();
 
@@ -8424,7 +8403,7 @@ DeclarationName ASTImporter::HandleNameConflict(DeclarationName Name,
                                                 unsigned IDNS,
                                                 NamedDecl **Decls,
                                                 unsigned NumDecls) {
-  return Name;
+  return DeclarationName();
 }
 
 DiagnosticBuilder ASTImporter::ToDiag(SourceLocation Loc, unsigned DiagID) {

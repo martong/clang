@@ -413,6 +413,7 @@ class TypeSourceInfo;
     /// Store and assign the imported declaration to its counterpart.
     Decl *MapImported(Decl *From, Decl *To);
 
+    /// Deprecated. FIXME use [[deprecated]] once Clang enables C++14.
     /// Called by StructuralEquivalenceContext.  If a RecordDecl is
     /// being compared to another RecordDecl as part of import, completing the
     /// other RecordDecl may trigger importation of the first RecordDecl. This
