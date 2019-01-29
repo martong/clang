@@ -1613,10 +1613,19 @@ Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) 
   llvm::SmallVector<Decl *, 8> ImportedDecls;
   for (auto *From : FromDC->decls()) {
     ExpectedDecl ImportedOrErr = import(From);
-    if (!ImportedOrErr)
-      // Ignore the error, continue with next Decl.
-      // FIXME: Handle this case somehow better.
-      consumeError(ImportedOrErr.takeError());
+    if (!ImportedOrErr) {
+      // We use strict error handling in case of records and enums, but not
+      // with e.g. namespaces.
+      //
+      // FIXME Clients of the ASTImporter should be able to choose an
+      // appropriate error handling strategy for their needs.  For instance,
+      // they may not want to mark an entire namespace as erroneous merely
+      // because there is an ODR error with two typedefs.  As another example,
+      // the client may allow EnumConstantDecls with same names but with
+      // different values in two distinct translation units.
+      if (isa<TagDecl>(FromDC))
+        return ImportedOrErr.takeError();
+    }
     else
       ImportedDecls.push_back(*ImportedOrErr);
   }
@@ -7715,15 +7724,32 @@ Expected<Decl *> ASTImporter::Import(Decl *FromD) {
   ExpectedDecl ToDOrErr = Importer.Visit(FromD);
   if (!ToDOrErr) {
     // Failed to import.
+
     auto Pos = ImportedDecls.find(FromD);
     if (Pos != ImportedDecls.end()) {
       // Import failed after the object was created.
       // Remove all references to it.
-      if (LookupTable)
-        if (auto *ToND = dyn_cast<NamedDecl>(Pos->second))
-          LookupTable->remove(ToND);
-      ImportedFromDecls.erase(Pos->second);
+      auto *ToD = Pos->second;
       ImportedDecls.erase(Pos);
+
+      // ImportedDecls and ImportedFromDecls are not symmetric.  It may happen
+      // (e.g. with namespaces) that several decls from the 'from' context are
+      // mapped to the same decl in the 'to' context.  If we removed entries
+      // from the LookupTable here then we may end up removing them multiple
+      // times.
+
+      // The Lookuptable contains decls only which are in the 'to' context.
+      // Remove from the Lookuptable only if it is *imported* into the 'to'
+      // context (and do not remove it if it was added during the initial
+      // traverse of the 'to' context).
+      auto PosF = ImportedFromDecls.find(ToD);
+      if (PosF != ImportedFromDecls.end()) {
+        if (LookupTable)
+          if (auto *ToND = dyn_cast<NamedDecl>(ToD))
+            LookupTable->remove(ToND);
+        ImportedFromDecls.erase(PosF);
+      }
+
       // FIXME: AST may contain remaining references to the failed object.
     }
 
