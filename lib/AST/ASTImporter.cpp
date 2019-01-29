@@ -1613,10 +1613,9 @@ Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) 
   llvm::SmallVector<Decl *, 8> ImportedDecls;
   for (auto *From : FromDC->decls()) {
     ExpectedDecl ImportedOrErr = import(From);
-    if (!ImportedOrErr)
-      // Ignore the error, continue with next Decl.
-      // FIXME: Handle this case somehow better.
-      consumeError(ImportedOrErr.takeError());
+    if (!ImportedOrErr) {
+      return ImportedOrErr.takeError();
+    }
     else
       ImportedDecls.push_back(*ImportedOrErr);
   }
@@ -7715,15 +7714,20 @@ Expected<Decl *> ASTImporter::Import(Decl *FromD) {
   ExpectedDecl ToDOrErr = Importer.Visit(FromD);
   if (!ToDOrErr) {
     // Failed to import.
+
     auto Pos = ImportedDecls.find(FromD);
     if (Pos != ImportedDecls.end()) {
       // Import failed after the object was created.
       // Remove all references to it.
-      if (LookupTable)
-        if (auto *ToND = dyn_cast<NamedDecl>(Pos->second))
-          LookupTable->remove(ToND);
-      ImportedFromDecls.erase(Pos->second);
+      auto *ToD = Pos->second;
       ImportedDecls.erase(Pos);
+      auto PosF = ImportedFromDecls.find(ToD);
+      if (PosF != ImportedFromDecls.end()) {
+        if (LookupTable)
+          if (auto *ToND = dyn_cast<NamedDecl>(ToD))
+            LookupTable->remove(ToND);
+        ImportedFromDecls.erase(PosF);
+      }
       // FIXME: AST may contain remaining references to the failed object.
     }
 
@@ -8235,7 +8239,7 @@ Expected<CXXCtorInitializer *> ASTImporter::Import(CXXCtorInitializer *From) {
                            *ToExprOrErr, *RParenLocOrErr);
   } else {
     // FIXME: assert?
-    return make_error<ImportError>();
+    return make_error<ImportError>(ImportError::Unknown);
   }
 }
 
