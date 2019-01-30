@@ -829,5 +829,57 @@ TEST_F(StructuralEquivalenceTemplateTest, DifferentTemplateArgKind) {
   EXPECT_FALSE(testStructuralMatch(t));
 }
 
+TEST_F(
+    StructuralEquivalenceTemplateTest,
+    ClassTemplSpecWithQualifiedAndNonQualifiedTypeArgsShouldBeEqual) {
+  auto t = makeDecls<ClassTemplateSpecializationDecl>(
+      R"(
+      template <class T> struct Primary {};
+      namespace N {
+        struct Arg;
+      }
+      // Explicit instantiation with qualified name.
+      template struct Primary<N::Arg>;
+      )",
+      R"(
+      template <class T> struct Primary {};
+      namespace N {
+        struct Arg;
+      }
+      using namespace N;
+      // Explicit instantiation with UNqualified name.
+      template struct Primary<Arg>;
+      )",
+      Lang_CXX,
+      classTemplateSpecializationDecl(hasName("Primary")));
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
+TEST_F(
+    StructuralEquivalenceTemplateTest,
+    ClassTemplSpecWithQualifiedAndNonQualifiedTemplArgsShouldBeEqual) {
+  auto t = makeDecls<ClassTemplateSpecializationDecl>(
+      R"(
+      template <template <class> class T> struct Primary {};
+      namespace N {
+        template <class T> struct Arg;
+      }
+      // Explicit instantiation with qualified name.
+      template struct Primary<N::Arg>;
+      )",
+      R"(
+      template <template <class> class T> struct Primary {};
+      namespace N {
+        template <class T> struct Arg;
+      }
+      using namespace N;
+      // Explicit instantiation with UNqualified name.
+      template struct Primary<Arg>;
+      )",
+      Lang_CXX,
+      classTemplateSpecializationDecl(hasName("Primary")));
+  EXPECT_TRUE(testStructuralMatch(t));
+}
+
 } // end namespace ast_matchers
 } // end namespace clang
