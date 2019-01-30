@@ -1625,6 +1625,7 @@ Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) 
       // different values in two distinct translation units.
       if (isa<TagDecl>(FromDC))
         return ImportedOrErr.takeError();
+      consumeError(ImportedOrErr.takeError());
     }
     else
       ImportedDecls.push_back(*ImportedOrErr);
