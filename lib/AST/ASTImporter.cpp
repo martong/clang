@@ -7771,11 +7771,6 @@ Expected<Decl *> ASTImporter::Import(Decl *FromD) {
     return make_error<ImportError>(*Err);
   }
 
-  // Once the decl is connected to the existing declarations, i.e. when the
-  // redecl chain is properly set then we populate the lookup again.
-  // This way the primary context will be able to find all decls.
-  AddToLookupTable(ToD);
-
   // Notify subclasses.
   Imported(FromD, ToD);
 
