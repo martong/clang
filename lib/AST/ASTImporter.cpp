@@ -1612,10 +1612,20 @@ Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) 
   llvm::SmallVector<Decl *, 8> ImportedDecls;
   for (auto *From : FromDC->decls()) {
     ExpectedDecl ImportedOrErr = import(From);
-    if (!ImportedOrErr)
-      // Ignore the error, continue with next Decl.
-      // FIXME: Handle this case somehow better.
+    if (!ImportedOrErr) {
+      // We use strict error handling in case of records and enums, but not
+      // with e.g. namespaces.
+      //
+      // FIXME Clients of the ASTImporter should be able to choose an
+      // appropriate error handling strategy for their needs.  For instance,
+      // they may not want to mark an entire namespace as erroneous merely
+      // because there is an ODR error with two typedefs.  As another example,
+      // the client may allow EnumConstantDecls with same names but with
+      // different values in two distinct translation units.
+      if (isa<TagDecl>(FromDC))
+        return ImportedOrErr.takeError();
       consumeError(ImportedOrErr.takeError());
+    }
     else
       ImportedDecls.push_back(*ImportedOrErr);
   }
