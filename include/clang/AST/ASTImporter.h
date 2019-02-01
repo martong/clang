@@ -411,6 +411,8 @@ class TypeSourceInfo;
     virtual Decl *Imported(Decl *From, Decl *To) { return To; }
 
     /// Store and assign the imported declaration to its counterpart.
+    /// It may happen that several decls from the 'from' context are mapped to
+    /// the same decl in the 'to' context.
     Decl *MapImported(Decl *From, Decl *To);
 
     /// Deprecated. FIXME use [[deprecated]] once Clang enables C++14.
