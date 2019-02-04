@@ -820,6 +820,9 @@ static std::string getMacroNameAndPrintExpansion(
     return Info.Name;
   AlreadyProcessedTokens.insert(IDInfo);
 
+  if (!Info.MI)
+    return Info.Name;
+
   // Manually expand its arguments from the previous macro.
   Info.Args.expandFromPrevMacro(PrevArgs);
 
@@ -917,7 +920,14 @@ static MacroNameAndArgs getMacroNameAndArgs(SourceLocation ExpanLoc,
   assert(II && "Failed to acquire the IndetifierInfo for the macro!");
 
   const MacroInfo *MI = getMacroInfoForLocation(PP, SM, II, ExpanLoc);
-  assert(MI && "The macro must've been defined at it's expansion location!");
+  // assert(MI && "The macro must've been defined at it's expansion location!");
+  //
+  // We should always be able to obtain the MacroInfo in a given TU, but if
+  // we're running the analyzer with CTU, the Preprocessor won't contain the
+  // directive history (or anything for that matter) from another TU.
+  // TODO: assert when we're not running with CTU.
+  if (!MI)
+    return { MacroName, MI, {} };
 
   // Acquire the macro's arguments.
   //
