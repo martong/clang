@@ -18,6 +18,8 @@
 #include "clang/Frontend/ASTUnit.h"
 #include "clang/Tooling/Tooling.h"
 
+#include <regex>
+
 namespace clang {
 namespace ast_matchers {
 
@@ -36,6 +38,78 @@ void createVirtualFileIfNeeded(ASTUnit *ToAST, StringRef FileName,
                                StringRef Code) {
   return createVirtualFileIfNeeded(ToAST, FileName,
                                    llvm::MemoryBuffer::getMemBuffer(Code));
+}
+
+void checkImportedSourceLocations(const Decl *FromD, const Decl *ToD) {
+  // Check for matching source locations in From and To AST.
+  // FIXME: The check can be improved by using AST visitor and manually check
+  // all source locations for equality.
+  // (That check can be made more general by checking for other attributes.)
+
+  // Print debug information.
+  const bool Print = false;
+
+  SmallString<1024> ToPrinted;
+  SmallString<1024> FromPrinted;
+  llvm::raw_svector_ostream ToStream(ToPrinted);
+  llvm::raw_svector_ostream FromStream(FromPrinted);
+
+  ToD->dump(ToStream);
+  FromD->dump(FromStream);
+  // The AST dump additionally traverses the AST and can catch certain bugs like
+  // poorly or not implemented subtrees.
+
+  // search for SourceLocation strings:
+  // <filename>:<line>:<col>
+  // or
+  // line:<line>:<col>
+  // or
+  // col:<col>
+  // or
+  // '<invalid sloc>'
+  // If a component (filename or line) is same as in the last location
+  // it is not printed.
+  // Filename component is grouped into sub-expression to make it extractable.
+  std::regex MatchSourceLoc(
+      "<invalid sloc>|((\\w|\\.)+):\\d+:\\d+|line:\\d+:\\d+|col:\\d+");
+
+  std::string ToString(ToStream.str());
+  std::string FromString(FromStream.str());
+  auto ToLoc =
+      std::sregex_iterator(ToString.begin(), ToString.end(), MatchSourceLoc);
+  auto FromLoc = std::sregex_iterator(FromString.begin(), FromString.end(),
+                                      MatchSourceLoc);
+  if (Print) {
+    llvm::errs() << ToString << "\n\n\n" << FromString << "\n";
+    llvm::errs() << "----\n";
+  }
+  if (ToLoc->size() > 1 && FromLoc->size() > 1 && (*ToLoc)[1] != (*FromLoc)[1])
+    // Different filenames in To and From.
+    // This should mean that a to-be-imported decl was mapped to an existing
+    // (these normally reside in different files) and the check is
+    // not applicable.
+    return;
+
+  bool SourceLocationMismatch = false;
+  while (ToLoc != std::sregex_iterator() && FromLoc != std::sregex_iterator()) {
+    if (Print)
+      llvm::errs() << ToLoc->str() << "|" << FromLoc->str() << "\n";
+    SourceLocationMismatch =
+        SourceLocationMismatch || (ToLoc->str() != FromLoc->str());
+    ++ToLoc;
+    ++FromLoc;
+  }
+  if (Print)
+    llvm::errs() << "----\n";
+
+  // If the from AST is bigger it may have a matching prefix, ignore this case:
+  // ToLoc == std::sregex_iterator() && FromLoc != std::sregex_iterator()
+
+  // If the To AST is bigger (or has more source locations), indicate error.
+  if (FromLoc == std::sregex_iterator() && ToLoc != std::sregex_iterator())
+    SourceLocationMismatch = true;
+
+  EXPECT_FALSE(SourceLocationMismatch);
 }
 
 ASTImporterTestBase::TU::TU(StringRef Code, StringRef FileName, ArgVector Args,
@@ -184,9 +258,8 @@ Decl *ASTImporterTestBase::Import(Decl *From, Language ToLang) {
   TU *FromTU = findFromTU(From);
   assert(SharedStatePtr);
   Decl *To = FromTU->import(SharedStatePtr, ToAST.get(), From);
-  // FIXME
-  //if (To)
-    //checkImportedSourceLocations(From, To);
+  if (To)
+    checkImportedSourceLocations(From, To);
   return To;
 }
 
