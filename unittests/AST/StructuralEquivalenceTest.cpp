@@ -944,9 +944,6 @@ TEST_F(StructuralEquivalenceDependentTemplateArgsTest,
       struct S1;
 
       template <typename>
-      struct S2;
-
-      template <typename>
       struct enable_if;
 
       struct S
@@ -998,9 +995,6 @@ TEST_F(StructuralEquivalenceDependentTemplateArgsTest,
       R"(
       template <typename>
       struct S1;
-
-      template <typename>
-      struct S2;
 
       template <bool>
       struct enable_if;
@@ -1054,9 +1048,6 @@ TEST_F(StructuralEquivalenceDependentTemplateArgsTest,
       R"(
       template <typename>
       struct S1;
-
-      template <typename>
-      struct S2;
 
       template <bool>
       struct enable_if;
