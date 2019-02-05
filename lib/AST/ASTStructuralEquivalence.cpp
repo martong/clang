@@ -133,8 +133,8 @@ static bool IsStructurallyEquivalent(const DeclarationName Name1,
     return Name1.getCXXOverloadedOperator() == Name2.getCXXOverloadedOperator();
 
   case DeclarationName::CXXLiteralOperatorName:
-    return Name1.getCXXLiteralIdentifier()->getName() ==
-           Name2.getCXXLiteralIdentifier()->getName();
+    return IsStructurallyEquivalent(Name1.getCXXLiteralIdentifier(),
+                                    Name2.getCXXLiteralIdentifier());
 
   case DeclarationName::CXXUsingDirective:
     return true; // FIXME When do we consider two using directives equal?
