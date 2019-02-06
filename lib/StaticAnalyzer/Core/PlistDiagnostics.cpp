@@ -879,8 +879,18 @@ static std::string getMacroNameAndPrintExpansion(
 
         getMacroNameAndPrintExpansion(Printer, ArgIt->getLocation(), PP,
                                       Info.Args, AlreadyProcessedTokens);
-        if (MI->getNumParams() != 0)
-          ArgIt = getMatchingRParen(++ArgIt, ArgEnd);
+        // Peek the next token if it is a tok::l_paren. This way we can decide
+        // if this is the application or just a reference to a function maxro
+        // symbol:
+        //
+        // #define apply(f) ...
+        // #define func(x) ...
+        // apply(func)
+        // apply(func(42))
+        if ((++ArgIt)->is(tok::l_paren))
+          ArgIt = getMatchingRParen(ArgIt, ArgEnd);
+        else
+          --ArgIt;
       }
       continue;
     }
@@ -941,8 +951,16 @@ static MacroNameAndArgs getMacroNameAndArgs(SourceLocation ExpanLoc,
     return { MacroName, MI, {} };
 
   RawLexer.LexFromRawLexer(TheTok);
-  assert(TheTok.is(tok::l_paren) &&
-         "The token after the macro's identifier token should be '('!");
+  // When this is a token which expands to another macro function then its
+  // parentheses are not at its expansion locaiton. For example:
+  //
+  // #define foo(x) int bar() { return x; }
+  // #define apply_zero(f) f(0)
+  // apply_zero(foo)
+  //               ^
+  //               This is not a tok::l_paren, but foo is a function.
+  if (TheTok.isNot(tok::l_paren))
+    return { MacroName, MI, {} };
 
   MacroArgMap Args;
 
