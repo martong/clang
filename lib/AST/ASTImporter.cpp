@@ -71,6 +71,25 @@
 #include <type_traits>
 #include <utility>
 
+namespace {
+
+// FIXME Do we have something similar in LLVM?
+template <typename Function> class Finally {
+public:
+  Finally(const Function &function) : function(function) {}
+  ~Finally() { function(); }
+
+private:
+  Function function;
+};
+
+template <typename Function>
+Finally<Function> finally(const Function &function) {
+  return Finally<Function>(function);
+}
+
+} // namespace unnamed
+
 namespace clang {
 
   using llvm::make_error;
@@ -7931,6 +7950,9 @@ Expected<Decl *> ASTImporter::Import(Decl *FromD) {
   if (!FromD)
     return nullptr;
 
+  ImportPath.push(FromD);
+  auto PopGuard = finally([this]() { ImportPath.pop(); });
+
   ASTNodeImporter Importer(*this);
 
   // Check whether there was a previous failed import.
@@ -7943,6 +7965,10 @@ Expected<Decl *> ASTImporter::Import(Decl *FromD) {
   if (ToD) {
     // If FromD has some updated flags after last import, apply it
     updateFlags(FromD, ToD);
+    // If we encounter a cycle during an import then we save the relevant part
+    // of the import path associated to the Decl.
+    if (ImportPath.hasCycleAtBack())
+      SavedImportPaths[FromD].push_back(ImportPath.copyCycleAtBack());
     return ToD;
   }
 
@@ -7986,6 +8012,14 @@ Expected<Decl *> ASTImporter::Import(Decl *FromD) {
       handleAllErrors(ToDOrErr.takeError(),
                       [&ErrOut](const ImportError &E) { ErrOut = E; });
       setImportDeclError(FromD, ErrOut);
+
+      // Set the error for all nodes which have been created before we
+      // recognized the error.
+      for (const auto &Path : SavedImportPaths[FromD])
+        for (Decl *Di : Path)
+          setImportDeclError(Di, ErrOut);
+      SavedImportPaths[FromD].clear();
+
       // Do not return ToDOrErr, error was taken out of it.
       return make_error<ImportError>(ErrOut);
     }
@@ -8008,6 +8042,7 @@ Expected<Decl *> ASTImporter::Import(Decl *FromD) {
   Imported(FromD, ToD);
 
   updateFlags(FromD, ToD);
+  SavedImportPaths[FromD].clear();
   return ToDOrErr;
 }
 
@@ -8728,8 +8763,6 @@ ASTImporter::getImportDeclErrorIfAny(Decl *FromD) const {
 }
 
 void ASTImporter::setImportDeclError(Decl *From, ImportError Error) {
-  assert(ImportDeclErrors.find(From) == ImportDeclErrors.end() &&
-         "Setting import error allowed only once for a Decl.");
   ImportDeclErrors[From] = Error;
 }
 
