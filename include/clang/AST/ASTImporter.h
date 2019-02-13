@@ -88,8 +88,7 @@ class TypeSourceInfo;
         llvm::DenseMap<const CXXBaseSpecifier *, CXXBaseSpecifier *>;
 
   private:
-
-    ASTImporterSharedState *SharedState = nullptr;
+    std::shared_ptr<ASTImporterSharedState> SharedState = nullptr;
 
     /// The contexts we're importing to and from.
     ASTContext &ToContext, &FromContext;
@@ -161,7 +160,7 @@ class TypeSourceInfo;
     ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,
                 ASTContext &FromContext, FileManager &FromFileManager,
                 bool MinimalImport,
-                ASTImporterSharedState *SharedState = nullptr);
+                std::shared_ptr<ASTImporterSharedState> SharedState = nullptr);
 
     virtual ~ASTImporter();
 
