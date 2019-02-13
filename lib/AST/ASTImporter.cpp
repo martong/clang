@@ -8765,3 +8765,38 @@ bool ASTImporter::IsStructurallyEquivalent(QualType From, QualType To,
                                    Complain);
   return Ctx.IsEquivalent(From, To);
 }
+
+void ASTImporter::ImportPathTy::push(Decl *D) {
+  Nodes.push_back(D);
+  ++Aux[D];
+}
+
+void ASTImporter::ImportPathTy::pop() {
+  if (Nodes.empty())
+    return;
+  --Aux[Nodes.back()];
+  Nodes.pop_back();
+}
+
+Decl *ASTImporter::ImportPathTy::top() const {
+  if (!Nodes.empty())
+    return Nodes.back();
+  return nullptr;
+}
+
+bool ASTImporter::ImportPathTy::hasCycleAtBack() {
+  return Aux[Nodes.back()] > 1;
+}
+
+ASTImporter::ImportPathTy::Cycle
+ASTImporter::ImportPathTy::getCycleAtBack() const {
+  assert(Nodes.size() >= 2);
+  return Cycle(Nodes.rbegin(),
+               std::find(Nodes.rbegin() + 1, Nodes.rend(), Nodes.back()) + 1);
+}
+
+ASTImporter::ImportPathTy::VecTy
+ASTImporter::ImportPathTy::copyCycleAtBack() const {
+  auto R = getCycleAtBack();
+  return VecTy(R.begin(), R.end());
+}

@@ -27,6 +27,7 @@
 #include "llvm/ADT/DenseSet.h"
 #include "llvm/ADT/Optional.h"
 #include "llvm/ADT/SmallVector.h"
+#include "llvm/ADT/SmallPtrSet.h"
 #include "llvm/Support/Error.h"
 #include <utility>
 
@@ -86,6 +87,30 @@ class TypeSourceInfo;
   public:
     using ImportedCXXBaseSpecifierMap =
         llvm::DenseMap<const CXXBaseSpecifier *, CXXBaseSpecifier *>;
+
+    class ImportPathTy {
+    public:
+      using VecTy = llvm::SmallVector<Decl *, 32>;
+
+      void push(Decl *D);
+      void pop();
+      Decl *top() const;
+
+      /// Returns true if the last element can be found earlier in the path.
+      bool hasCycleAtBack();
+      using Cycle = llvm::iterator_range<VecTy::const_reverse_iterator>;
+      Cycle getCycleAtBack() const;
+      /// Returns the copy of the cycle.
+      VecTy copyCycleAtBack() const;
+
+    private:
+      // All the nodes of the path.
+      VecTy Nodes;
+      // Auxiliary container to be able to answer "Do we have a cycle ending
+      // at last element?" as fast as possible.
+      // We count each Decl's occurrence over the path.
+      llvm::SmallDenseMap<Decl *, int, 32> Aux;
+    };
 
   private:
     std::shared_ptr<ASTImporterSharedState> SharedState = nullptr;
