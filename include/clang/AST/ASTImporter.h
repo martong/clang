@@ -115,6 +115,17 @@ class TypeSourceInfo;
   private:
     std::shared_ptr<ASTImporterSharedState> SharedState = nullptr;
 
+    /// The path which we go through during the import of a given AST node.
+    ImportPathTy ImportPath;
+    /// Sometimes we have to save some part of an import path, so later we can
+    /// set up properties to the saved nodes.
+    /// We may have several of these import paths associated to one Decl.
+    using SavedImportPathsForOneDecl =
+        llvm::SmallVector<ImportPathTy::VecTy, 32>;
+    using SavedImportPathsTy =
+        llvm::SmallDenseMap<Decl *, SavedImportPathsForOneDecl, 32>;
+    SavedImportPathsTy SavedImportPaths;
+
     /// The contexts we're importing to and from.
     ASTContext &ToContext, &FromContext;
 
