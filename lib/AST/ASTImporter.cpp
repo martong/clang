@@ -2071,7 +2071,7 @@ ExpectedDecl ASTNodeImporter::VisitNamespaceDecl(NamespaceDecl *D) {
       MergeWithNamespace = cast<NamespaceDecl>(DC)->getAnonymousNamespace();
   } else {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
-    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+    auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(Decl::IDNS_Namespace))
         continue;
@@ -2186,7 +2186,7 @@ ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
   if (!DC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     unsigned IDNS = Decl::IDNS_Ordinary;
-    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+    auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -2272,7 +2272,7 @@ ASTNodeImporter::VisitTypeAliasTemplateDecl(TypeAliasTemplateDecl *D) {
   if (!DC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     unsigned IDNS = Decl::IDNS_Ordinary;
-    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+    auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -2375,7 +2375,7 @@ ExpectedDecl ASTNodeImporter::VisitEnumDecl(EnumDecl *D) {
   if (!DC->isFunctionOrMethod() && SearchName) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     auto FoundDecls =
-        Importer.FindDeclsInToCtx(DC, SearchName);
+        Importer.findDeclsInToCtx(DC, SearchName);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -2467,7 +2467,7 @@ ExpectedDecl ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
   if (!DC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     auto FoundDecls =
-        Importer.FindDeclsInToCtx(DC, SearchName);
+        Importer.findDeclsInToCtx(DC, SearchName);
     if (!FoundDecls.empty()) {
       // We're going to have to compare D against potentially conflicting Decls,
       // so complete it.
@@ -2680,7 +2680,7 @@ ExpectedDecl ASTNodeImporter::VisitEnumConstantDecl(EnumConstantDecl *D) {
   if (!LexicalDC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     unsigned IDNS = Decl::IDNS_Ordinary;
-    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+    auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -2892,7 +2892,7 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   else if (!LexicalDC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     unsigned IDNS = Decl::IDNS_Ordinary | Decl::IDNS_OrdinaryFriend;
-    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+    auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -3143,7 +3143,7 @@ ExpectedDecl ASTNodeImporter::VisitFieldDecl(FieldDecl *D) {
     return ToD;
 
   // Determine whether we've already imported this field.
-  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+  auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (FieldDecl *FoundField = dyn_cast<FieldDecl>(FoundDecl)) {
       // For anonymous fields, match up by index.
@@ -3228,7 +3228,7 @@ ExpectedDecl ASTNodeImporter::VisitIndirectFieldDecl(IndirectFieldDecl *D) {
     return ToD;
 
   // Determine whether we've already imported this field.
-  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+  auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
   for (unsigned I = 0, N = FoundDecls.size(); I != N; ++I) {
     if (auto *FoundField = dyn_cast<IndirectFieldDecl>(FoundDecls[I])) {
       // For anonymous indirect fields, match up by index.
@@ -3371,7 +3371,7 @@ ExpectedDecl ASTNodeImporter::VisitObjCIvarDecl(ObjCIvarDecl *D) {
     return ToD;
 
   // Determine whether we've already imported this ivar
-  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+  auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (ObjCIvarDecl *FoundIvar = dyn_cast<ObjCIvarDecl>(FoundDecl)) {
       if (Importer.IsStructurallyEquivalent(D->getType(),
@@ -3441,7 +3441,7 @@ ExpectedDecl ASTNodeImporter::VisitVarDecl(VarDecl *D) {
   if (D->isFileVarDecl()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
     unsigned IDNS = Decl::IDNS_Ordinary;
-    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+    auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -3648,7 +3648,7 @@ ExpectedDecl ASTNodeImporter::VisitObjCMethodDecl(ObjCMethodDecl *D) {
   if (ToD)
     return ToD;
 
-  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+  auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (auto *FoundMethod = dyn_cast<ObjCMethodDecl>(FoundDecl)) {
       if (FoundMethod->isInstanceMethod() != D->isInstanceMethod())
@@ -3955,7 +3955,7 @@ ExpectedDecl ASTNodeImporter::VisitObjCProtocolDecl(ObjCProtocolDecl *D) {
     return ToD;
 
   ObjCProtocolDecl *MergeWithProtocol = nullptr;
-  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+  auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (!FoundDecl->isInIdentifierNamespace(Decl::IDNS_ObjCProtocol))
       continue;
@@ -4381,7 +4381,7 @@ ExpectedDecl ASTNodeImporter::VisitObjCInterfaceDecl(ObjCInterfaceDecl *D) {
 
   // Look for an existing interface with the same name.
   ObjCInterfaceDecl *MergeWithIface = nullptr;
-  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+  auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (!FoundDecl->isInIdentifierNamespace(Decl::IDNS_Ordinary))
       continue;
@@ -4556,7 +4556,7 @@ ExpectedDecl ASTNodeImporter::VisitObjCPropertyDecl(ObjCPropertyDecl *D) {
     return ToD;
 
   // Check whether we have already imported this property.
-  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+  auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (auto *FoundProp = dyn_cast<ObjCPropertyDecl>(FoundDecl)) {
       // Check property types.
@@ -4812,7 +4812,7 @@ ExpectedDecl ASTNodeImporter::VisitClassTemplateDecl(ClassTemplateDecl *D) {
   // We may already have a template of the same name; try to find and match it.
   if (!DC->isFunctionOrMethod()) {
     SmallVector<NamedDecl *, 4> ConflictingDecls;
-    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+    auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(Decl::IDNS_Ordinary |
                                               Decl::IDNS_TagFriend))
@@ -5101,7 +5101,7 @@ ExpectedDecl ASTNodeImporter::VisitVarTemplateDecl(VarTemplateDecl *D) {
   assert(!DC->isFunctionOrMethod() &&
          "Variable templates cannot be declared at function scope");
   SmallVector<NamedDecl *, 4> ConflictingDecls;
-  auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+  auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
   for (auto *FoundDecl : FoundDecls) {
     if (!FoundDecl->isInIdentifierNamespace(Decl::IDNS_Ordinary))
       continue;
@@ -5329,7 +5329,7 @@ ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
   // type, and in the same context as the function we're importing.
   if (!LexicalDC->isFunctionOrMethod()) {
     unsigned IDNS = Decl::IDNS_Ordinary | Decl::IDNS_OrdinaryFriend;
-    auto FoundDecls = Importer.FindDeclsInToCtx(DC, Name);
+    auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -7463,24 +7463,12 @@ void ASTNodeImporter::ImportOverrides(CXXMethodDecl *ToMethod,
 
 ASTImporter::ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,
                          ASTContext &FromContext, FileManager &FromFileManager,
-                         bool MinimalImport)
-    : ToContext(ToContext), FromContext(FromContext),
-      ToFileManager(ToFileManager), FromFileManager(FromFileManager),
-      Minimal(MinimalImport) {
-
-  ImportedDecls[FromContext.getTranslationUnitDecl()] =
-      ToContext.getTranslationUnitDecl();
-}
-
-ASTImporter::ASTImporter(ASTImporterLookupTable *LookupTable,
-                         ASTContext &ToContext, FileManager &ToFileManager,
-                         ASTContext &FromContext, FileManager &FromFileManager,
-                         bool MinimalImport)
+                         bool MinimalImport,
+                         ASTImporterLookupTable *LookupTable)
     : LookupTable(LookupTable), ToContext(ToContext), FromContext(FromContext),
       ToFileManager(ToFileManager), FromFileManager(FromFileManager),
       Minimal(MinimalImport) {
 
-  assert(LookupTable);
   ImportedDecls[FromContext.getTranslationUnitDecl()] =
       ToContext.getTranslationUnitDecl();
 }
@@ -7510,7 +7498,7 @@ Optional<unsigned> ASTImporter::getFieldIndex(Decl *F) {
 }
 
 ASTImporter::FoundDeclsTy
-ASTImporter::FindDeclsInToCtx(DeclContext *DC, DeclarationName Name) {
+ASTImporter::findDeclsInToCtx(DeclContext *DC, DeclarationName Name) {
   // We search in the redecl context because of transparent contexts.
   // E.g. a simple C language enum is a transparent context:
   //   enum E { A, B };

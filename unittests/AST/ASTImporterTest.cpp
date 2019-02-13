@@ -3794,11 +3794,6 @@ TEST_P(ASTImporterOptionSpecificTestBase,
 
 struct ASTImporterLookupTableTest : ASTImporterOptionSpecificTestBase {};
 
-TEST_P(ASTImporterLookupTableTest, EmptyCode) {
-  auto *ToTU = getToTuDecl( "", Lang_CXX);
-  ASTImporterLookupTable LT(*ToTU);
-}
-
 TEST_P(ASTImporterLookupTableTest, OneDecl) {
   auto *ToTU = getToTuDecl("int a;", Lang_CXX);
   auto *D = FirstDeclMatcher<VarDecl>().match(ToTU, varDecl(hasName("a")));
@@ -3807,6 +3802,15 @@ TEST_P(ASTImporterLookupTableTest, OneDecl) {
   ASSERT_EQ(Res.size(), 1u);
   EXPECT_EQ(*Res.begin(), D);
 }
+
+static Decl *findInDeclListOfDC(DeclContext *DC, DeclarationName Name) {
+  for (Decl *D : DC->decls()) {
+    if (auto *ND = dyn_cast<NamedDecl>(D))
+      if (ND->getDeclName() == Name)
+        return ND;
+  }
+  return nullptr;
+};
 
 TEST_P(ASTImporterLookupTableTest,
     FriendWhichIsnotFoundByNormalLookupShouldBeFoundByImporterSpecificLookup) {
@@ -3836,21 +3840,11 @@ TEST_P(ASTImporterLookupTableTest,
   FooLexicalDC->getRedeclContext()->localUncachedLookup(FooName, FoundDecls);
   EXPECT_EQ(FoundDecls.size(), 0u);
 
-  auto FindInDeclListOfDC = [](DeclContext *DC, DeclarationName Name) {
-    Decl *Found = nullptr;
-    for (Decl *D : DC->decls()) {
-      if (auto *ND = dyn_cast<NamedDecl>(D))
-        if (ND->getDeclName() == Name)
-          Found = ND;
-    }
-    return Found;
-  };
-
   // Can't find in the list of Decls of the DC.
-  EXPECT_EQ(FindInDeclListOfDC(FooDC, FooName), nullptr);
+  EXPECT_EQ(findInDeclListOfDC(FooDC, FooName), nullptr);
 
   // Can't find in the list of Decls of the LexicalDC
-  EXPECT_EQ(FindInDeclListOfDC(FooLexicalDC, FooName), nullptr);
+  EXPECT_EQ(findInDeclListOfDC(FooLexicalDC, FooName), nullptr);
 
   // ASTImporter specific lookup finds it.
   ASTImporterLookupTable LT(*ToTU);
@@ -3882,21 +3876,11 @@ TEST_P(ASTImporterLookupTableTest,
   FooLexicalDC->getRedeclContext()->localUncachedLookup(FooName, FoundDecls);
   EXPECT_EQ(FoundDecls.size(), 0u);
 
-  auto FindInDeclListOfDC = [](DeclContext *DC, DeclarationName Name) {
-    Decl *Found = nullptr;
-    for (Decl *D : DC->decls()) {
-      if (auto *ND = dyn_cast<NamedDecl>(D))
-        if (ND->getDeclName() == Name)
-          Found = ND;
-    }
-    return Found;
-  };
-
   // Can't find in the list of Decls of the DC.
-  EXPECT_EQ(FindInDeclListOfDC(FooDC, FooName), nullptr);
+  EXPECT_EQ(findInDeclListOfDC(FooDC, FooName), nullptr);
 
   // Can find in the list of Decls of the LexicalDC.
-  EXPECT_EQ(FindInDeclListOfDC(FooLexicalDC, FooName), Foo);
+  EXPECT_EQ(findInDeclListOfDC(FooLexicalDC, FooName), Foo);
 
   // ASTImporter specific lookup finds it.
   ASTImporterLookupTable LT(*ToTU);
@@ -4045,7 +4029,8 @@ TEST_P(ASTImporterLookupTableTest,
   ASTImporterLookupTable LT(*ToTU);
   auto *FriendD = FirstDeclMatcher<FriendDecl>().match(ToTU, friendDecl());
   const RecordDecl *RD = getRecordDeclOfFriend(FriendD);
-  auto *Y = FirstDeclMatcher<CXXRecordDecl>().match(ToTU, cxxRecordDecl(hasName("Y")));
+  auto *Y = FirstDeclMatcher<CXXRecordDecl>().match(
+      ToTU, cxxRecordDecl(hasName("Y")));
 
   DeclarationName Name = RD->getDeclName();
   auto Res = LT.lookup(ToTU, Name);

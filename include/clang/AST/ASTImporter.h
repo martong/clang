@@ -142,11 +142,12 @@ class TypeSourceInfo;
     ImportedCXXBaseSpecifierMap ImportedCXXBaseSpecifiers;
 
     using FoundDeclsTy = SmallVector<NamedDecl *, 2>;
-    FoundDeclsTy FindDeclsInToCtx(DeclContext *DC, DeclarationName Name);
+    FoundDeclsTy findDeclsInToCtx(DeclContext *DC, DeclarationName Name);
 
     void AddToLookupTable(Decl *ToD);
 
   public:
+
     /// \param ToContext The context we'll be importing into.
     ///
     /// \param ToFileManager The file manager we'll be importing into.
@@ -158,27 +159,14 @@ class TypeSourceInfo;
     /// \param MinimalImport If true, the importer will attempt to import
     /// as little as it can, e.g., by importing declarations as forward
     /// declarations that can be completed at a later point.
-    ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,
-                ASTContext &FromContext, FileManager &FromFileManager,
-                bool MinimalImport);
-
+    ///
     /// \param LookupTable The importer specific lookup table which may be
     /// shared amongst several ASTImporter objects.
-    ///
-    /// \param ToContext The context we'll be importing into.
-    ///
-    /// \param ToFileManager The file manager we'll be importing into.
-    ///
-    /// \param FromContext The context we'll be importing from.
-    ///
-    /// \param FromFileManager The file manager we'll be importing into.
-    ///
-    /// \param MinimalImport If true, the importer will attempt to import
-    /// as little as it can, e.g., by importing declarations as forward
-    /// declarations that can be completed at a later point.
-    ASTImporter(ASTImporterLookupTable *LookupTable, ASTContext &ToContext,
-                FileManager &ToFileManager, ASTContext &FromContext,
-                FileManager &FromFileManager, bool MinimalImport);
+    /// If not set then the original C/C++ lookup is used.
+    ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,
+                ASTContext &FromContext, FileManager &FromFileManager,
+                bool MinimalImport,
+                ASTImporterLookupTable *LookupTable = nullptr);
 
     virtual ~ASTImporter();
 

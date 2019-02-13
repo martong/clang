@@ -61,7 +61,7 @@ struct Builder : RecursiveASTVisitor<Builder> {
   bool shouldVisitImplicitCode() const { return true; }
 };
 
-} // namespace unnamed
+} // anonymous namespace
 
 ASTImporterLookupTable::ASTImporterLookupTable(TranslationUnitDecl &TU) {
   Builder B(*this);
@@ -104,10 +104,12 @@ ASTImporterLookupTable::lookup(DeclContext *DC, DeclarationName Name) const {
   auto DCI = LookupTable.find(DC->getPrimaryContext());
   if (DCI == LookupTable.end())
     return {};
+
   const auto &FoundNameMap = DCI->second;
   auto NamesI = FoundNameMap.find(Name);
   if (NamesI == FoundNameMap.end())
     return {};
+
   return NamesI->second;
 }
 
@@ -129,9 +131,9 @@ void ASTImporterLookupTable::dump(DeclContext *DC) const {
 
 void ASTImporterLookupTable::dump() const {
   for (const auto &Entry : LookupTable) {
-    DeclContext* DC = Entry.first;
-    std::string Primary = DC->getPrimaryContext() ? " primary " : " ";
-    llvm::errs() << "== DC: " << cast<Decl>(DC) << Primary <<  "\n";
+    DeclContext *DC = Entry.first;
+    StringRef Primary = DC->getPrimaryContext() ? " primary" : "";
+    llvm::errs() << "== DC:" << cast<Decl>(DC) << Primary << "\n";
     dump(DC);
   }
 }

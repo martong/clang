@@ -119,8 +119,8 @@ void ASTImporterTestBase::TU::lazyInitImporter(
   assert(ToAST);
   if (!Importer) {
     Importer.reset(new ASTImporter(
-        &LookupTable, ToAST->getASTContext(), ToAST->getFileManager(),
-        Unit->getASTContext(), Unit->getFileManager(), false));
+        ToAST->getASTContext(), ToAST->getFileManager(), Unit->getASTContext(),
+        Unit->getFileManager(), false, &LookupTable));
   }
   assert(&ToAST->getASTContext() == &Importer->getToContext());
   createVirtualFileIfNeeded(ToAST, FileName, Code);
@@ -152,9 +152,8 @@ ASTImporterTestBase::TU::~TU() {}
 
 void ASTImporterTestBase::lazyInitLookupTable(TranslationUnitDecl *ToTU) {
   assert(ToTU);
-  if (LookupTablePtr)
-    return;
-  LookupTablePtr = llvm::make_unique<ASTImporterLookupTable>(*ToTU);
+  if (!LookupTablePtr)
+    LookupTablePtr = llvm::make_unique<ASTImporterLookupTable>(*ToTU);
 }
 
 void ASTImporterTestBase::lazyInitToAST(Language ToLang, StringRef ToSrcCode,
