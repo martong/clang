@@ -71,25 +71,6 @@
 #include <type_traits>
 #include <utility>
 
-namespace {
-
-// FIXME Do we have something similar in LLVM?
-template <typename Function> class Finally {
-public:
-  Finally(const Function &function) : function(function) {}
-  ~Finally() { function(); }
-
-private:
-  Function function;
-};
-
-template <typename Function>
-Finally<Function> finally(const Function &function) {
-  return Finally<Function>(function);
-}
-
-} // namespace unnamed
-
 namespace clang {
 
   using llvm::make_error;
@@ -7946,12 +7927,23 @@ TranslationUnitDecl *ASTImporter::GetFromTU(Decl *ToD) {
   return FromDPos->second->getTranslationUnitDecl();
 }
 
+// RAII class to maintain the import path.
+class ImportPathBuilder {
+  ASTImporter::ImportPathTy &Path;
+
+public:
+  ImportPathBuilder(ASTImporter::ImportPathTy &Path, Decl *FromD) : Path(Path) {
+    Path.push(FromD);
+  };
+  ~ImportPathBuilder() { Path.pop(); }
+};
+
 Expected<Decl *> ASTImporter::Import(Decl *FromD) {
   if (!FromD)
     return nullptr;
 
-  ImportPath.push(FromD);
-  auto PopGuard = finally([this]() { ImportPath.pop(); });
+  // Push FromD to the stack, and remove that when we return.
+  ImportPathBuilder pathRAII(ImportPath, FromD);
 
   ASTNodeImporter Importer(*this);
 
