@@ -7943,7 +7943,7 @@ Expected<Decl *> ASTImporter::Import(Decl *FromD) {
     return nullptr;
 
   // Push FromD to the stack, and remove that when we return.
-  ImportPathBuilder pathRAII(ImportPath, FromD);
+  ImportPathBuilder PathRAII(ImportPath, FromD);
 
   ASTNodeImporter Importer(*this);
 
