@@ -1612,6 +1612,9 @@ bool StructuralEquivalenceContext::CheckKindSpecificEquivalence(
       if (!::IsStructurallyEquivalent(Name1, Name2) ||
           !::IsStructurallyEquivalent(*this, Record1, Record2))
         return false;
+      if (Record1->getQualifiedNameAsString() !=
+          Record2->getQualifiedNameAsString())
+        return false;
     } else {
       // Record/non-record mismatch.
       return false;

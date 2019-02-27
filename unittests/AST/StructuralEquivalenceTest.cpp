@@ -786,6 +786,13 @@ TEST_F(StructuralEquivalenceRecordTest, SameFriendsDifferentOrder) {
   EXPECT_FALSE(testStructuralMatch(t));
 }
 
+TEST_F(StructuralEquivalenceRecordTest, DifferentQualifiedName) {
+  auto t = makeNamedDecls("namespace A { class foo; };",
+                          "namespace B { class foo; };",
+                          Lang_CXX);
+  EXPECT_FALSE(testStructuralMatch(t));
+}
+
 TEST_F(StructuralEquivalenceTest, CompareSameDeclWithMultiple) {
   auto t = makeNamedDecls(
       "struct A{ }; struct B{ }; void foo(A a, A b);",
