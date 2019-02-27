@@ -1598,6 +1598,20 @@ bool StructuralEquivalenceContext::CheckCommonEquivalence(Decl *D1, Decl *D2) {
 
 bool StructuralEquivalenceContext::CheckKindSpecificEquivalence(
     Decl *D1, Decl *D2) {
+
+  if (auto *ND1 = dyn_cast<NamedDecl>(D1)) {
+    auto *ND2 = dyn_cast<NamedDecl>(D2);
+    if (!ND2)
+      return false;
+    auto SkipNameCheck =
+        isa<ParmVarDecl>(ND1) || isa<ImplicitParamDecl>(ND1) ||
+        isa<ObjCTypeParamDecl>(ND1) || isa<TemplateTypeParmDecl>(ND1) ||
+        isa<TemplateTemplateParmDecl>(ND1) || isa<NonTypeTemplateParmDecl>(ND1);
+    if (!SkipNameCheck)
+      if (ND1->getQualifiedNameAsString() != ND2->getQualifiedNameAsString())
+        return false;
+  }
+
   // FIXME: Switch on all declaration kinds. For now, we're just going to
   // check the obvious ones.
   if (auto *Record1 = dyn_cast<RecordDecl>(D1)) {
@@ -1611,9 +1625,6 @@ bool StructuralEquivalenceContext::CheckKindSpecificEquivalence(
         Name2 = Record2->getTypedefNameForAnonDecl()->getIdentifier();
       if (!::IsStructurallyEquivalent(Name1, Name2) ||
           !::IsStructurallyEquivalent(*this, Record1, Record2))
-        return false;
-      if (Record1->getQualifiedNameAsString() !=
-          Record2->getQualifiedNameAsString())
         return false;
     } else {
       // Record/non-record mismatch.
