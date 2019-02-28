@@ -3363,6 +3363,30 @@ getFriendCountAndPosition(FriendDecl *FD) {
   return std::make_tuple(FriendCount, *FriendPosition);
 }
 
+DeclContext* getDCOfUnderlyingDecl(FriendDecl *FrD) {
+  if (NamedDecl *ND = FrD->getFriendDecl()) {
+    return ND->getDeclContext();
+  }
+  if (FrD->getFriendType()) {
+    QualType Ty = FrD->getFriendType()->getType();
+    if (isa<ElaboratedType>(Ty))
+      Ty = cast<ElaboratedType>(Ty)->getNamedType();
+    if (!Ty->isDependentType()) {
+      if (const auto *RTy = dyn_cast<RecordType>(Ty))
+        return RTy->getAsCXXRecordDecl()->getDeclContext();
+      else if (const auto *SpecTy = dyn_cast<TemplateSpecializationType>(Ty))
+        return SpecTy->getAsCXXRecordDecl()->getDeclContext();
+      else if (const auto TypedefTy = dyn_cast<TypedefType>(Ty)) {
+        return TypedefTy->getDecl()->getDeclContext();
+      } else {
+        llvm_unreachable("Unhandled type of friend");
+      }
+    }
+  }
+  // DependentType
+  return nullptr;
+}
+
 ExpectedDecl ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
   // Import the major distinguishing characteristics of a declaration.
   DeclContext *DC, *LexicalDC;
@@ -3378,6 +3402,20 @@ ExpectedDecl ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
 
   while (ImportedFriend) {
     bool Match = false;
+
+    DeclContext *ImportedFriendDC = getDCOfUnderlyingDecl(ImportedFriend);
+    DeclContext *FromFriendDC = getDCOfUnderlyingDecl(D);
+    if (FromFriendDC) {
+      ExpectedDecl FriendDCDeclOrErr = import(cast<Decl>(FromFriendDC));
+      if (!FriendDCDeclOrErr)
+        return FriendDCDeclOrErr.takeError();
+      DeclContext *FriendDC = cast<DeclContext>(*FriendDCDeclOrErr);
+      if (ImportedFriendDC != FriendDC) {
+        ImportedFriend = ImportedFriend->getNextFriend();
+        continue;
+      }
+    }
+
     if (D->getFriendDecl() && ImportedFriend->getFriendDecl()) {
       Match =
           isStructuralMatch(D->getFriendDecl(), ImportedFriend->getFriendDecl(),
