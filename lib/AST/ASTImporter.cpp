@@ -3413,24 +3413,23 @@ ExpectedDecl ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
       if (!FriendDCDeclOrErr)
         return FriendDCDeclOrErr.takeError();
       DeclContext *FriendDC = cast<DeclContext>(*FriendDCDeclOrErr);
-      if (ImportedFriendDC != FriendDC) {
+      if (ImportedFriendDC != FriendDC)
         continue;
-      }
     }
 
     bool Match = false;
-    if (D->getFriendDecl() && ImportedFriend->getFriendDecl()) {
+    if (D->getFriendDecl() && ImportedFriend->getFriendDecl())
       Match =
           isStructuralMatch(D->getFriendDecl(), ImportedFriend->getFriendDecl(),
                             /*Complain=*/false);
-    } else if (D->getFriendType() && ImportedFriend->getFriendType()) {
+    else if (D->getFriendType() && ImportedFriend->getFriendType())
       Match = Importer.IsStructurallyEquivalent(
           D->getFriendType()->getType(),
           ImportedFriend->getFriendType()->getType(), /*Complain=*/false);
-    }
     if (Match)
       ImportedEquivalentFriends.push_back(ImportedFriend);
   }
+
   std::tuple<unsigned int, unsigned int> CountAndPosition =
       getFriendCountAndPosition(D);
 
