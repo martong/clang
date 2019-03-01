@@ -3363,6 +3363,8 @@ getFriendCountAndPosition(FriendDecl *FD) {
   return std::make_tuple(FriendCount, *FriendPosition);
 }
 
+// Returns the DeclContext of the underlying friend declaration/type.  If that
+// is a dependent type then the returned optional does not have a value.
 static Optional<DeclContext *> getDCOfUnderlyingDecl(FriendDecl *FrD) {
   if (NamedDecl *ND = FrD->getFriendDecl())
     return ND->getDeclContext();
@@ -3395,26 +3397,28 @@ ExpectedDecl ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
   // FriendDecl is not a NamedDecl so we cannot use lookup.
   // We try to maintain order and count of redundant friend declarations.
   auto *RD = cast<CXXRecordDecl>(DC);
-  FriendDecl *ImportedFriend = RD->getFirstFriend();
   SmallVector<FriendDecl *, 2> ImportedEquivalentFriends;
 
-  while (ImportedFriend) {
-    bool Match = false;
+  for (FriendDecl *ImportedFriend = RD->getFirstFriend(); ImportedFriend;
+       ImportedFriend = ImportedFriend->getNextFriend()) {
 
+    // Compare the semantic DeclContext of the underlying declarations of the
+    // existing and the to be imported friend.
+    // Normally, lookup ensures this, but with friends we cannot use the lookup.
     Optional<DeclContext *> ImportedFriendDC =
         getDCOfUnderlyingDecl(ImportedFriend);
     Optional<DeclContext *> FromFriendDC = getDCOfUnderlyingDecl(D);
-    if (FromFriendDC) {
+    if (FromFriendDC) { // The underlying friend type is not dependent.
       ExpectedDecl FriendDCDeclOrErr = import(cast<Decl>(*FromFriendDC));
       if (!FriendDCDeclOrErr)
         return FriendDCDeclOrErr.takeError();
       DeclContext *FriendDC = cast<DeclContext>(*FriendDCDeclOrErr);
       if (ImportedFriendDC != FriendDC) {
-        ImportedFriend = ImportedFriend->getNextFriend();
         continue;
       }
     }
 
+    bool Match = false;
     if (D->getFriendDecl() && ImportedFriend->getFriendDecl()) {
       Match =
           isStructuralMatch(D->getFriendDecl(), ImportedFriend->getFriendDecl(),
@@ -3426,8 +3430,6 @@ ExpectedDecl ASTNodeImporter::VisitFriendDecl(FriendDecl *D) {
     }
     if (Match)
       ImportedEquivalentFriends.push_back(ImportedFriend);
-
-    ImportedFriend = ImportedFriend->getNextFriend();
   }
   std::tuple<unsigned int, unsigned int> CountAndPosition =
       getFriendCountAndPosition(D);
