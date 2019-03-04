@@ -64,15 +64,20 @@ struct StructuralEquivalenceContext {
   /// Whether to complain about failures.
   bool Complain;
 
+  /// Whether warn or error on tag type mismatches.
+  bool ErrorOnTagTypeMismatch;
+
   /// \c true if the last diagnostic came from ToCtx.
   bool LastDiagFromC2 = false;
 
   StructuralEquivalenceContext(ASTContext &FromCtx, ASTContext &ToCtx,
                                StructuralEquivalenceKind EqKind,
                                bool StrictTypeSpelling = false,
-                               bool Complain = true)
+                               bool Complain = true,
+                               bool ErrorOnTagTypeMismatch = false)
       : FromCtx(FromCtx), ToCtx(ToCtx), EqKind(EqKind),
-        StrictTypeSpelling(StrictTypeSpelling), Complain(Complain) {}
+        StrictTypeSpelling(StrictTypeSpelling), Complain(Complain),
+        ErrorOnTagTypeMismatch(ErrorOnTagTypeMismatch) {}
 
   DiagnosticBuilder Diag1(SourceLocation Loc, unsigned DiagID);
   DiagnosticBuilder Diag2(SourceLocation Loc, unsigned DiagID);
@@ -104,6 +109,10 @@ struct StructuralEquivalenceContext {
   /// probably makes more sense in some other common place then here.
   static llvm::Optional<unsigned>
   findUntaggedStructOrUnionIndex(RecordDecl *Anon);
+
+  // If ErrorOnTagTypeMismatch is set, return the the error, otherwise get the
+  // relevant warning for the input error diagnostic.
+  unsigned getApplicableDiagnostic(unsigned ErrorDiagnostic);
 
 private:
   /// Finish checking all of the structural equivalences.

@@ -7516,7 +7516,7 @@ bool Sema::hasStructuralCompatLayout(Decl *D, Decl *Suggested) {
   StructuralEquivalenceContext Ctx(
       D->getASTContext(), Suggested->getASTContext(),
       StructuralEquivalenceKind::Default, false /*StrictTypeSpelling*/,
-      true /*Complain*/);
+      true /*Complain*/, true /*ErrorOnTagTypeMismatch*/);
   return Ctx.IsEquivalent(D, Suggested);
 }
 

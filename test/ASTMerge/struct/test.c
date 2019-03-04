@@ -44,3 +44,4 @@
 // CHECK: struct2.c:128:15: note: field 'i' has type 'float' here
 // CHECK: struct2.c:138:3: warning: external variable 'x16' declared with incompatible types in different translation units ('struct DeepUnnamedError' vs. 'struct DeepUnnamedError')
 // CHECK: struct1.c:141:3: note: declared here with type 'struct DeepUnnamedError'
+// CHECK: 28 warnings generated
