@@ -2549,6 +2549,9 @@ ExpectedDecl ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
           if (!isStructuralMatch(D, FoundRecord, false))
             continue;
 
+        if (!hasSameVisibilityContext(FoundRecord, D))
+          continue;
+
         if (isStructuralMatch(D, FoundRecord)) {
           RecordDecl *FoundDef = FoundRecord->getDefinition();
           if (D->isThisDeclarationADefinition() && FoundDef) {

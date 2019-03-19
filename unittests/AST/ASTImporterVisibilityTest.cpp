@@ -32,6 +32,10 @@ struct GetVarPattern {
   using DeclTy = VarDecl;
   BindableMatcher<Decl> operator()() { return varDecl(hasName("v")); }
 };
+struct GetClassPattern {
+  using DeclTy = CXXRecordDecl;
+  BindableMatcher<Decl> operator()() { return cxxRecordDecl(hasName("X")); }
+};
 
 // Values for the value-parameterized test fixtures.
 // FunctionDecl:
@@ -42,6 +46,9 @@ auto *AnonF = "namespace { void f(); }";
 auto *ExternV = "extern int v;";
 auto *StaticV = "static int v;";
 auto *AnonV = "namespace { extern int v; }";
+// CXXRecordDecl:
+auto *ExternC = "class X;";
+auto *AnonC = "namespace { class X; }";
 
 // First value in tuple: Compile options.
 // Second value in tuple: Source code to be used in the test.
@@ -85,12 +92,17 @@ protected:
 // Manual instantiation of the fixture with each type.
 using ImportFunctionsVisibilityChain = ImportVisibilityChain<GetFunPattern>;
 using ImportVariablesVisibilityChain = ImportVisibilityChain<GetVarPattern>;
-// Value-parameterized test for the first type.
+using ImportClassesVisibilityChain = ImportVisibilityChain<GetClassPattern>;
+// Value-parameterized test for functions.
 TEST_P(ImportFunctionsVisibilityChain, ImportChain) {
   TypedTest_ImportChain();
 }
-// Value-parameterized test for the second type.
+// Value-parameterized test for variables.
 TEST_P(ImportVariablesVisibilityChain, ImportChain) {
+  TypedTest_ImportChain();
+}
+// Value-parameterized test for classes.
+TEST_P(ImportClassesVisibilityChain, ImportChain) {
   TypedTest_ImportChain();
 }
 
@@ -111,6 +123,11 @@ INSTANTIATE_TEST_CASE_P(
         // provided but they must have the same linkage.  See also the test
         // ImportVariableChainInC which test for this special C Lang case.
         ::testing::Values(ExternV, AnonV)), );
+INSTANTIATE_TEST_CASE_P(
+    ParameterizedTests, ImportClassesVisibilityChain,
+    ::testing::Combine(
+        DefaultTestValuesForRunOptions,
+        ::testing::Values(ExternC, AnonC)), );
 
 // First value in tuple: Compile options.
 // Second value in tuple: Tuple with informations for the test.
@@ -172,6 +189,7 @@ protected:
 };
 using ImportFunctionsVisibility = ImportVisibility<GetFunPattern>;
 using ImportVariablesVisibility = ImportVisibility<GetVarPattern>;
+using ImportClassesVisibility = ImportVisibility<GetClassPattern>;
 
 // FunctionDecl.
 TEST_P(ImportFunctionsVisibility, ImportAfter) {
@@ -185,6 +203,13 @@ TEST_P(ImportVariablesVisibility, ImportAfter) {
   TypedTest_ImportAfter();
 }
 TEST_P(ImportVariablesVisibility, ImportAfterImport) {
+  TypedTest_ImportAfterImport();
+}
+// CXXRecordDecl.
+TEST_P(ImportClassesVisibility, ImportAfter) {
+  TypedTest_ImportAfter();
+}
+TEST_P(ImportClassesVisibility, ImportAfterImport) {
   TypedTest_ImportAfterImport();
 }
 
@@ -217,6 +242,14 @@ INSTANTIATE_TEST_CASE_P(
                           std::make_tuple(AnonV, ExternV, ExpectNotLink),
                           std::make_tuple(AnonV, StaticV, ExpectNotLink),
                           std::make_tuple(AnonV, AnonV, ExpectNotLink))), );
+INSTANTIATE_TEST_CASE_P(
+    ParameterizedTests, ImportClassesVisibility,
+    ::testing::Combine(
+        DefaultTestValuesForRunOptions,
+        ::testing::Values(std::make_tuple(ExternC, ExternC, ExpectLink),
+                          std::make_tuple(ExternC, AnonC, ExpectNotLink),
+                          std::make_tuple(AnonC, ExternC, ExpectNotLink),
+                          std::make_tuple(AnonC, AnonC, ExpectNotLink))), );
 
 
 } // end namespace ast_matchers
