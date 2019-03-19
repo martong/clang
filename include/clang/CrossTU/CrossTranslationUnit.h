@@ -44,7 +44,8 @@ enum class index_error_code {
   failed_to_get_external_ast,
   failed_to_generate_usr,
   triple_mismatch,
-  lang_mismatch
+  lang_mismatch,
+  load_threshold_reached
 };
 
 class IndexError : public llvm::ErrorInfo<IndexError> {
@@ -102,7 +103,9 @@ public:
   /// \p CrossTUDir directory, called \p IndexName. In case the declaration is
   /// found in the index the corresponding AST file will be loaded and the
   /// definition of the function will be merged into the original AST using
-  /// the AST Importer.
+  /// the AST Importer. \p CTULoadTreshold should serve as an upper limit to the
+  /// number of TUs imported in order to reduce the memory footprint of CTU
+  /// analysis.
   ///
   /// \return The declaration with the definition will be returned.
   /// If no suitable definition is found in the index file or multiple
@@ -111,7 +114,8 @@ public:
   /// Note that the AST files should also be in the \p CrossTUDir.
   llvm::Expected<const FunctionDecl *>
   getCrossTUDefinition(const FunctionDecl *FD, StringRef CrossTUDir,
-                       StringRef IndexName, bool DisplayCTUProgress = false);
+                       StringRef IndexName, bool DisplayCTUProgress,
+                       unsigned CTULoadThreshold);
 
   /// This function loads a function definition from an external AST
   ///        file.
@@ -119,7 +123,8 @@ public:
   /// A function definition with the same declaration will be looked up in the
   /// index file which should be in the \p CrossTUDir directory, called
   /// \p IndexName. In case the declaration is found in the index the
-  /// corresponding AST file will be loaded.
+  /// corresponding AST file will be loaded. If the number of TUs imported
+  /// reaches \p CTULoadTreshold, no loading is performed.
   ///
   /// \return Returns an ASTUnit that contains the definition of the looked up
   /// function.
@@ -128,7 +133,8 @@ public:
   llvm::Expected<ASTUnit *> loadExternalAST(StringRef LookupName,
                                             StringRef CrossTUDir,
                                             StringRef IndexName,
-                                            bool DisplayCTUProgress = false);
+                                            bool DisplayCTUProgress,
+                                            unsigned CTULoadThreshold);
 
   /// This function merges a definition from a separate AST Unit into
   ///        the current one which was created by the compiler instance that
@@ -157,6 +163,7 @@ private:
   CompilerInstance &CI;
   ASTContext &Context;
   std::shared_ptr<ASTImporterSharedState> ImporterSharedSt;
+  unsigned NumASTLoaded{0u};
 };
 
 } // namespace cross_tu

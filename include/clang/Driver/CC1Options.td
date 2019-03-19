@@ -87,6 +87,10 @@ def analyzer_viz_egraph_ubigraph : Flag<["-"], "analyzer-viz-egraph-ubigraph">,
 
 def analyzer_display_ctu_progress : Flag<["-"], "analyzer-display-ctu-progress">,
   HelpText<"Emit verbose output about the analyzer's progress related to ctu">;
+def analyzer_ctu_import_threshold : Separate<["-"], "analyzer-ctu-import-threshold">,
+  HelpText<"Limit the number of TUs imported during the CTU analysis of a single TU">;
+def analyzer_ctu_import_threshold_EQ : Joined<["-"], "analyzer-ctu-import-threshold=">,
+  Alias<analyzer_ctu_import_threshold>;
 
 def analyzer_inline_max_stack_depth : Separate<["-"], "analyzer-inline-max-stack-depth">,
   HelpText<"Bound on stack depth while inlining (4 by default)">;

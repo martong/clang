@@ -186,6 +186,10 @@ public:
   // Cap the stack depth at 4 calls (5 stack frames, base + 4 calls).
   unsigned InlineMaxStackDepth = 5;
 
+  /// The maximal amount of translation units that is considered for import
+  /// when inlining functions during CTU analysis.
+  unsigned CTUImportThreshold{100u};
+
   /// The mode of function selection used during inlining.
   AnalysisInliningMode InliningMode = NoRedundancy;
 
