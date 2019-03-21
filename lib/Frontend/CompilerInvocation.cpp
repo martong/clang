@@ -290,6 +290,8 @@ static bool ParseAnalyzerArgs(AnalyzerOptions &Opts, ArgList &Args,
   Opts.AnalyzerDisplayProgress = Args.hasArg(OPT_analyzer_display_progress);
   Opts.AnalyzerDisplayCtuProgress =
       Args.hasArg(OPT_analyzer_display_ctu_progress);
+  Opts.CTUImportThreshold = getLastArgIntValue(
+      Args, OPT_analyzer_ctu_import_threshold, Opts.CTUImportThreshold, Diags);
   Opts.AnalyzeNestedBlocks =
     Args.hasArg(OPT_analyzer_opt_analyze_nested_blocks);
   Opts.eagerlyAssumeBinOpBifurcation = Args.hasArg(OPT_analyzer_eagerly_assume);

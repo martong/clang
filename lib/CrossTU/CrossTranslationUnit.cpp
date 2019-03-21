@@ -77,6 +77,8 @@ STATISTIC(NumNameConflicts, "The # of imports when the ASTImporter "
                             "encountered an ODR error");
 STATISTIC(NumTripleMismatch, "The # of triple mismatches");
 STATISTIC(NumLangMismatch, "The # of language mismatches");
+STATISTIC(NumASTLoadThresholdReached,
+          "The # of ASTs not loaded because of threshold");
 
 // FIXME: This class is will be removed after the transition to llvm::Error.
 class IndexErrorCategory : public std::error_category {
@@ -105,6 +107,8 @@ public:
       return "Triple mismatch";
     case index_error_code::lang_mismatch:
       return "Language mismatch";
+    case index_error_code::load_threshold_reached:
+      return "Load threshold reached";
     }
     llvm_unreachable("Unrecognized index_error_code.");
   }
@@ -200,7 +204,8 @@ llvm::Expected<const FunctionDecl *>
 CrossTranslationUnitContext::getCrossTUDefinition(const FunctionDecl *FD,
                                                   StringRef CrossTUDir,
                                                   StringRef IndexName,
-                                                  bool DisplayCTUProgress) {
+                                                  bool DisplayCTUProgress,
+                                                  unsigned CTULoadThreshold) {
   assert(FD && "FD is missing, bad call to this function!");
   assert(!FD->hasBody() && "FD has a definition in current translation unit!");
   ++NumGetCTUCalled;
@@ -209,7 +214,8 @@ CrossTranslationUnitContext::getCrossTUDefinition(const FunctionDecl *FD,
     return llvm::make_error<IndexError>(
         index_error_code::failed_to_generate_usr);
   llvm::Expected<ASTUnit *> ASTUnitOrError =
-      loadExternalAST(LookupFnName, CrossTUDir, IndexName, DisplayCTUProgress);
+      loadExternalAST(LookupFnName, CrossTUDir, IndexName, DisplayCTUProgress,
+                      CTULoadThreshold);
   if (!ASTUnitOrError) {
     ++NumNoUnit;
     return ASTUnitOrError.takeError();
@@ -296,11 +302,18 @@ void CrossTranslationUnitContext::emitCrossTUDiagnostics(const IndexError &IE) {
 
 llvm::Expected<ASTUnit *> CrossTranslationUnitContext::loadExternalAST(
     StringRef LookupName, StringRef CrossTUDir, StringRef IndexName,
-    bool DisplayCTUProgress) {
+    bool DisplayCTUProgress, unsigned CTULoadThreshold) {
   // FIXME: The current implementation only supports loading functions with
   //        a lookup name from a single translation unit. If multiple
   //        translation units contains functions with the same lookup name an
   //        error will be returned.
+
+  if (NumASTLoaded >= CTULoadThreshold) {
+    ++NumASTLoadThresholdReached;
+    return llvm::make_error<IndexError>(
+        index_error_code::load_threshold_reached);
+  }
+
   ASTUnit *Unit = nullptr;
   auto FnUnitCacheEntry = FunctionASTUnitMap.find(LookupName);
   if (FnUnitCacheEntry == FunctionASTUnitMap.end()) {
@@ -338,6 +351,7 @@ llvm::Expected<ASTUnit *> CrossTranslationUnitContext::loadExternalAST(
           ASTUnit::LoadEverything, Diags, CI.getFileSystemOpts()));
       Unit = LoadedUnit.get();
       FileASTUnitMap[ASTFileName] = std::move(LoadedUnit);
+      ++NumASTLoaded;
       if (DisplayCTUProgress) {
         llvm::errs() << "ANALYZE (CTU loaded AST for source file): "
                      // Drop the ".ast" extension.
