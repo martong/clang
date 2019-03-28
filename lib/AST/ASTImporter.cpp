@@ -957,6 +957,28 @@ Error ASTNodeImporter::ImportTemplateParameterLists(const DeclaratorDecl *FromD,
   return Error::success();
 }
 
+template <typename T>
+bool ASTNodeImporter::hasSameVisibilityContext(T *Found, T *From) {
+  if (From->hasExternalFormalLinkage())
+    return Found->hasExternalFormalLinkage();
+  else if (Importer.GetFromTU(Found) == From->getTranslationUnitDecl()) {
+    if (From->isInAnonymousNamespace())
+      return Found->isInAnonymousNamespace();
+    else
+      return !Found->isInAnonymousNamespace() &&
+             !Found->hasExternalFormalLinkage();
+  }
+  return false;
+}
+
+template <>
+bool ASTNodeImporter::hasSameVisibilityContext(TypedefNameDecl *Found,
+                                               TypedefNameDecl *From) {
+  if (From->isInAnonymousNamespace() && Found->isInAnonymousNamespace())
+    return Importer.GetFromTU(Found) == From->getTranslationUnitDecl();
+  return From->isInAnonymousNamespace() == Found->isInAnonymousNamespace();
+}
+
 } // namespace clang
 
 //----------------------------------------------------------------------------
@@ -2241,6 +2263,9 @@ ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
       if (auto *FoundTypedef = dyn_cast<TypedefNameDecl>(FoundDecl)) {
+        if (!hasSameVisibilityContext(FoundTypedef, D))
+          continue;
+
         if (Importer.IsStructurallyEquivalent(
                 D->getUnderlyingType(), FoundTypedef->getUnderlyingType())) {
           QualType FromUT = D->getUnderlyingType();
@@ -2881,20 +2906,6 @@ ASTNodeImporter::FindFunctionTemplateSpecialization(FunctionDecl *FromFD) {
   void *InsertPos = nullptr;
   auto *FoundSpec = Template->findSpecialization(ToTemplArgs, InsertPos);
   return FoundSpec;
-}
-
-template <typename T>
-bool ASTNodeImporter::hasSameVisibilityContext(T *Found, T *From) {
-  if (From->hasExternalFormalLinkage())
-    return Found->hasExternalFormalLinkage();
-  else if (Importer.GetFromTU(Found) == From->getTranslationUnitDecl()) {
-    if (From->isInAnonymousNamespace())
-      return Found->isInAnonymousNamespace();
-    else
-      return !Found->isInAnonymousNamespace() &&
-             !Found->hasExternalFormalLinkage();
-  }
-  return false;
 }
 
 ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
