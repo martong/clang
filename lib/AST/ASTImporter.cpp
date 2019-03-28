@@ -5481,18 +5481,16 @@ ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
         continue;
 
       if (auto *FoundTemplate = dyn_cast<FunctionTemplateDecl>(FoundDecl)) {
-        if (FoundTemplate->hasExternalFormalLinkage() &&
-            D->hasExternalFormalLinkage()) {
-          if (isStructuralMatch(D, FoundTemplate, false)) {
-            FunctionTemplateDecl *TemplateWithDef =
-                getDefinition(FoundTemplate);
-            if (D->isThisDeclarationADefinition() && TemplateWithDef) {
-              return Importer.MapImported(D, TemplateWithDef);
-            }
-            FoundByLookup = FoundTemplate;
-            break;
+        if (!hasSameVisibilityContext(FoundTemplate, D))
+          continue;
+        if (isStructuralMatch(D, FoundTemplate, false)) {
+          FunctionTemplateDecl *TemplateWithDef = getDefinition(FoundTemplate);
+          if (D->isThisDeclarationADefinition() && TemplateWithDef) {
+            return Importer.MapImported(D, TemplateWithDef);
           }
-        } // linkage
+          FoundByLookup = FoundTemplate;
+          break;
+        }
       }   // template
       // TODO: handle conflicting names
     } // for
