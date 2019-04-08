@@ -38,6 +38,12 @@ struct GetVarPattern {
   using DeclTy = VarDecl;
   BindableMatcher<Decl> operator()() { return varDecl(hasName("v")); }
 };
+struct GetVarTemplPattern {
+  using DeclTy = VarTemplateDecl;
+  BindableMatcher<Decl> operator()() {
+    return namedDecl(hasName("v"), has(templateTypeParmDecl()));
+  }
+};
 struct GetClassPattern {
   using DeclTy = CXXRecordDecl;
   BindableMatcher<Decl> operator()() { return cxxRecordDecl(hasName("X")); }
@@ -72,6 +78,10 @@ auto *AnonFT = "namespace { template <class> void f(); }";
 auto *ExternV = "extern int v;";
 auto *StaticV = "static int v;";
 auto *AnonV = "namespace { extern int v; }";
+// VarTemplateDecl:
+auto *ExternVT = "template <class> extern int v;";
+auto *StaticVT = "template <class> static int v;";
+auto *AnonVT = "namespace { template <class> extern int v; }";
 // CXXRecordDecl:
 auto *ExternC = "class X;";
 auto *AnonC = "namespace { class X; }";
@@ -113,13 +123,13 @@ protected:
     std::string Code = getCode() + getCode();
     auto Pattern = getPattern();
 
-    TranslationUnitDecl *FromTu = getTuDecl(Code, Lang_CXX11, "input0.cc");
+    TranslationUnitDecl *FromTu = getTuDecl(Code, Lang_CXX14, "input0.cc");
 
     auto *FromF0 = FirstDeclMatcher<DeclTy>().match(FromTu, Pattern);
     auto *FromF1 = LastDeclMatcher<DeclTy>().match(FromTu, Pattern);
 
-    auto *ToF0 = Import(FromF0, Lang_CXX11);
-    auto *ToF1 = Import(FromF1, Lang_CXX11);
+    auto *ToF0 = Import(FromF0, Lang_CXX14);
+    auto *ToF1 = Import(FromF1, Lang_CXX14);
 
     EXPECT_TRUE(ToF0);
     ASSERT_TRUE(ToF1);
@@ -133,6 +143,8 @@ using ImportFunctionsVisibilityChain = ImportVisibilityChain<GetFunPattern>;
 using ImportFunctionTemplatesVisibilityChain =
     ImportVisibilityChain<GetFunTemplPattern>;
 using ImportVariablesVisibilityChain = ImportVisibilityChain<GetVarPattern>;
+using ImportVariableTemplatesVisibilityChain =
+    ImportVisibilityChain<GetVarTemplPattern>;
 using ImportClassesVisibilityChain = ImportVisibilityChain<GetClassPattern>;
 using ImportClassTemplatesVisibilityChain =
     ImportVisibilityChain<GetClassTemplPattern>;
@@ -148,6 +160,10 @@ TEST_P(ImportFunctionTemplatesVisibilityChain, ImportChain) {
 }
 // Value-parameterized test for variables.
 TEST_P(ImportVariablesVisibilityChain, ImportChain) {
+  TypedTest_ImportChain();
+}
+// Value-parameterized test for variable templates.
+TEST_P(ImportVariableTemplatesVisibilityChain, ImportChain) {
   TypedTest_ImportChain();
 }
 // Value-parameterized test for classes.
@@ -185,11 +201,15 @@ INSTANTIATE_TEST_CASE_P(
         // provided but they must have the same linkage.  See also the test
         // ImportVariableChainInC which test for this special C Lang case.
         ::testing::Values(ExternV, AnonV)), );
-INSTANTIATE_TEST_CASE_P(
-    ParameterizedTests, ImportClassesVisibilityChain,
-    ::testing::Combine(
-        DefaultTestValuesForRunOptions,
-        ::testing::Values(ExternC, AnonC)), );
+INSTANTIATE_TEST_CASE_P(ParameterizedTests,
+                        ImportVariableTemplatesVisibilityChain,
+                        ::testing::Combine(DefaultTestValuesForRunOptions,
+                                           ::testing::Values(ExternVT,
+                                                             AnonVT)), );
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportClassesVisibilityChain,
+                        ::testing::Combine(DefaultTestValuesForRunOptions,
+                                           ::testing::Values(ExternC,
+                                                             AnonC)), );
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ImportClassTemplatesVisibilityChain,
                         ::testing::Combine(DefaultTestValuesForRunOptions,
                                            ::testing::Values(ExternCT,
@@ -221,14 +241,14 @@ protected:
   BindableMatcher<Decl> getPattern() const { return PatternFactory()(); }
 
   void TypedTest_ImportAfter() {
-    TranslationUnitDecl *ToTu = getToTuDecl(getCode0(), Lang_CXX11);
+    TranslationUnitDecl *ToTu = getToTuDecl(getCode0(), Lang_CXX14);
     TranslationUnitDecl *FromTu =
-        getTuDecl(getCode1(), Lang_CXX11, "input1.cc");
+        getTuDecl(getCode1(), Lang_CXX14, "input1.cc");
 
     auto *ToF0 = FirstDeclMatcher<DeclTy>().match(ToTu, getPattern());
     auto *FromF1 = FirstDeclMatcher<DeclTy>().match(FromTu, getPattern());
 
-    auto *ToF1 = Import(FromF1, Lang_CXX11);
+    auto *ToF1 = Import(FromF1, Lang_CXX14);
 
     ASSERT_TRUE(ToF0);
     ASSERT_TRUE(ToF1);
@@ -242,15 +262,15 @@ protected:
 
   void TypedTest_ImportAfterImport() {
     TranslationUnitDecl *FromTu0 =
-        getTuDecl(getCode0(), Lang_CXX11, "input0.cc");
+        getTuDecl(getCode0(), Lang_CXX14, "input0.cc");
     TranslationUnitDecl *FromTu1 =
-        getTuDecl(getCode1(), Lang_CXX11, "input1.cc");
+        getTuDecl(getCode1(), Lang_CXX14, "input1.cc");
     auto *FromF0 =
         FirstDeclMatcher<DeclTy>().match(FromTu0, getPattern());
     auto *FromF1 =
         FirstDeclMatcher<DeclTy>().match(FromTu1, getPattern());
-    auto *ToF0 = Import(FromF0, Lang_CXX11);
-    auto *ToF1 = Import(FromF1, Lang_CXX11);
+    auto *ToF0 = Import(FromF0, Lang_CXX14);
+    auto *ToF1 = Import(FromF1, Lang_CXX14);
     ASSERT_TRUE(ToF0);
     ASSERT_TRUE(ToF1);
     EXPECT_NE(ToF0, ToF1);
@@ -261,14 +281,14 @@ protected:
   }
 
   void TypedTest_ImportAfterWithMerge() {
-    TranslationUnitDecl *ToTu = getToTuDecl(getCode0(), Lang_CXX11);
+    TranslationUnitDecl *ToTu = getToTuDecl(getCode0(), Lang_CXX14);
     TranslationUnitDecl *FromTu =
-        getTuDecl(getCode1(), Lang_CXX11, "input1.cc");
+        getTuDecl(getCode1(), Lang_CXX14, "input1.cc");
 
     auto *ToF0 = FirstDeclMatcher<DeclTy>().match(ToTu, getPattern());
     auto *FromF1 = FirstDeclMatcher<DeclTy>().match(FromTu, getPattern());
 
-    auto *ToF1 = Import(FromF1, Lang_CXX11);
+    auto *ToF1 = Import(FromF1, Lang_CXX14);
 
     ASSERT_TRUE(ToF0);
     ASSERT_TRUE(ToF1);
@@ -284,13 +304,13 @@ protected:
 
   void TypedTest_ImportAfterImportWithMerge() {
     TranslationUnitDecl *FromTu0 =
-        getTuDecl(getCode0(), Lang_CXX11, "input0.cc");
+        getTuDecl(getCode0(), Lang_CXX14, "input0.cc");
     TranslationUnitDecl *FromTu1 =
-        getTuDecl(getCode1(), Lang_CXX11, "input1.cc");
+        getTuDecl(getCode1(), Lang_CXX14, "input1.cc");
     auto *FromF0 = FirstDeclMatcher<DeclTy>().match(FromTu0, getPattern());
     auto *FromF1 = FirstDeclMatcher<DeclTy>().match(FromTu1, getPattern());
-    auto *ToF0 = Import(FromF0, Lang_CXX11);
-    auto *ToF1 = Import(FromF1, Lang_CXX11);
+    auto *ToF0 = Import(FromF0, Lang_CXX14);
+    auto *ToF1 = Import(FromF1, Lang_CXX14);
     ASSERT_TRUE(ToF0);
     ASSERT_TRUE(ToF1);
     if (shouldBeLinked())
@@ -309,6 +329,7 @@ protected:
 using ImportFunctionsVisibility = ImportVisibility<GetFunPattern>;
 using ImportFunctionTemplatesVisibility = ImportVisibility<GetFunTemplPattern>;
 using ImportVariablesVisibility = ImportVisibility<GetVarPattern>;
+using ImportVariableTemplatesVisibility = ImportVisibility<GetVarTemplPattern>;
 using ImportClassesVisibility = ImportVisibility<GetClassPattern>;
 using ImportClassTemplatesVisibility = ImportVisibility<GetClassTemplPattern>;
 using ImportEnumsVisibility = ImportVisibility<GetEnumPattern>;
@@ -335,6 +356,13 @@ TEST_P(ImportVariablesVisibility, ImportAfter) {
   TypedTest_ImportAfter();
 }
 TEST_P(ImportVariablesVisibility, ImportAfterImport) {
+  TypedTest_ImportAfterImport();
+}
+// VarTemplateDecl.
+TEST_P(ImportVariableTemplatesVisibility, ImportAfter) {
+  TypedTest_ImportAfter();
+}
+TEST_P(ImportVariableTemplatesVisibility, ImportAfterImport) {
   TypedTest_ImportAfterImport();
 }
 // CXXRecordDecl.
@@ -418,6 +446,19 @@ INSTANTIATE_TEST_CASE_P(
                           std::make_tuple(AnonV, ExternV, ExpectNotLink),
                           std::make_tuple(AnonV, StaticV, ExpectNotLink),
                           std::make_tuple(AnonV, AnonV, ExpectNotLink))), );
+INSTANTIATE_TEST_CASE_P(
+    ParameterizedTests, ImportVariableTemplatesVisibility,
+    ::testing::Combine(
+        DefaultTestValuesForRunOptions,
+        ::testing::Values(std::make_tuple(ExternVT, ExternVT, ExpectLink),
+                          std::make_tuple(ExternVT, StaticVT, ExpectNotLink),
+                          std::make_tuple(ExternVT, AnonVT, ExpectNotLink),
+                          std::make_tuple(StaticVT, ExternVT, ExpectNotLink),
+                          std::make_tuple(StaticVT, StaticVT, ExpectNotLink),
+                          std::make_tuple(StaticVT, AnonVT, ExpectNotLink),
+                          std::make_tuple(AnonVT, ExternVT, ExpectNotLink),
+                          std::make_tuple(AnonVT, StaticVT, ExpectNotLink),
+                          std::make_tuple(AnonVT, AnonVT, ExpectNotLink))), );
 INSTANTIATE_TEST_CASE_P(
     ParameterizedTests, ImportClassesVisibility,
     ::testing::Combine(
