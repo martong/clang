@@ -343,6 +343,10 @@ static bool ParseAnalyzerArgs(AnalyzerOptions &Opts, ArgList &Args,
         Success = false;
         break;
       }
+      if (key == "ctu-import-threshold") {
+        Opts.CTUImportThreshold = std::stoul(val);
+        continue;
+      }
       Opts.Config[key] = val;
     }
   }
