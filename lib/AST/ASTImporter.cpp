@@ -1796,7 +1796,16 @@ Error ASTNodeImporter::ImportDefinition(
   if (To->getDefinition() || To->isBeingDefined()) {
     if (Kind == IDK_Everything)
       return ImportDeclContext(From, /*ForceImport=*/true);
-
+    // In case of lambdas, the class already has a definition ptr set, but the
+    // contained decls are not imported yet. Also, isBeingDefined was set in
+    // CXXRecordDecl::CreateLambda.  We must import the contained decls here
+    // and finish the definition.
+    if (To->isLambda() && shouldForceImportDeclContext(Kind)) {
+      Error Result = ImportDeclContext(From, /*ForceImport=*/true);
+      // Finish the definition, sets isBeingDefined to false.
+      To->completeDefinition();
+      return Result;
+    }
     return Error::success();
   }
 
@@ -7334,18 +7343,9 @@ ExpectedStmt ASTNodeImporter::VisitLambdaExpr(LambdaExpr *E) {
     return ToClassOrErr.takeError();
   CXXRecordDecl *ToClass = *ToClassOrErr;
 
-  // NOTE: lambda classes are created with BeingDefined flag set up.
-  // It means that ImportDefinition doesn't work for them and we should fill it
-  // manually.
-  if (ToClass->isBeingDefined())
-    if (Error Err = ImportDeclContext(FromClass, /*ForceImport = */ true))
-      return std::move(Err);
-
   auto ToCallOpOrErr = import(E->getCallOperator());
   if (!ToCallOpOrErr)
     return ToCallOpOrErr.takeError();
-
-  ToClass->completeDefinition();
 
   SmallVector<LambdaCapture, 8> ToCaptures;
   ToCaptures.reserve(E->capture_size());
