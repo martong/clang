@@ -1053,20 +1053,8 @@ IsStructurallyEquivalentLambdas(StructuralEquivalenceContext &Context,
                                 CXXRecordDecl *D1, CXXRecordDecl *D2) {
   assert(D1->isLambda() && D2->isLambda() &&
          "Must be called on lambda classes");
-
-  // Check the methods for consistency.
-  CXXRecordDecl::method_iterator Method2 = D2->method_begin(),
-                                 Method2End = D2->method_end();
-  for (CXXRecordDecl::method_iterator Method1 = D1->method_begin(),
-                                      Method1End = D1->method_end();
-       Method1 != Method1End; ++Method1, ++Method2) {
-    if (Method2 == Method2End)
-      return false;
-
-    if (!IsStructurallyEquivalent(Context, *Method1, *Method2))
-      return false;
-  }
-  if (Method2 != Method2End)
+  if (!IsStructurallyEquivalent(Context, D1->getLambdaCallOperator(),
+                                D2->getLambdaCallOperator()))
     return false;
 
   return true;
