@@ -1794,18 +1794,19 @@ static Error setTypedefNameForAnonDecl(TagDecl *From, TagDecl *To,
 Error ASTNodeImporter::ImportDefinition(
     RecordDecl *From, RecordDecl *To, ImportDefinitionKind Kind) {
   if (To->getDefinition() || To->isBeingDefined()) {
-    if (Kind == IDK_Everything)
-      return ImportDeclContext(From, /*ForceImport=*/true);
-    // In case of lambdas, the class already has a definition ptr set, but the
-    // contained decls are not imported yet. Also, isBeingDefined was set in
-    // CXXRecordDecl::CreateLambda.  We must import the contained decls here
-    // and finish the definition.
-    if (To->isLambda() && shouldForceImportDeclContext(Kind)) {
+    if (Kind == IDK_Everything ||
+        // In case of lambdas, the class already has a definition ptr set, but
+        // the  contained decls are not imported yet. Also, isBeingDefined was
+        // set in CXXRecordDecl::CreateLambda.  We must import the contained
+        // decls here and finish the definition.
+        (To->isLambda() && shouldForceImportDeclContext(Kind))) {
       Error Result = ImportDeclContext(From, /*ForceImport=*/true);
-      // Finish the definition, sets isBeingDefined to false.
-      To->completeDefinition();
+      // Finish the definition of the lambda, set isBeingDefined to false.
+      if (To->isLambda())
+        To->completeDefinition();
       return Result;
     }
+
     return Error::success();
   }
 
