@@ -4677,6 +4677,79 @@ TEST_P(ASTImporterOptionSpecificTestBase, LambdaInFunctionParam) {
   EXPECT_EQ(ToLSize, FromLSize);
 }
 
+TEST_P(ASTImporterOptionSpecificTestBase, LambdasAreDifferentiated) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      void f() {
+        auto L0 = [](){};
+        auto L1 = [](){};
+      }
+      )",
+      Lang_CXX11, "input0.cc");
+  auto Pattern = lambdaExpr();
+  CXXRecordDecl *FromL0 =
+      FirstDeclMatcher<LambdaExpr>().match(FromTU, Pattern)->getLambdaClass();
+  CXXRecordDecl *FromL1 =
+      LastDeclMatcher<LambdaExpr>().match(FromTU, Pattern)->getLambdaClass();
+  ASSERT_NE(FromL0, FromL1);
+
+  Import(FromL0, Lang_CXX11);
+  Import(FromL1, Lang_CXX11);
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  CXXRecordDecl *ToL0 =
+      FirstDeclMatcher<LambdaExpr>().match(ToTU, Pattern)->getLambdaClass();
+  CXXRecordDecl *ToL1 =
+      LastDeclMatcher<LambdaExpr>().match(ToTU, Pattern)->getLambdaClass();
+  EXPECT_NE(ToL0, ToL1);
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase,
+       LambdasInFunctionParamsAreDifferentiated) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      template <typename F0, typename F1>
+      void f(F0 L0 = [](){}, F1 L1 = [](){}) {}
+      )",
+      Lang_CXX11, "input0.cc");
+  auto Pattern = cxxRecordDecl(isLambda());
+  CXXRecordDecl *FromL0 =
+      FirstDeclMatcher<CXXRecordDecl>().match(FromTU, Pattern);
+  CXXRecordDecl *FromL1 =
+      LastDeclMatcher<CXXRecordDecl>().match(FromTU, Pattern);
+  ASSERT_NE(FromL0, FromL1);
+
+  Import(FromL0, Lang_CXX11);
+  Import(FromL1, Lang_CXX11);
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  CXXRecordDecl *ToL0 = FirstDeclMatcher<CXXRecordDecl>().match(ToTU, Pattern);
+  CXXRecordDecl *ToL1 = LastDeclMatcher<CXXRecordDecl>().match(ToTU, Pattern);
+  ASSERT_NE(ToL0, ToL1);
+}
+
+TEST_P(ASTImporterOptionSpecificTestBase,
+       LambdasInFunctionParamsAreDifferentiatedWhenMacroIsUsed) {
+  Decl *FromTU = getTuDecl(
+      R"(
+      #define LAMBDA [](){}
+      template <typename F0, typename F1>
+      void f(F0 L0 = LAMBDA, F1 L1 = LAMBDA) {}
+      )",
+      Lang_CXX11, "input0.cc");
+  auto Pattern = cxxRecordDecl(isLambda());
+  CXXRecordDecl *FromL0 =
+      FirstDeclMatcher<CXXRecordDecl>().match(FromTU, Pattern);
+  CXXRecordDecl *FromL1 =
+      LastDeclMatcher<CXXRecordDecl>().match(FromTU, Pattern);
+  ASSERT_NE(FromL0, FromL1);
+
+  Import(FromL0, Lang_CXX11);
+  Import(FromL1, Lang_CXX11);
+  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  CXXRecordDecl *ToL0 = FirstDeclMatcher<CXXRecordDecl>().match(ToTU, Pattern);
+  CXXRecordDecl *ToL1 = LastDeclMatcher<CXXRecordDecl>().match(ToTU, Pattern);
+  ASSERT_NE(ToL0, ToL1);
+}
+
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ASTImporterLookupTableTest,
                         DefaultTestValuesForRunOptions, );
 
