@@ -4693,13 +4693,8 @@ TEST_P(ASTImporterOptionSpecificTestBase, LambdasAreDifferentiated) {
       LastDeclMatcher<LambdaExpr>().match(FromTU, Pattern)->getLambdaClass();
   ASSERT_NE(FromL0, FromL1);
 
-  Import(FromL0, Lang_CXX11);
-  Import(FromL1, Lang_CXX11);
-  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
-  CXXRecordDecl *ToL0 =
-      FirstDeclMatcher<LambdaExpr>().match(ToTU, Pattern)->getLambdaClass();
-  CXXRecordDecl *ToL1 =
-      LastDeclMatcher<LambdaExpr>().match(ToTU, Pattern)->getLambdaClass();
+  CXXRecordDecl *ToL0 = Import(FromL0, Lang_CXX11);
+  CXXRecordDecl *ToL1 = Import(FromL1, Lang_CXX11);
   EXPECT_NE(ToL0, ToL1);
 }
 
@@ -4718,11 +4713,8 @@ TEST_P(ASTImporterOptionSpecificTestBase,
       LastDeclMatcher<CXXRecordDecl>().match(FromTU, Pattern);
   ASSERT_NE(FromL0, FromL1);
 
-  Import(FromL0, Lang_CXX11);
-  Import(FromL1, Lang_CXX11);
-  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
-  CXXRecordDecl *ToL0 = FirstDeclMatcher<CXXRecordDecl>().match(ToTU, Pattern);
-  CXXRecordDecl *ToL1 = LastDeclMatcher<CXXRecordDecl>().match(ToTU, Pattern);
+  CXXRecordDecl *ToL0 = Import(FromL0, Lang_CXX11);
+  CXXRecordDecl *ToL1 = Import(FromL1, Lang_CXX11);
   ASSERT_NE(ToL0, ToL1);
 }
 
@@ -4744,9 +4736,8 @@ TEST_P(ASTImporterOptionSpecificTestBase,
 
   Import(FromL0, Lang_CXX11);
   Import(FromL1, Lang_CXX11);
-  Decl *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
-  CXXRecordDecl *ToL0 = FirstDeclMatcher<CXXRecordDecl>().match(ToTU, Pattern);
-  CXXRecordDecl *ToL1 = LastDeclMatcher<CXXRecordDecl>().match(ToTU, Pattern);
+  CXXRecordDecl *ToL0 = Import(FromL0, Lang_CXX11);
+  CXXRecordDecl *ToL1 = Import(FromL1, Lang_CXX11);
   ASSERT_NE(ToL0, ToL1);
 }
 
