@@ -2827,6 +2827,7 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportOfNonEquivalentField) {
     auto *FromF = FirstDeclMatcher<FieldDecl>().match(
         FromTU, fieldDecl(hasName("x")));
     ToF1 = Import(FromF, Lang_CXX);
+    EXPECT_TRUE(ToF1);
   }
   Decl *ToF2;
   {
@@ -2835,8 +2836,12 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportOfNonEquivalentField) {
     auto *FromF = FirstDeclMatcher<FieldDecl>().match(
         FromTU, fieldDecl(hasName("x")));
     ToF2 = Import(FromF, Lang_CXX);
+    EXPECT_FALSE(ToF2);
   }
   EXPECT_NE(ToF1, ToF2);
+
+  auto *ToTU = ToAST->getASTContext().getTranslationUnitDecl();
+  EXPECT_EQ(1u, ToTU->getASTContext().getDiagnostics().getNumWarnings());
 }
 
 TEST_P(ASTImporterOptionSpecificTestBase, ImportOfEquivalentMethod) {

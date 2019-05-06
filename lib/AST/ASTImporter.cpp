@@ -2168,11 +2168,13 @@ ExpectedDecl ASTNodeImporter::VisitNamespaceDecl(NamespaceDecl *D) {
     }
 
     if (!ConflictingDecls.empty()) {
-      Name = Importer.HandleNameConflict(Name, DC, Decl::IDNS_Namespace,
-                                         ConflictingDecls.data(),
-                                         ConflictingDecls.size());
-      if (!Name)
-        return make_error<ImportError>(ImportError::NameConflict);
+      Expected<DeclarationName> Resolution = Importer.HandleNameConflict(
+          Name, DC, Decl::IDNS_Namespace, ConflictingDecls.data(),
+          ConflictingDecls.size());
+      if (Resolution)
+        Name = Resolution.get();
+      else
+        return Resolution.takeError();
     }
   }
 
@@ -2290,11 +2292,12 @@ ASTNodeImporter::VisitTypedefNameDecl(TypedefNameDecl *D, bool IsAlias) {
     }
 
     if (!ConflictingDecls.empty()) {
-      Name = Importer.HandleNameConflict(Name, DC, IDNS,
-                                         ConflictingDecls.data(),
-                                         ConflictingDecls.size());
-      if (!Name)
-        return make_error<ImportError>(ImportError::NameConflict);
+      Expected<DeclarationName> Resolution = Importer.HandleNameConflict(
+          Name, DC, IDNS, ConflictingDecls.data(), ConflictingDecls.size());
+      if (Resolution)
+        Name = Resolution.get();
+      else
+        return Resolution.takeError();
     }
   }
 
@@ -2367,11 +2370,12 @@ ASTNodeImporter::VisitTypeAliasTemplateDecl(TypeAliasTemplateDecl *D) {
     }
 
     if (!ConflictingDecls.empty()) {
-      Name = Importer.HandleNameConflict(Name, DC, IDNS,
-                                         ConflictingDecls.data(),
-                                         ConflictingDecls.size());
-      if (!Name)
-        return make_error<ImportError>(ImportError::NameConflict);
+      Expected<DeclarationName> Resolution = Importer.HandleNameConflict(
+          Name, DC, IDNS, ConflictingDecls.data(), ConflictingDecls.size());
+      if (Resolution)
+        Name = Resolution.get();
+      else
+        return Resolution.takeError();
     }
   }
 
@@ -2486,11 +2490,12 @@ ExpectedDecl ASTNodeImporter::VisitEnumDecl(EnumDecl *D) {
     }
 
     if (!ConflictingDecls.empty()) {
-      Name = Importer.HandleNameConflict(Name, DC, IDNS,
-                                         ConflictingDecls.data(),
-                                         ConflictingDecls.size());
-      if (!Name)
-        return make_error<ImportError>(ImportError::NameConflict);
+      Expected<DeclarationName> Resolution = Importer.HandleNameConflict(
+          Name, DC, IDNS, ConflictingDecls.data(), ConflictingDecls.size());
+      if (Resolution)
+        Name = Resolution.get();
+      else
+        return Resolution.takeError();
     }
   }
 
@@ -2622,11 +2627,12 @@ ExpectedDecl ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
     } // for
 
     if (!ConflictingDecls.empty() && SearchName) {
-      Name = Importer.HandleNameConflict(Name, DC, IDNS,
-                                         ConflictingDecls.data(),
-                                         ConflictingDecls.size());
-      if (!Name)
-        return make_error<ImportError>(ImportError::NameConflict);
+      Expected<DeclarationName> Resolution = Importer.HandleNameConflict(
+          Name, DC, IDNS, ConflictingDecls.data(), ConflictingDecls.size());
+      if (Resolution)
+        Name = Resolution.get();
+      else
+        return Resolution.takeError();
     }
   }
 
@@ -2790,11 +2796,12 @@ ExpectedDecl ASTNodeImporter::VisitEnumConstantDecl(EnumConstantDecl *D) {
     }
 
     if (!ConflictingDecls.empty()) {
-      Name = Importer.HandleNameConflict(Name, DC, IDNS,
-                                         ConflictingDecls.data(),
-                                         ConflictingDecls.size());
-      if (!Name)
-        return make_error<ImportError>(ImportError::NameConflict);
+      Expected<DeclarationName> Resolution = Importer.HandleNameConflict(
+          Name, DC, IDNS, ConflictingDecls.data(), ConflictingDecls.size());
+      if (Resolution)
+        Name = Resolution.get();
+      else
+        return Resolution.takeError();
     }
   }
 
@@ -2965,6 +2972,10 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     if (!FoundFunctionOrErr)
       return FoundFunctionOrErr.takeError();
     if (FunctionDecl *FoundFunction = *FoundFunctionOrErr) {
+      // A structural match should be made here, but the current implementation
+      // only checks whether the function signature differs, and at this point,
+      // the signature is guaranteed to be the same. Thus there is no point
+      // calling isStructuralMatch on the original and the FoundFunction.
       if (Decl *Def = FindAndMapDefinition(D, FoundFunction))
         return Def;
       FoundByLookup = FoundFunction;
@@ -2990,7 +3001,6 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
           FoundByLookup = FoundFunction;
           break;
         }
-
         // FIXME: Check for overloading more carefully, e.g., by boosting
         // Sema::IsOverload out to the AST library.
 
@@ -3008,11 +3018,12 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     }
 
     if (!ConflictingDecls.empty()) {
-      Name = Importer.HandleNameConflict(Name, DC, IDNS,
-                                         ConflictingDecls.data(),
-                                         ConflictingDecls.size());
-      if (!Name)
-        return make_error<ImportError>(ImportError::NameConflict);
+      Expected<DeclarationName> Resolution = Importer.HandleNameConflict(
+          Name, DC, IDNS, ConflictingDecls.data(), ConflictingDecls.size());
+      if (Resolution)
+        Name = Resolution.get();
+      else
+        return Resolution.takeError();
     }
   }
 
@@ -3223,6 +3234,7 @@ ExpectedDecl ASTNodeImporter::VisitFieldDecl(FieldDecl *D) {
 
   // Determine whether we've already imported this field.
   auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
+  SmallVector<NamedDecl *, 4> ConflictingDecls;
   for (auto *FoundDecl : FoundDecls) {
     if (FieldDecl *FoundField = dyn_cast<FieldDecl>(FoundDecl)) {
       // For anonymous fields, match up by index.
@@ -3256,14 +3268,22 @@ ExpectedDecl ASTNodeImporter::VisitFieldDecl(FieldDecl *D) {
         return FoundField;
       }
 
-      // FIXME: Why is this case not handled with calling HandleNameConflict?
       Importer.ToDiag(Loc, diag::warn_odr_field_type_inconsistent)
         << Name << D->getType() << FoundField->getType();
       Importer.ToDiag(FoundField->getLocation(), diag::note_odr_value_here)
         << FoundField->getType();
-
-      return make_error<ImportError>(ImportError::NameConflict);
+      ConflictingDecls.push_back(FoundField);
     }
+  }
+
+  if (!ConflictingDecls.empty()) {
+    Expected<DeclarationName> Resolution = Importer.HandleNameConflict(
+        Name, DC, Decl::IDNS_Member, ConflictingDecls.data(),
+        ConflictingDecls.size());
+    if (Resolution)
+      Name = Resolution.get();
+    else
+      return Resolution.takeError();
   }
 
   QualType ToType;
@@ -3308,6 +3328,7 @@ ExpectedDecl ASTNodeImporter::VisitIndirectFieldDecl(IndirectFieldDecl *D) {
 
   // Determine whether we've already imported this field.
   auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
+  SmallVector<NamedDecl *, 4> ConflictingDecls;
   for (unsigned I = 0, N = FoundDecls.size(); I != N; ++I) {
     if (auto *FoundField = dyn_cast<IndirectFieldDecl>(FoundDecls[I])) {
       // For anonymous indirect fields, match up by index.
@@ -3327,14 +3348,24 @@ ExpectedDecl ASTNodeImporter::VisitIndirectFieldDecl(IndirectFieldDecl *D) {
       if (!Name && I < N-1)
         continue;
 
-      // FIXME: Why is this case not handled with calling HandleNameConflict?
+      ConflictingDecls.push_back(FoundField);
+
       Importer.ToDiag(Loc, diag::warn_odr_field_type_inconsistent)
         << Name << D->getType() << FoundField->getType();
       Importer.ToDiag(FoundField->getLocation(), diag::note_odr_value_here)
         << FoundField->getType();
-
-      return make_error<ImportError>(ImportError::NameConflict);
     }
+  }
+
+  if (!ConflictingDecls.empty()) {
+    Expected<DeclarationName> Resolution = Importer.HandleNameConflict(
+        Name, DC, Decl::IDNS_Member, ConflictingDecls.data(),
+        ConflictingDecls.size());
+
+    if (Resolution)
+      Name = Resolution.get();
+    else
+      return Resolution.takeError();
   }
 
   // Import the type.
@@ -3664,11 +3695,12 @@ ExpectedDecl ASTNodeImporter::VisitVarDecl(VarDecl *D) {
     }
 
     if (!ConflictingDecls.empty()) {
-      Name = Importer.HandleNameConflict(Name, DC, IDNS,
-                                         ConflictingDecls.data(),
-                                         ConflictingDecls.size());
-      if (!Name)
-        return make_error<ImportError>(ImportError::NameConflict);
+      Expected<DeclarationName> Resolution = Importer.HandleNameConflict(
+          Name, DC, IDNS, ConflictingDecls.data(), ConflictingDecls.size());
+      if (Resolution)
+        Name = Resolution.get();
+      else
+        return Resolution.takeError();
     }
   }
 
@@ -5002,11 +5034,13 @@ ExpectedDecl ASTNodeImporter::VisitClassTemplateDecl(ClassTemplateDecl *D) {
     }
 
     if (!ConflictingDecls.empty()) {
-      Name = Importer.HandleNameConflict(Name, DC, Decl::IDNS_Ordinary,
-                                         ConflictingDecls.data(),
-                                         ConflictingDecls.size());
-      if (!Name)
-        return make_error<ImportError>(ImportError::NameConflict);
+      Expected<DeclarationName> Resolution = Importer.HandleNameConflict(
+          Name, DC, Decl::IDNS_Ordinary, ConflictingDecls.data(),
+          ConflictingDecls.size());
+      if (Resolution)
+        Name = Resolution.get();
+      else
+        return Resolution.takeError();
     }
   }
 
@@ -5280,11 +5314,13 @@ ExpectedDecl ASTNodeImporter::VisitVarTemplateDecl(VarTemplateDecl *D) {
   }
 
   if (!ConflictingDecls.empty()) {
-    Name = Importer.HandleNameConflict(Name, DC, Decl::IDNS_Ordinary,
-                                       ConflictingDecls.data(),
-                                       ConflictingDecls.size());
-    if (!Name)
-      return make_error<ImportError>(ImportError::NameConflict);
+      Expected<DeclarationName> Resolution = Importer.HandleNameConflict(Name, DC, Decl::IDNS_Ordinary,
+                                         ConflictingDecls.data(),
+                                         ConflictingDecls.size());
+      if (Resolution)
+        Name = Resolution.get();
+      else
+        return Resolution.takeError();
   }
 
   VarDecl *DTemplated = D->getTemplatedDecl();
@@ -5501,8 +5537,8 @@ ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
   // Try to find a function in our own ("to") context with the same name, same
   // type, and in the same context as the function we're importing.
   if (!LexicalDC->isFunctionOrMethod()) {
-    unsigned IDNS = Decl::IDNS_Ordinary | Decl::IDNS_OrdinaryFriend;
     auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
+    unsigned IDNS = Decl::IDNS_Ordinary | Decl::IDNS_OrdinaryFriend;
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
         continue;
@@ -5518,9 +5554,10 @@ ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
           FoundByLookup = FoundTemplate;
           break;
         }
-      }   // template
-      // TODO: handle conflicting names
-    } // for
+        // Structural mismatch is not a problem (there is no need to check
+        // name conflict), because FunctionTemplates can possibly overload.
+      } // template
+    }   // for
   }
 
   auto ParamsOrErr = import(D->getTemplateParameters());
@@ -8905,12 +8942,14 @@ Expected<Selector> ASTImporter::Import(Selector FromSel) {
   return ToContext.Selectors.getSelector(FromSel.getNumArgs(), Idents.data());
 }
 
-DeclarationName ASTImporter::HandleNameConflict(DeclarationName Name,
+// On name conflict the conservative strategy would be to return an
+// ImportError::NameConflict.
+Expected<DeclarationName> ASTImporter::HandleNameConflict(DeclarationName Name,
                                                 DeclContext *DC,
                                                 unsigned IDNS,
                                                 NamedDecl **Decls,
                                                 unsigned NumDecls) {
-  return DeclarationName();
+  return make_error<ImportError>(ImportError::NameConflict);
 }
 
 DiagnosticBuilder ASTImporter::ToDiag(SourceLocation Loc, unsigned DiagID) {
