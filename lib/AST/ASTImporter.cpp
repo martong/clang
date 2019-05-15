@@ -3190,6 +3190,8 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   ToFunction->setVirtualAsWritten(D->isVirtualAsWritten());
   ToFunction->setTrivial(D->isTrivial());
   ToFunction->setPure(D->isPure());
+  ToFunction->setDefaulted(D->isDefaulted());
+  ToFunction->setExplicitlyDefaulted(D->isExplicitlyDefaulted());
   ToFunction->setRangeEnd(ToEndLoc);
 
   // Set the parameters.
