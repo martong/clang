@@ -1696,25 +1696,30 @@ Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) 
     return ToDCOrErr.takeError();
   }
 
+  // We use strict error handling in case of records and enums, but not
+  // with e.g. namespaces.
+  //
+  // FIXME Clients of the ASTImporter should be able to choose an
+  // appropriate error handling strategy for their needs.  For instance,
+  // they may not want to mark an entire namespace as erroneous merely
+  // because there is an ODR error with two typedefs.  As another example,
+  // the client may allow EnumConstantDecls with same names but with
+  // different values in two distinct translation units.
+  bool AccumulateChildErrors = isa<TagDecl>(FromDC);
+
+  Error ChildErrors = Error::success();
   llvm::SmallVector<Decl *, 8> ImportedDecls;
   for (auto *From : FromDC->decls()) {
     ExpectedDecl ImportedOrErr = import(From);
     if (!ImportedOrErr) {
-      // We use strict error handling in case of records and enums, but not
-      // with e.g. namespaces.
-      //
-      // FIXME Clients of the ASTImporter should be able to choose an
-      // appropriate error handling strategy for their needs.  For instance,
-      // they may not want to mark an entire namespace as erroneous merely
-      // because there is an ODR error with two typedefs.  As another example,
-      // the client may allow EnumConstantDecls with same names but with
-      // different values in two distinct translation units.
-      if (isa<TagDecl>(FromDC))
-        return ImportedOrErr.takeError();
-      consumeError(ImportedOrErr.takeError());
-    }
-    else
+      if (AccumulateChildErrors)
+        ChildErrors =
+            joinErrors(std::move(ChildErrors), ImportedOrErr.takeError());
+      else
+        consumeError(ImportedOrErr.takeError());
+    } else {
       ImportedDecls.push_back(*ImportedOrErr);
+    }
   }
 
   // Reorder declarations in RecordDecls because they may have another
@@ -1722,10 +1727,13 @@ Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) 
   // layout.
   const auto *FromRD = dyn_cast<RecordDecl>(FromDC);
   if (!FromRD)
-    return Error::success();
+    return ChildErrors;
   auto ToDCOrErr = Importer.ImportContext(FromDC);
-  if (!ToDCOrErr)
+  if (!ToDCOrErr) {
+    consumeError(std::move(ChildErrors));
     return ToDCOrErr.takeError();
+  }
+
   DeclContext *ToDC = *ToDCOrErr;
   llvm::SmallDenseSet<Decl *, 2> MissingDecls;
   // Frist, remove all declarations, which may be in wrong order in the
@@ -1759,7 +1767,7 @@ Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) 
     }
   }
 
-  return Error::success();
+  return ChildErrors;
 }
 
 Error ASTNodeImporter::ImportDeclContext(
@@ -1826,7 +1834,15 @@ Error ASTNodeImporter::ImportDefinition(
     return Error::success();
   }
 
-  To->startDefinition();
+  // Complete the definition even if error is returned.
+  // The RecordDecl may be already part of the AST so it is better to
+  // have it in complete state even if something is wrong with it.
+  struct DefinitionCompleter {
+    RecordDecl *To;
+    DefinitionCompleter(RecordDecl *To) : To(To) { To->startDefinition(); }
+    ~DefinitionCompleter() { To->completeDefinition(); }
+  };
+  DefinitionCompleter CompleterRAII(To);
 
   if (Error Err = setTypedefNameForAnonDecl(From, To, Importer))
     return Err;
@@ -1951,7 +1967,6 @@ Error ASTNodeImporter::ImportDefinition(
     if (Error Err = ImportDeclContext(From, /*ForceImport=*/true))
       return Err;
 
-  To->completeDefinition();
   return Error::success();
 }
 
