@@ -5107,6 +5107,29 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportOfDefaultImplicitFunctions) {
   EXPECT_EQ(ToD1->getCanonicalDecl(), ToD2->getCanonicalDecl());
 }
 
+TEST_P(ASTImporterOptionSpecificTestBase, ImportOfFriendTemplateWithArgExpr) {
+  auto Code =
+      R"(
+        template <bool B1, bool B2>
+        struct X { 
+          friend X<B1, !B2>;
+          friend X<!B1, B2>;
+        };
+        )";
+
+  Decl *FromTU = getTuDecl(Code, Lang_CXX11, "input.cc");
+  auto *FromD1 = FirstDeclMatcher<FriendDecl>().match(FromTU, friendDecl());
+  auto *FromD2 = LastDeclMatcher<FriendDecl>().match(FromTU, friendDecl());
+
+  auto *ToD1 = Import(FromD1, Lang_CXX11);
+  ASSERT_TRUE(ToD1);
+
+  auto *ToD2 = Import(FromD2, Lang_CXX11);
+  ASSERT_TRUE(ToD2);
+
+  EXPECT_NE(ToD1->getCanonicalDecl(), ToD2->getCanonicalDecl());
+}
+
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ASTImporterLookupTableTest,
                         DefaultTestValuesForRunOptions, );
 

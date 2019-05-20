@@ -76,6 +76,7 @@
 #include "clang/AST/DeclTemplate.h"
 #include "clang/AST/ExprCXX.h"
 #include "clang/AST/NestedNameSpecifier.h"
+#include "clang/AST/ODRHash.h"
 #include "clang/AST/TemplateBase.h"
 #include "clang/AST/TemplateName.h"
 #include "clang/AST/Type.h"
@@ -163,7 +164,15 @@ static bool IsStructurallyEquivalent(StructuralEquivalenceContext &Context,
     return IsStructurallyEquivalent(Context, DE1->getQualifier(),
                                     DE2->getQualifier());
   }
-  // FIXME: Handle other kind of expressions!
+  // FIXME: Handle other kind of expressions?
+
+  ODRHash H1, H2;
+  llvm::FoldingSetNodeID ID1, ID2;
+  E1->ProcessODRHash(ID1, H1);
+  E2->ProcessODRHash(ID2, H2);
+  if (ID1 != ID2)
+    return false;
+
   return true;
 }
 
