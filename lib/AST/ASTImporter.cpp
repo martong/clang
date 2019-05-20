@@ -1691,6 +1691,13 @@ ASTNodeImporter::ImportDeclarationNameLoc(
 }
 
 Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) {
+
+  auto GetPresumedLoc = [](Decl *D) {
+    const SourceManager &SM = D->getASTContext().getSourceManager();
+    SourceLocation Loc = SM.getSpellingLoc(D->getLocation());
+    return SM.getPresumedLoc(Loc);
+  };
+
   if (Importer.isMinimalImport() && !ForceImport) {
     auto ToDCOrErr = Importer.ImportContext(FromDC);
     return ToDCOrErr.takeError();
@@ -1708,7 +1715,8 @@ Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) 
   bool AccumulateChildErrors = isa<TagDecl>(FromDC);
 
   Error ChildErrors = Error::success();
-  llvm::SmallVector<Decl *, 8> ImportedDecls;
+  llvm::SmallVector<Decl *, 8> ImportedDeclsOriginalOrder;
+  llvm::DenseSet<Decl *> ImportedDecls;
   for (auto *From : FromDC->decls()) {
     ExpectedDecl ImportedOrErr = import(From);
     if (!ImportedOrErr) {
@@ -1718,7 +1726,21 @@ Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) 
       else
         consumeError(ImportedOrErr.takeError());
     } else {
-      ImportedDecls.push_back(*ImportedOrErr);
+      Decl *To = *ImportedOrErr;
+      assert(To && "FromDC->decls contained a nullptr?");
+      auto InsertResult = ImportedDecls.insert(To);
+      if (InsertResult.second) {
+        ImportedDeclsOriginalOrder.push_back(To);
+      } else if (!isa<NamespaceDecl>(To)) {
+        PresumedLoc FromPLoc = GetPresumedLoc(From);
+        PresumedLoc ToPLoc = GetPresumedLoc(To);
+
+        FromDC->getParentASTContext().getDiagnostics().Report(
+            diag::warn_ast_importer_merged_decl_in_decl_context)
+            << To->getDeclKindName() << FromPLoc.getFilename()
+            << FromPLoc.getLine() << FromPLoc.getColumn()
+            << ToPLoc.getFilename() << ToPLoc.getLine() << ToPLoc.getColumn();
+      }
     }
   }
 
@@ -1738,18 +1760,14 @@ Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) 
   llvm::SmallDenseSet<Decl *, 2> MissingDecls;
   // Frist, remove all declarations, which may be in wrong order in the
   // lexical DeclContext.
-  for (Decl *ToD : ImportedDecls) { // O(n)
-    if (ToD && ToD->getLexicalDeclContext() == ToDC) {
+  for (Decl *ToD : ImportedDeclsOriginalOrder) { // O(n)
+    if (ToD->getLexicalDeclContext() == ToDC) {
       if (ToDC->containsDecl(ToD)) { // containsDecl is O(1)
         ToDC->removeDecl(ToD);       // O(n)
       } else {
         MissingDecls.insert(ToD);
 
-        const SourceLocation &Loc = ToD->getLocation();
-        const SourceManager &SM = ToD->getASTContext().getSourceManager();
-        SourceLocation SpellingLoc = SM.getSpellingLoc(Loc);
-        PresumedLoc PLoc = SM.getPresumedLoc(SpellingLoc);
-
+        PresumedLoc PLoc = GetPresumedLoc(ToD);
         FromDC->getParentASTContext().getDiagnostics().Report(
             diag::warn_ast_importer_missing_decl_in_decl_context)
             << ToD->getDeclKindName() << PLoc.getFilename() << PLoc.getLine()
@@ -1758,8 +1776,8 @@ Error ASTNodeImporter::ImportDeclContext(DeclContext *FromDC, bool ForceImport) 
     }
   }
   // Add the declarations, but this time in the correct order.
-  for (Decl *ToD : ImportedDecls) {
-    if (ToD && ToD->getLexicalDeclContext() == ToDC) {
+  for (Decl *ToD : ImportedDeclsOriginalOrder) {
+    if (ToD->getLexicalDeclContext() == ToDC) {
       // FIXME remove this if, when all Decls are properly imported
       if (MissingDecls.count(ToD) == 0) {
         ToDC->addDeclInternal(ToD);
