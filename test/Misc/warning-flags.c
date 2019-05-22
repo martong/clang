@@ -18,7 +18,7 @@ This test serves two purposes:
 
 The list of warnings below should NEVER grow.  It should gradually shrink to 0.
 
-CHECK: Warnings without flags (74):
+CHECK: Warnings without flags (75):
 CHECK-NEXT:   ext_excess_initializers
 CHECK-NEXT:   ext_excess_initializers_in_char_array_initializer
 CHECK-NEXT:   ext_expected_semi_decl_list
@@ -88,7 +88,7 @@ CHECK-NEXT:   warn_related_result_type_compatibility_protocol
 CHECK-NEXT:   warn_template_export_unsupported
 CHECK-NEXT:   warn_template_spec_extra_headers
 CHECK-NEXT:   warn_tentative_incomplete_array
-CHECK-NEXT:   warn_typecheck_function_qualifiers
+CHECK-NEXT:   warn_typecheck_function_qualifiers_unspecified
 CHECK-NEXT:   warn_undef_interface
 CHECK-NEXT:   warn_undef_interface_suggest
 CHECK-NEXT:   warn_undef_protocolref
