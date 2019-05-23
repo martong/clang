@@ -9062,6 +9062,7 @@ ASTImporter::ImportPathTy::getCycleAtBack() const {
                std::find(Nodes.rbegin() + 1, Nodes.rend(), Nodes.back()) + 1);
 }
 
+
 ASTImporter::ImportPathTy::VecTy
 ASTImporter::ImportPathTy::copyCycleAtBack() const {
   auto R = getCycleAtBack();
