@@ -15,6 +15,7 @@
 #ifndef LLVM_CLANG_STATICANALYZER_CORE_BUGREPORTER_BUGREPORTERVISITORS_H
 #define LLVM_CLANG_STATICANALYZER_CORE_BUGREPORTER_BUGREPORTERVISITORS_H
 
+#include "clang/Analysis/ProgramPoint.h"
 #include "clang/Basic/LLVM.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/RangedConstraintManager.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SVals.h"
@@ -343,21 +344,14 @@ public:
                        BugReport &BR) override;
 };
 
-class SpecialReturnValueBRVisitor final : public BugReporterVisitor {
-
-  bool Satisfied;
-
+/// The visitor detects NoteTags and displays the event notes they contain.
+class TagVisitor : public BugReporterVisitor {
 public:
-  SpecialReturnValueBRVisitor() : Satisfied(false) {}
+  void Profile(llvm::FoldingSetNodeID &ID) const override;
 
-  void Profile(llvm::FoldingSetNodeID &ID) const override {
-    static int x = 0;
-    ID.AddPointer(&x);
-  }
-
-  std::shared_ptr<PathDiagnosticPiece> VisitNode(const ExplodedNode *Succ,
+  std::shared_ptr<PathDiagnosticPiece> VisitNode(const ExplodedNode *N,
                                                  BugReporterContext &BRC,
-                                                 BugReport &BR) override;
+                                                 BugReport &R) override;
 };
 
 namespace bugreporter {
