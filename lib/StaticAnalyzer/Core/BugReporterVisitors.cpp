@@ -42,6 +42,7 @@
 #include "clang/StaticAnalyzer/Core/PathSensitive/MemRegion.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/ProgramState_Fwd.h"
+#include "clang/StaticAnalyzer/Core/PathSensitive/ProgramStateTrait.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SMTConv.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SValBuilder.h"
 #include "clang/StaticAnalyzer/Core/PathSensitive/SVals.h"
@@ -2499,53 +2500,32 @@ FalsePositiveRefutationBRVisitor::VisitNode(const ExplodedNode *N,
   return nullptr;
 }
 
-void FalsePositiveRefutationBRVisitor::Profile(
-    llvm::FoldingSetNodeID &ID) const {
+int NoteTag::Kind = 0;
+
+void TagVisitor::Profile(llvm::FoldingSetNodeID &ID) const {
   static int Tag = 0;
   ID.AddPointer(&Tag);
 }
 
 std::shared_ptr<PathDiagnosticPiece>
-SpecialReturnValueBRVisitor::VisitNode(const ExplodedNode *Succ,
-                                       BugReporterContext &BRC, BugReport &BR) {
-  if (Satisfied)
+TagVisitor::VisitNode(const ExplodedNode *N, BugReporterContext &BRC,
+                      BugReport &R) {
+  ProgramPoint PP = N->getLocation();
+  const NoteTag *T = dyn_cast_or_null<NoteTag>(PP.getTag());
+  if (!T)
     return nullptr;
 
-  auto PS = Succ->getLocation().getAs<PostStmt>();
-  if (!PS.hasValue())
-    return nullptr;
+  if (Optional<std::string> Msg = T->generateMessage(BRC, R)) {
+    PathDiagnosticLocation Loc =
+        PathDiagnosticLocation::create(PP, BRC.getSourceManager());
+    return std::make_shared<PathDiagnosticEventPiece>(Loc, *Msg);
+  }
 
-  auto Tag = PS->getTag();
-  if (!Tag)
-    return nullptr;
+  return nullptr;
+}
 
-  StringRef CheckerName, Msg;
-  std::tie(CheckerName, Msg) = Tag->getTagDescription().split(" : ");
-
-  if (CheckerName != "alpha.ericsson.statisticsbased.SpecialReturnValue")
-    return nullptr;
-
-  Satisfied = true;
-
-  assert(isa<CallExpr>(PS->getStmt()) &&
-         "Only CallExpr can \"return\" a value");
-  const auto *SpecCall = cast<CallExpr>(PS->getStmt());
-
-  const auto *LCtx = PS->getLocationContext();
-
-  auto L = PathDiagnosticLocation::createBegin(SpecCall, BRC.getSourceManager(),
-                                               LCtx);
-
-  if (!L.isValid() || !L.asLocation().isValid())
-    return nullptr;
-
-  SmallString<256> Buf;
-  llvm::raw_svector_ostream Out(Buf);
-
-  Out << "Assuming " << Msg << " (based on call statistics)";
-
-  auto Piece = std::make_shared<PathDiagnosticEventPiece>(L, Out.str());
-  Piece->addRange(SpecCall->getSourceRange());
-
-  return std::move(Piece);
+void FalsePositiveRefutationBRVisitor::Profile(
+    llvm::FoldingSetNodeID &ID) const {
+  static int Tag = 0;
+  ID.AddPointer(&Tag);
 }

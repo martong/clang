@@ -2613,7 +2613,7 @@ std::pair<BugReport*, std::unique_ptr<VisitorsDiagnosticsTy>> findValidReport(
     R->addVisitor(llvm::make_unique<NilReceiverBRVisitor>());
     R->addVisitor(llvm::make_unique<ConditionBRVisitor>());
     R->addVisitor(llvm::make_unique<CXXSelfAssignmentBRVisitor>());
-    R->addVisitor(llvm::make_unique<SpecialReturnValueBRVisitor>());
+    R->addVisitor(llvm::make_unique<TagVisitor>());
 
     BugReporterContext BRC(Reporter, ErrorGraph.BackMap);
 
