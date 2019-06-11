@@ -3097,11 +3097,11 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   // overrides (even if they are part of the same redecl chain inside the
   // derived class.)
   if (FoundByLookup) {
-    if (auto *MD = dyn_cast<CXXMethodDecl>(FoundByLookup)) {
+    if (dyn_cast<CXXMethodDecl>(FoundByLookup)) {
       if (D->getLexicalDeclContext() == D->getDeclContext()) {
-        if (!D->doesThisDeclarationHaveABody())
+        if (!D->doesThisDeclarationHaveABody()) {
           return Importer.MapImported(D, FoundByLookup);
-        else {
+        } else {
           // Let's continue and build up the redecl chain in this case.
           // FIXME Merge the functions into one decl.
         }
