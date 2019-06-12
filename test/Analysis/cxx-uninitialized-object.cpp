@@ -1,15 +1,15 @@
 // RUN: %clang_analyze_cc1 -std=c++14 -verify  %s \
 // RUN:   -analyzer-checker=core \
-// RUN:   -analyzer-checker=optin.cplusplus.UninitializedObject \
-// RUN:   -analyzer-config optin.cplusplus.UninitializedObject:Pedantic=true -DPEDANTIC \
+// RUN:   -analyzer-checker=alpha.cplusplus.UninitializedObject \
+// RUN:   -analyzer-config alpha.cplusplus.UninitializedObject:Pedantic=true -DPEDANTIC \
 // RUN:   -analyzer-config \
-// RUN:     optin.cplusplus.UninitializedObject:CheckPointeeInitialization=true
+// RUN:     alpha.cplusplus.UninitializedObject:CheckPointeeInitialization=true
 
 // RUN: %clang_analyze_cc1 -std=c++14 -verify  %s \
 // RUN:   -analyzer-checker=core \
-// RUN:   -analyzer-checker=optin.cplusplus.UninitializedObject \
+// RUN:   -analyzer-checker=alpha.cplusplus.UninitializedObject \
 // RUN:   -analyzer-config \
-// RUN:     optin.cplusplus.UninitializedObject:CheckPointeeInitialization=true
+// RUN:     alpha.cplusplus.UninitializedObject:CheckPointeeInitialization=true
 
 //===----------------------------------------------------------------------===//
 // Default constructor test.
