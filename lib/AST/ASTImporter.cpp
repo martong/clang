@@ -3100,6 +3100,16 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
     if (dyn_cast<CXXMethodDecl>(FoundByLookup)) {
       if (D->getLexicalDeclContext() == D->getDeclContext()) {
         if (!D->doesThisDeclarationHaveABody()) {
+          if (FunctionTemplateDecl *DescribedD =
+                  D->getDescribedFunctionTemplate()) {
+            // Handle a "templated" function together with its described
+            // template. This avoids need for a similar check at import of the
+            // described template.
+            assert(FoundByLookup->getDescribedFunctionTemplate() &&
+                   "Templated function mapped to non-templated?");
+            Importer.MapImported(DescribedD,
+                                 FoundByLookup->getDescribedFunctionTemplate());
+          }
           return Importer.MapImported(D, FoundByLookup);
         } else {
           // Let's continue and build up the redecl chain in this case.
@@ -5660,15 +5670,16 @@ ASTNodeImporter::VisitFunctionTemplateDecl(FunctionTemplateDecl *D) {
         // name conflict), because FunctionTemplates can possibly overload.
       } // template
     }   // for
-  }
 
-  auto ParamsOrErr = import(D->getTemplateParameters());
-  if (!ParamsOrErr)
-    return ParamsOrErr.takeError();
+  }
 
   FunctionDecl *TemplatedFD;
   if (Error Err = importInto(TemplatedFD, D->getTemplatedDecl()))
     return std::move(Err);
+
+  auto ParamsOrErr = import(D->getTemplateParameters());
+  if (!ParamsOrErr)
+    return ParamsOrErr.takeError();
 
   FunctionTemplateDecl *ToFunc;
   if (GetImportedOrCreateDecl(ToFunc, D, Importer.getToContext(), DC, Loc, Name,
