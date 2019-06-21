@@ -324,7 +324,8 @@ public:
     CallEventRef<> Call =
         BR.getStateManager().getCallEventManager().getCaller(SCtx, State);
 
-    if (SM.isInSystemHeader(Call->getDecl()->getSourceRange().getBegin()))
+    SourceLocation BeginLoc = Call->getDecl()->getSourceRange().getBegin();
+    if (BeginLoc.isValid() && SM.isInSystemHeader(BeginLoc))
       return nullptr;
 
     // Region of interest corresponds to an IVar, exiting a method
