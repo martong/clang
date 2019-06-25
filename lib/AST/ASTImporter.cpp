@@ -7814,10 +7814,11 @@ void ASTNodeImporter::ImportOverrides(CXXMethodDecl *ToMethod,
 ASTImporter::ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,
                          ASTContext &FromContext, FileManager &FromFileManager,
                          bool MinimalImport,
-                         std::shared_ptr<ASTImporterSharedState> SharedState)
+                         std::shared_ptr<ASTImporterSharedState> SharedState,
+                         ASTUnit *Unit)
     : SharedState(SharedState), ToContext(ToContext), FromContext(FromContext),
       ToFileManager(ToFileManager), FromFileManager(FromFileManager),
-      Minimal(MinimalImport) {
+      Unit(Unit), Minimal(MinimalImport) {
 
   // Create a default state without the lookup table: LLDB case.
   if (!SharedState) {
@@ -8883,6 +8884,13 @@ Expected<FileID> ASTImporter::Import(FileID FromID, bool IsBuiltin) {
   assert(ToID.isValid() && "Unexpected invalid fileID was created.");
 
   ImportedFileIDs[FromID] = ToID;
+  if (Unit) {
+    assert(SharedState->getImportedFileIDs().find(ToID) ==
+               SharedState->getImportedFileIDs().end() &&
+           "FileID already imported!");
+    SharedState->getImportedFileIDs()[ToID] = std::make_pair(FromID, Unit);
+  }
+
   return ToID;
 }
 

@@ -275,7 +275,7 @@ CrossTranslationUnitContext::getCrossTUDefinition(const FunctionDecl *FD,
   TranslationUnitDecl *TU = Unit->getASTContext().getTranslationUnitDecl();
   if (const FunctionDecl *ResultDecl =
           findFunctionInDeclContext(TU, LookupFnName))
-    return importDefinition(ResultDecl);
+    return importDefinition(ResultDecl, Unit);
   return llvm::make_error<IndexError>(index_error_code::failed_import);
 }
 
@@ -372,10 +372,13 @@ llvm::Expected<ASTUnit *> CrossTranslationUnitContext::loadExternalAST(
 }
 
 llvm::Expected<const FunctionDecl *>
-CrossTranslationUnitContext::importDefinition(const FunctionDecl *FD) {
+CrossTranslationUnitContext::importDefinition(const FunctionDecl *FD,
+                                              ASTUnit *Unit) {
   assert(FD->hasBody() && "Functions to be imported should have body.");
 
-  ASTImporter &Importer = getOrCreateASTImporter(FD->getASTContext());
+  assert(&FD->getASTContext() == &Unit->getASTContext() &&
+         "Wrong ASTContext of function.");
+  ASTImporter &Importer = getOrCreateASTImporter(Unit);
   auto ToDeclOrError = Importer.Import(FD);
   if (!ToDeclOrError) {
     handleAllErrors(ToDeclOrError.takeError(),
@@ -408,16 +411,40 @@ void CrossTranslationUnitContext::lazyInitImporterSharedSt(
 }
 
 ASTImporter &
-CrossTranslationUnitContext::getOrCreateASTImporter(ASTContext &From) {
+CrossTranslationUnitContext::getOrCreateASTImporter(ASTUnit *Unit) {
+  ASTContext &From = Unit->getASTContext();
+
   auto I = ASTUnitImporterMap.find(From.getTranslationUnitDecl());
   if (I != ASTUnitImporterMap.end())
     return *I->second;
+
   lazyInitImporterSharedSt(Context.getTranslationUnitDecl());
   ASTImporter *NewImporter = new ASTImporter(
       Context, Context.getSourceManager().getFileManager(), From,
-      From.getSourceManager().getFileManager(), false, ImporterSharedSt);
+      From.getSourceManager().getFileManager(), false, ImporterSharedSt, Unit);
   ASTUnitImporterMap[From.getTranslationUnitDecl()].reset(NewImporter);
   return *NewImporter;
+}
+
+llvm::Optional<std::pair<SourceLocation, ASTUnit *>>
+CrossTranslationUnitContext::GetImportedFromSourceLocation(
+    const clang::SourceLocation &ToLoc) const {
+  if (!ImporterSharedSt)
+    return {};
+
+  const SourceManager &SM = Context.getSourceManager();
+  auto DecToLoc = SM.getDecomposedLoc(ToLoc);
+
+  auto I = ImporterSharedSt->getImportedFileIDs().find(DecToLoc.first);
+  if (I == ImporterSharedSt->getImportedFileIDs().end())
+    return {};
+
+  FileID FromID = I->second.first;
+  clang::ASTUnit *Unit = I->second.second;
+  SourceLocation FromLoc =
+      Unit->getSourceManager().getComposedLoc(FromID, DecToLoc.second);
+
+  return std::make_pair(FromLoc, Unit);
 }
 
 } // namespace cross_tu

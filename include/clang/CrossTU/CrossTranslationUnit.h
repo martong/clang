@@ -152,7 +152,8 @@ public:
   ///        was passed to the constructor.
   ///
   /// \return Returns the resulting definition or an error.
-  llvm::Expected<const FunctionDecl *> importDefinition(const FunctionDecl *FD);
+  llvm::Expected<const FunctionDecl *> importDefinition(const FunctionDecl *FD,
+                                                        ASTUnit *Unit);
 
   /// Get a name to identify a function.
   static std::string getLookupName(const NamedDecl *ND);
@@ -160,14 +161,28 @@ public:
   /// Emit diagnostics for the user for potential configuration errors.
   void emitCrossTUDiagnostics(const IndexError &IE);
 
+  /// Determine the original source location in the original TU for an
+  /// imported source location.
+  /// \p ToLoc Source location in the imported-to AST.
+  /// \return Source location in the imported-from AST and the corresponding
+  /// ASTUnit.
+  /// If any error happens (ToLoc is a non-imported source location) empty is
+  /// returned.
+  llvm::Optional<std::pair<SourceLocation /*FromLoc*/, ASTUnit *>>
+  GetImportedFromSourceLocation(const clang::SourceLocation &ToLoc) const;
+
 private:
   void lazyInitImporterSharedSt(TranslationUnitDecl *ToTU);
-  ASTImporter &getOrCreateASTImporter(ASTContext &From);
+  ASTImporter &getOrCreateASTImporter(ASTUnit *Unit);
   const FunctionDecl *findFunctionInDeclContext(const DeclContext *DC,
                                                 StringRef LookupFnName);
 
+  /// Map from the full name of the AST file to the belonging ASTUnit structure.
   llvm::StringMap<std::unique_ptr<clang::ASTUnit>> FileASTUnitMap;
+  /// Map from a function lookup name (USR) to the ASTUnit for that function.
   llvm::StringMap<clang::ASTUnit *> FunctionASTUnitMap;
+  /// Map from function lookup name to the AST file name.
+  // This is the content of the "index file".
   llvm::StringMap<std::string> FunctionFileMap;
   llvm::DenseMap<TranslationUnitDecl *, std::unique_ptr<ASTImporter>>
       ASTUnitImporterMap;

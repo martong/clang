@@ -2037,9 +2037,7 @@ bool SourceManager::isBeforeInTranslationUnit(SourceLocation LHS,
     return LOffs.second < ROffs.second;
   }
 
-  // If SourceLocations originate from different TUs, but cannot be handled
-  // by one of the previous cases, just compare the FileIDs directly.
-  return LOffs.first < ROffs.first;
+  llvm_unreachable("Unsortable locations found");
 }
 
 std::pair<bool, bool> SourceManager::isInTheSameTranslationUnit(
