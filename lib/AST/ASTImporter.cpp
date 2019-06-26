@@ -2553,7 +2553,8 @@ ExpectedDecl ASTNodeImporter::VisitEnumDecl(EnumDecl *D) {
 
     if (!ConflictingDecls.empty()) {
       Expected<DeclarationName> Resolution = Importer.HandleNameConflict(
-          Name, DC, IDNS, ConflictingDecls.data(), ConflictingDecls.size());
+          SearchName, DC, IDNS, ConflictingDecls.data(),
+          ConflictingDecls.size());
       if (Resolution)
         Name = Resolution.get();
       else
@@ -2690,7 +2691,8 @@ ExpectedDecl ASTNodeImporter::VisitRecordDecl(RecordDecl *D) {
 
     if (!ConflictingDecls.empty() && SearchName) {
       Expected<DeclarationName> Resolution = Importer.HandleNameConflict(
-          Name, DC, IDNS, ConflictingDecls.data(), ConflictingDecls.size());
+          SearchName, DC, IDNS, ConflictingDecls.data(),
+          ConflictingDecls.size());
       if (Resolution)
         Name = Resolution.get();
       else
