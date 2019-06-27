@@ -45,6 +45,7 @@ public:
 class mycls {
 public:
   int fcl(int x);
+  virtual int fvcl(int x);
   static int fscl(int x);
 
   class embed_cls2 {
@@ -53,12 +54,26 @@ public:
   };
 };
 
+class derived : public mycls {
+public:
+  virtual int fvcl(int x) override;
+};
+
 namespace chns {
 int chf1(int x);
 }
 
 int fun_using_anon_struct(int);
 int other_macro_diag(int);
+
+void test_virtual_functions(mycls* obj) {
+  // The dynamic type is known.
+  clang_analyzer_eval(mycls().fvcl(1) == 8);   // expected-warning{{TRUE}}
+  clang_analyzer_eval(derived().fvcl(1) == 9); // expected-warning{{TRUE}}
+  // We cannot decide about the dynamic type.
+  clang_analyzer_eval(obj->fvcl(1) == 8);      // expected-warning{{FALSE}} expected-warning{{TRUE}}
+  clang_analyzer_eval(obj->fvcl(1) == 9);      // expected-warning{{FALSE}} expected-warning{{TRUE}}
+}
 
 int main() {
   clang_analyzer_eval(f(3) == 2); // expected-warning{{TRUE}}
@@ -78,6 +93,6 @@ int main() {
   clang_analyzer_eval(fun_using_anon_struct(8) == 8); // expected-warning{{TRUE}}
 
   clang_analyzer_eval(other_macro_diag(1) == 1); // expected-warning{{TRUE}}
-  // expected-warning@Inputs/ctu-other.cpp:80{{REACHABLE}}
+  // expected-warning@Inputs/ctu-other.cpp:93{{REACHABLE}}
   MACRODIAG(); // expected-warning{{REACHABLE}}
 }
