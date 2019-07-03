@@ -30,6 +30,7 @@ struct Class {
   using DeclTy = CXXRecordDecl;
   static constexpr auto *Prototype = "class X;";
   static constexpr auto *Definition = "class X {};";
+  static constexpr auto *ConflictingDefinition = "class X { int A; };";
   BindableMatcher<Decl> getPattern() {
     return cxxRecordDecl(hasName("X"), unless(isImplicit()));
   }
@@ -122,12 +123,18 @@ struct ClassTemplateSpec {
   }
 };
 
-template <typename TypeParam>
+template <typename TypeParam, ASTImporter::ODRHandlingType ODRHandlingParam>
 struct RedeclChain : ASTImporterOptionSpecificTestBase {
 
   using DeclTy = typename TypeParam::DeclTy;
+
+  RedeclChain() { ODRHandling = ODRHandlingParam; }
+
   std::string getPrototype() { return TypeParam::Prototype; }
   std::string getDefinition() { return TypeParam::Definition; }
+  std::string getConflictingDefinition() {
+    return TypeParam::ConflictingDefinition;
+  }
   BindableMatcher<Decl> getPattern() const { return TypeParam().getPattern(); }
 
   void CheckPreviousDecl(Decl *Prev, Decl *Current) {
@@ -406,12 +413,74 @@ struct RedeclChain : ASTImporterOptionSpecificTestBase {
 
     CheckPreviousDecl(ProtoD, DefinitionD->getPreviousDecl());
   }
+
+  void TypedTest_DoNotImportConflictingDefinition() {
+    Decl *ToTU = getToTuDecl(getDefinition(), Lang_CXX);
+
+    Decl *FromTU = getTuDecl(getConflictingDefinition(), Lang_CXX);
+    auto *FromD = FirstDeclMatcher<DeclTy>().match(FromTU, getPattern());
+
+    auto Result = importOrError(FromD, Lang_CXX);
+    EXPECT_TRUE(isImportError(Result, ImportError::NameConflict));
+    EXPECT_EQ(DeclCounter<DeclTy>().match(ToTU, getPattern()), 1u);
+  }
+
+  void TypedTest_ImportConflictingDefinition() {
+    Decl *ToTU = getToTuDecl(getDefinition(), Lang_CXX);
+    auto *ToD = FirstDeclMatcher<DeclTy>().match(ToTU, getPattern());
+
+    Decl *FromTU = getTuDecl(getConflictingDefinition(), Lang_CXX);
+    auto *FromD = FirstDeclMatcher<DeclTy>().match(FromTU, getPattern());
+
+    auto Result = importOrError(FromD, Lang_CXX);
+    ASSERT_TRUE(isSuccess(Result));
+    Decl *ImportedD = *Result;
+    ASSERT_TRUE(ImportedD);
+    EXPECT_NE(ImportedD, ToD);
+    EXPECT_FALSE(ImportedD->getPreviousDecl());
+    EXPECT_EQ(DeclCounter<DeclTy>().match(ToTU, getPattern()), 2u);
+  }
+
+  void TypedTest_ImportConflictingDefinitionFromTU() {
+    Decl *FromTU1 = getTuDecl(getDefinition(), Lang_CXX, "input1.cc");
+    auto *FromD1 = FirstDeclMatcher<DeclTy>().match(FromTU1, getPattern());
+
+    auto Result1 = importOrError(FromD1, Lang_CXX);
+    ASSERT_TRUE(isSuccess(Result1));
+    Decl *ImportedD1 = *Result1;
+
+    Decl *FromTU2 =
+        getTuDecl(getConflictingDefinition(), Lang_CXX, "input2.cc");
+    auto *FromD2 = FirstDeclMatcher<DeclTy>().match(FromTU2, getPattern());
+
+    auto Result2 = importOrError(FromD2, Lang_CXX);
+    ASSERT_TRUE(isSuccess(Result2));
+    Decl *ImportedD2 = *Result2;
+
+    ASSERT_TRUE(ImportedD1);
+    ASSERT_TRUE(ImportedD2);
+    EXPECT_NE(ImportedD1, ImportedD2);
+    EXPECT_FALSE(ImportedD1->getPreviousDecl());
+    EXPECT_FALSE(ImportedD2->getPreviousDecl());
+    EXPECT_EQ(DeclCounter<DeclTy>().match(ImportedD1->getTranslationUnitDecl(),
+                                          getPattern()),
+              2u);
+  }
 };
 
 #define ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(BaseTemplate, TypeParam,       \
                                                 NamePrefix, TestCase)          \
-  using BaseTemplate##TypeParam = BaseTemplate<TypeParam>;                     \
-  TEST_P(BaseTemplate##TypeParam, NamePrefix##TestCase) {                      \
+  using BaseTemplate##TypeParam##Conservative =                                \
+      BaseTemplate<TypeParam, ASTImporter::ODRHandlingType::Conservative>;     \
+  TEST_P(BaseTemplate##TypeParam##Conservative, NamePrefix##TestCase) {        \
+    TypedTest_##TestCase();                                                    \
+  }
+
+#define ASTIMPORTER_ODR_INSTANTIATE_TYPED_TEST_CASE(                           \
+    BaseTemplate, TypeParam, ODRHandlingParam, NamePrefix, TestCase)           \
+  using BaseTemplate##TypeParam##ODRHandlingParam =                            \
+      BaseTemplate<TypeParam, ASTImporter::ODRHandlingType::ODRHandlingParam>; \
+  TEST_P(BaseTemplate##TypeParam##ODRHandlingParam, NamePrefix##TestCase) {    \
     TypedTest_##TestCase();                                                    \
   }
 
@@ -596,21 +665,36 @@ ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, VariableTemplate, ,
 ASTIMPORTER_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, FunctionTemplateSpec, ,
                                         ImportPrototypeThenProtoAndDefinition)
 
-INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainFunction,
+ASTIMPORTER_ODR_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Class, Conservative, ,
+                                            DoNotImportConflictingDefinition)
+ASTIMPORTER_ODR_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Class, Liberal, ,
+                                            ImportConflictingDefinition)
+ASTIMPORTER_ODR_INSTANTIATE_TYPED_TEST_CASE(RedeclChain, Class, Liberal, ,
+                                            ImportConflictingDefinitionFromTU)
+
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainFunctionConservative,
                         DefaultTestValuesForRunOptions, );
-INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainClass,
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainClassConservative,
                         DefaultTestValuesForRunOptions, );
-INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainVariable,
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainVariableConservative,
                         DefaultTestValuesForRunOptions, );
-INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainFunctionTemplate,
+INSTANTIATE_TEST_CASE_P(ParameterizedTests,
+                        RedeclChainFunctionTemplateConservative,
                         DefaultTestValuesForRunOptions, );
-INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainClassTemplate,
+INSTANTIATE_TEST_CASE_P(ParameterizedTests,
+                        RedeclChainClassTemplateConservative,
                         DefaultTestValuesForRunOptions, );
-INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainVariableTemplate,
+INSTANTIATE_TEST_CASE_P(ParameterizedTests,
+                        RedeclChainVariableTemplateConservative,
                         DefaultTestValuesForRunOptions, );
-INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainFunctionTemplateSpec,
+INSTANTIATE_TEST_CASE_P(ParameterizedTests,
+                        RedeclChainFunctionTemplateSpecConservative,
                         DefaultTestValuesForRunOptions, );
-INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainClassTemplateSpec,
+INSTANTIATE_TEST_CASE_P(ParameterizedTests,
+                        RedeclChainClassTemplateSpecConservative,
+                        DefaultTestValuesForRunOptions, );
+
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, RedeclChainClassLiberal,
                         DefaultTestValuesForRunOptions, );
 
 } // end namespace ast_matchers

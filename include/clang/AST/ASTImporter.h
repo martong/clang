@@ -89,6 +89,8 @@ class TypeSourceInfo;
     using ImportedCXXBaseSpecifierMap =
         llvm::DenseMap<const CXXBaseSpecifier *, CXXBaseSpecifier *>;
 
+    enum class ODRHandlingType { Conservative, Liberal };
+
     class ImportPathTy {
     public:
       using VecTy = llvm::SmallVector<Decl *, 32>;
@@ -138,6 +140,8 @@ class TypeSourceInfo;
 
     /// Whether to perform a minimal import.
     bool Minimal;
+
+    ODRHandlingType ODRHandling;
 
     /// Whether the last diagnostic came from the "from" context.
     bool LastDiagFromFrom = false;
@@ -218,6 +222,8 @@ class TypeSourceInfo;
     /// Whether the importer will perform a minimal import, creating
     /// to-be-completed forward declarations when possible.
     bool isMinimalImport() const { return Minimal; }
+
+    void setODRHandling(ODRHandlingType T) { ODRHandling = T; }
 
     /// \brief Import the given object, returns the result.
     ///

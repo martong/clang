@@ -113,10 +113,12 @@ void checkImportedSourceLocations(const Decl *FromD, const Decl *ToD) {
 }
 
 ASTImporterTestBase::TU::TU(StringRef Code, StringRef FileName, ArgVector Args,
-                            ImporterConstructor C)
+                            ImporterConstructor C,
+                            ASTImporter::ODRHandlingType ODRHandling)
     : Code(Code), FileName(FileName),
       Unit(tooling::buildASTFromCodeWithArgs(this->Code, Args, this->FileName)),
-      TUDecl(Unit->getASTContext().getTranslationUnitDecl()), Creator(C) {
+      TUDecl(Unit->getASTContext().getTranslationUnitDecl()), Creator(C),
+      ODRHandling(ODRHandling) {
   Unit->enableSourceFileDiagnostics();
 
   // If the test doesn't need a specific ASTImporter, we just create a
@@ -137,10 +139,12 @@ void ASTImporterTestBase::TU::lazyInitImporter(
     const std::shared_ptr<ASTImporterSharedState> &SharedState,
     ASTUnit *ToAST) {
   assert(ToAST);
-  if (!Importer)
+  if (!Importer) {
     Importer.reset(Creator(ToAST->getASTContext(), ToAST->getFileManager(),
                            Unit->getASTContext(), Unit->getFileManager(), false,
                            SharedState));
+    Importer->setODRHandling(ODRHandling);
+  }
   assert(&ToAST->getASTContext() == &Importer->getToContext());
   createVirtualFileIfNeeded(ToAST, FileName, Code);
 }
@@ -155,6 +159,13 @@ Decl *ASTImporterTestBase::TU::import(
     llvm::consumeError(ImportedOrErr.takeError());
     return nullptr;
   }
+}
+
+llvm::Expected<Decl *> ASTImporterTestBase::TU::importOrError(
+    const std::shared_ptr<ASTImporterSharedState> &SharedState, ASTUnit *ToAST,
+    Decl *FromDecl) {
+  lazyInitImporter(SharedState, ToAST);
+  return Importer->Import(FromDecl);
 }
 
 QualType ASTImporterTestBase::TU::import(
@@ -206,7 +217,8 @@ ASTImporterTestBase::getImportedDecl(StringRef FromSrcCode, Language FromLang,
   ArgVector FromArgs = getArgVectorForLanguage(FromLang),
             ToArgs = getArgVectorForLanguage(ToLang);
 
-  FromTUs.emplace_back(FromSrcCode, InputFileName, FromArgs, Creator);
+  FromTUs.emplace_back(FromSrcCode, InputFileName, FromArgs, Creator,
+                       ODRHandling);
   TU &FromTU = FromTUs.back();
 
   assert(!ToAST);
@@ -239,7 +251,7 @@ TranslationUnitDecl *ASTImporterTestBase::getTuDecl(StringRef SrcCode,
          }) == FromTUs.end());
 
   ArgVector Args = getArgVectorForLanguage(Lang);
-  FromTUs.emplace_back(SrcCode, FileName, Args);
+  FromTUs.emplace_back(SrcCode, FileName, Args, Creator, ODRHandling);
   TU &Tu = FromTUs.back();
 
   return Tu.TUDecl;
@@ -260,6 +272,18 @@ Decl *ASTImporterTestBase::Import(Decl *From, Language ToLang) {
   Decl *To = FromTU->import(SharedStatePtr, ToAST.get(), From);
   if (To)
     checkImportedSourceLocations(From, To);
+  return To;
+}
+
+llvm::Expected<Decl *> ASTImporterTestBase::importOrError(Decl *From,
+                                                          Language ToLang) {
+  lazyInitToAST(ToLang, "", OutputFileName);
+  TU *FromTU = findFromTU(From);
+  assert(SharedStatePtr);
+  llvm::Expected<Decl *> To =
+      FromTU->importOrError(SharedStatePtr, ToAST.get(), From);
+  if (To && *To)
+    checkImportedSourceLocations(From, *To);
   return To;
 }
 

@@ -7820,7 +7820,8 @@ ASTImporter::ASTImporter(ASTContext &ToContext, FileManager &ToFileManager,
                          ASTUnit *Unit)
     : SharedState(SharedState), ToContext(ToContext), FromContext(FromContext),
       ToFileManager(ToFileManager), FromFileManager(FromFileManager),
-      Unit(Unit), Minimal(MinimalImport) {
+      Unit(Unit), Minimal(MinimalImport),
+      ODRHandling(ODRHandlingType::Conservative) {
 
   // Create a default state without the lookup table: LLDB case.
   if (!SharedState) {
@@ -9115,14 +9116,17 @@ Expected<Selector> ASTImporter::Import(Selector FromSel) {
   return ToContext.Selectors.getSelector(FromSel.getNumArgs(), Idents.data());
 }
 
-// On name conflict the conservative strategy would be to return an
-// ImportError::NameConflict.
 Expected<DeclarationName> ASTImporter::HandleNameConflict(DeclarationName Name,
                                                 DeclContext *DC,
                                                 unsigned IDNS,
                                                 NamedDecl **Decls,
                                                 unsigned NumDecls) {
-  return make_error<ImportError>(ImportError::NameConflict);
+  if (ODRHandling == ODRHandlingType::Conservative)
+    // Report error at any name conflict.
+    return make_error<ImportError>(ImportError::NameConflict);
+  else
+    // Allow to create the new Decl with the same name.
+    return Name;
 }
 
 DiagnosticBuilder ASTImporter::ToDiag(SourceLocation Loc, unsigned DiagID) {
