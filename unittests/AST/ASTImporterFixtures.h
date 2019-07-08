@@ -196,7 +196,7 @@ protected:
 template <class T>
 ::testing::AssertionResult isSuccess(llvm::Expected<T> &ValOrErr) {
   if (ValOrErr)
-    return ::testing::AssertionSuccess() << "Expected<> contains not an error.";
+    return ::testing::AssertionSuccess() << "Expected<> contains no error.";
   else
     return ::testing::AssertionFailure()
            << "Expected<> contains error: " << toString(ValOrErr.takeError());
