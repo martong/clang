@@ -3001,7 +3001,6 @@ Error ASTNodeImporter::ImportFunctionDeclBody(FunctionDecl *FromFD,
 }
 
 ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
-
   SmallVector<Decl *, 2> Redecls = getCanonicalForwardRedeclChain(D);
   auto RedeclIt = Redecls.begin();
   // Import the first part of the decl chain. I.e. import all previous
@@ -3048,9 +3047,22 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
   }
   // Try to find a function in our own ("to") context with the same name, same
   // type, and in the same context as the function we're importing.
-  else if (!LexicalDC->isFunctionOrMethod()) {
+  else {
+    // Detect functions that have no prototype before (valid in C only).
+    // These are implicitly contained in a CallExpr without previous
+    // FunctionDecl, in namespace IDNS_LocalExtern. The AST contains the same
+    // FunctionDecl at every CallExpr where that function is called.
+    auto HasNoPrototype = [](FunctionDecl *D) {
+      return D->getLexicalDeclContext()->isFunctionOrMethod() &&
+             D->isImplicit();
+    };
+    bool NoPrototype = HasNoPrototype(D);
+    assert((!NoPrototype || !D->getPreviousDecl()) &&
+           "Function without prototype but with previous decl?");
+
     SmallVector<NamedDecl *, 4> ConflictingDecls;
-    unsigned IDNS = Decl::IDNS_Ordinary | Decl::IDNS_OrdinaryFriend;
+    unsigned IDNS = Decl::IDNS_Ordinary | Decl::IDNS_OrdinaryFriend |
+                    Decl::IDNS_LocalExtern;
     auto FoundDecls = Importer.findDeclsInToCtx(DC, Name);
     for (auto *FoundDecl : FoundDecls) {
       if (!FoundDecl->isInIdentifierNamespace(IDNS))
@@ -3063,6 +3075,14 @@ ExpectedDecl ASTNodeImporter::VisitFunctionDecl(FunctionDecl *D) {
         if (isStructuralMatch(D, FoundFunction, false)) {
           if (Decl *Def = FindAndMapDefinition(D, FoundFunction))
             return Def;
+
+          if (NoPrototype && HasNoPrototype(FoundFunction)) {
+            // We want to use the same FoundFunction for every occurrence.
+            // FIXME: In C the same function can be called with different
+            // parameters.
+            return Importer.MapImported(D, FoundFunction);
+          }
+
           FoundByLookup = FoundFunction;
           break;
         }

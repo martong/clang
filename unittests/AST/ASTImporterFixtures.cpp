@@ -49,6 +49,15 @@ void checkImportedSourceLocations(const Decl *FromD, const Decl *ToD) {
   // Print debug information.
   const bool Print = false;
 
+  // Skip non-declared C functions: The same FunctionDecl can be linked into
+  // multiple contexts of different functions that have different source
+  // locations but the implicit function has always the same.
+  if (FromD->getLexicalDeclContext()->isFunctionOrMethod() &&
+      FromD->isImplicit()) {
+    // FIXME: Should check FromD->getLocation() "==" ToD->getLocation().
+    return;
+  }
+
   SmallString<1024> ToPrinted;
   SmallString<1024> FromPrinted;
   llvm::raw_svector_ostream ToStream(ToPrinted);

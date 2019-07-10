@@ -5171,6 +5171,102 @@ TEST_P(ASTImporterOptionSpecificTestBase, ImportOfFriendTemplateWithArgExpr) {
   EXPECT_NE(ToD1->getCanonicalDecl(), ToD2->getCanonicalDecl());
 }
 
+struct ASTImporterCImplicitFunctionTest : ASTImporterOptionSpecificTestBase {
+  static FunctionDecl *GetImplicitF(FunctionDecl *F) {
+    return cast<CallExpr>(cast<CompoundStmt>(F->getBody())->body_front())
+        ->getDirectCallee();
+  };
+};
+
+TEST_P(ASTImporterCImplicitFunctionTest, ImportCImplicitFunction) {
+  auto Code = "void f() { implicit_f(); }";
+
+  TranslationUnitDecl *FromTU = getTuDecl(Code, Lang_C, "input.c");
+  auto *FromF = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("f")));
+  FunctionDecl *FromImplicitF = GetImplicitF(FromF);
+
+  ASSERT_TRUE(FromImplicitF->getDeclContext() == cast<DeclContext>(FromTU));
+  ASSERT_TRUE(FromImplicitF->getLexicalDeclContext() ==
+              cast<DeclContext>(FromF));
+  ASSERT_FALSE(FromTU->containsDecl(FromImplicitF));
+  ASSERT_TRUE(FromF->containsDecl(FromImplicitF));
+
+  auto *ToImplicitF = Import(FromImplicitF, Lang_C);
+  auto *ToF = Import(FromF, Lang_C);
+  ASSERT_TRUE(ToImplicitF);
+  TranslationUnitDecl *ToTU = ToImplicitF->getTranslationUnitDecl();
+  EXPECT_FALSE(ToTU->containsDecl(ToImplicitF));
+  EXPECT_TRUE(ToF->containsDecl(ToImplicitF));
+}
+
+TEST_P(ASTImporterCImplicitFunctionTest, ImportedCImplicitFunctionsLinked) {
+  auto Code =
+      R"(
+        void f1() { implicit_f(); }
+        void f2() { implicit_f(); }
+        )";
+
+  TranslationUnitDecl *FromTU = getTuDecl(Code, Lang_C, "input.c");
+  auto *FromF1 = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("f1")));
+  FunctionDecl *FromImplicitF1 = GetImplicitF(FromF1);
+  auto *FromF2 = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("f2")));
+  FunctionDecl *FromImplicitF2 = GetImplicitF(FromF2);
+
+  ASSERT_EQ(FromImplicitF1, FromImplicitF2);
+
+  auto *ToImplicitF1 = Import(FromImplicitF1, Lang_C);
+  auto *ToF1 = Import(FromF1, Lang_C);
+  auto *ToF2 = Import(FromF2, Lang_C);
+  ASSERT_TRUE(ToImplicitF1);
+  EXPECT_EQ(GetImplicitF(ToF1), ToImplicitF1);
+  EXPECT_EQ(GetImplicitF(ToF2), ToImplicitF1);
+}
+
+TEST_P(ASTImporterCImplicitFunctionTest,
+       ImportAndLinkCImplicitFunctionAfterExisting) {
+  auto ToCode = "void f1() { implicit_f(); }";
+  auto FromCode = "void f2() { implicit_f(); }";
+
+  TranslationUnitDecl *ToTU = getToTuDecl(ToCode, Lang_C);
+  TranslationUnitDecl *FromTU = getTuDecl(FromCode, Lang_C);
+  auto *ToF1 =
+      FirstDeclMatcher<FunctionDecl>().match(ToTU, functionDecl(hasName("f1")));
+  FunctionDecl *ToImplicitF1 = GetImplicitF(ToF1);
+  auto *FromF2 = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("f2")));
+  FunctionDecl *FromImplicitF2 = GetImplicitF(FromF2);
+
+  auto *ToImplicitF2 = Import(FromImplicitF2, Lang_C);
+  ASSERT_TRUE(ToImplicitF2);
+  EXPECT_EQ(ToImplicitF2, ToImplicitF1);
+}
+
+TEST_P(ASTImporterCImplicitFunctionTest,
+       ImportAndLinkCImplicitFunctionDefinition) {
+  auto ToCode = "void f() { implicit_f(); }";
+  auto FromCode = "int implicit_f() {}";
+
+  TranslationUnitDecl *ToTU = getToTuDecl(ToCode, Lang_C);
+  TranslationUnitDecl *FromTU = getTuDecl(FromCode, Lang_C);
+  auto *ToF =
+      FirstDeclMatcher<FunctionDecl>().match(ToTU, functionDecl(hasName("f")));
+  FunctionDecl *ToImplicitF = GetImplicitF(ToF);
+  auto *FromImplicitFDef = FirstDeclMatcher<FunctionDecl>().match(
+      FromTU, functionDecl(hasName("implicit_f")));
+
+  auto *ToImplicitFDef = Import(FromImplicitFDef, Lang_C);
+  ASSERT_TRUE(ToImplicitFDef);
+  EXPECT_NE(ToImplicitFDef, ToImplicitF);
+  EXPECT_EQ(ToImplicitFDef->getPreviousDecl(), ToImplicitF);
+  EXPECT_EQ(ToImplicitF->getDefinition(), ToImplicitFDef);
+}
+
+INSTANTIATE_TEST_CASE_P(ParameterizedTests, ASTImporterCImplicitFunctionTest,
+                        DefaultTestValuesForRunOptions, );
+
 INSTANTIATE_TEST_CASE_P(ParameterizedTests, ASTImporterLookupTableTest,
                         DefaultTestValuesForRunOptions, );
 
