@@ -45,11 +45,18 @@ void testMacro(void) {
   g(0); // expected-warning@Inputs/ctu-other.c:29 {{Access to field 'a' results in a dereference of a null pointer (loaded from variable 'ctx')}}
 }
 
+void h(int);
+
 // The external function prototype is incomplete.
 // warning:implicit functions are prohibited by c99
 void testImplicit() {
-  int res = identImplicit(6);   // external implicit functions are not inlined
+  int res = identImplicit(6);
   clang_analyzer_eval(res == 6); // expected-warning{{TRUE}}
+
+  // Call something with uninitialized from the same function in which the implicit was called.
+  // This is necessary to reproduce a special bug in NoStoreFuncVisitor.
+  int uninitialized;
+  h(uninitialized); // expected-warning@ctu-main.c:59 {{1st function call argument is an uninitialized value}}
 }
 
 // Tests the import of functions that have a struct parameter
