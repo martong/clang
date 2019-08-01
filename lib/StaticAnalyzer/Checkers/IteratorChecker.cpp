@@ -2121,6 +2121,9 @@ ProgramStateRef relateIteratorPositions(ProgramStateRef State,
     "Symbol comparison must be a `DefinedSVal`");
 
   auto NewState = State->assume(comparison.castAs<DefinedSVal>(), Equal);
+  if (!NewState)
+    return nullptr;
+
   if (const auto CompSym = comparison.getAsSymbol()) {
     assert(isa<SymIntExpr>(CompSym) &&
            "Symbol comparison must be a `SymIntExpr`");
