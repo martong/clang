@@ -75,6 +75,8 @@ void test_virtual_functions(mycls* obj) {
   clang_analyzer_eval(obj->fvcl(1) == 9);      // expected-warning{{FALSE}} expected-warning{{TRUE}}
 }
 
+extern int testDefParmIncompleteImport(int);
+
 int main() {
   clang_analyzer_eval(f(3) == 2); // expected-warning{{TRUE}}
   clang_analyzer_eval(f(4) == 3); // expected-warning{{TRUE}}
@@ -95,4 +97,6 @@ int main() {
   clang_analyzer_eval(other_macro_diag(1) == 1); // expected-warning{{TRUE}}
   // expected-warning@Inputs/ctu-other.cpp:93{{REACHABLE}}
   MACRODIAG(); // expected-warning{{REACHABLE}}
+
+  clang_analyzer_eval(testDefParmIncompleteImport(9) == 9); // expected-warning{{TRUE}}
 }

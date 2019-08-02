@@ -3929,6 +3929,15 @@ ExpectedDecl ASTNodeImporter::VisitParmVarDecl(ParmVarDecl *D) {
   else
     return Imp.takeError();
 
+  Expr *DefaultArg = nullptr;
+  if (D->hasUninstantiatedDefaultArg()) {
+    if (Error Err = importInto(DefaultArg, D->getUninstantiatedDefaultArg()))
+      return std::move(Err);
+  } else if (D->hasDefaultArg()) {
+    if (Error Err = importInto(DefaultArg, D->getDefaultArg()))
+      return std::move(Err);
+  }
+
   ParmVarDecl *ToParm;
   if (GetImportedOrCreateDecl(ToParm, D, Importer.getToContext(), DC,
                               ToInnerLocStart, ToLocation,
@@ -3940,19 +3949,12 @@ ExpectedDecl ASTNodeImporter::VisitParmVarDecl(ParmVarDecl *D) {
   // Set the default argument.
   ToParm->setHasInheritedDefaultArg(D->hasInheritedDefaultArg());
   ToParm->setKNRPromoted(D->isKNRPromoted());
-
   if (D->hasUninstantiatedDefaultArg()) {
-    if (auto ToDefArgOrErr = import(D->getUninstantiatedDefaultArg()))
-      ToParm->setUninstantiatedDefaultArg(*ToDefArgOrErr);
-    else
-      return ToDefArgOrErr.takeError();
+    ToParm->setUninstantiatedDefaultArg(DefaultArg);
   } else if (D->hasUnparsedDefaultArg()) {
     ToParm->setUnparsedDefaultArg();
   } else if (D->hasDefaultArg()) {
-    if (auto ToDefArgOrErr = import(D->getDefaultArg()))
-      ToParm->setDefaultArg(*ToDefArgOrErr);
-    else
-      return ToDefArgOrErr.takeError();
+    ToParm->setDefaultArg(DefaultArg);
   }
 
   if (D->isObjCMethodParameter()) {

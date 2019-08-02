@@ -93,3 +93,22 @@ int other_macro_diag(int x) {
   MACRODIAG();
   return x;
 }
+
+struct DefParmContext {
+  static const int I;
+  int f();
+};
+
+int fDefParm(int I = DefParmContext::I) {
+  return I;
+}
+
+int testDefParmIncompleteImport(int I) {
+  return fDefParm(I);
+}
+
+const int DefParmContext::I = 0;
+
+int DefParmContext::f() {
+  return fDefParm();
+}
