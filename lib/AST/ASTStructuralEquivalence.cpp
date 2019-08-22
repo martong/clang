@@ -86,6 +86,7 @@
 #include "llvm/ADT/APSInt.h"
 #include "llvm/ADT/None.h"
 #include "llvm/ADT/Optional.h"
+#include "llvm/ADT/ScopeExit.h"
 #include "llvm/Support/Casting.h"
 #include "llvm/Support/Compiler.h"
 #include "llvm/Support/ErrorHandling.h"
@@ -1709,10 +1710,21 @@ bool StructuralEquivalenceContext::IsEquivalent(Decl *D1, Decl *D2) {
   assert(DeclsToCheck.empty());
   assert(TentativeEquivalences.empty());
 
-  if (!::IsStructurallyEquivalent(*this, D1, D2))
-    return false;
+  bool Equivalent = true;
+  auto NonEquivalentDeclsInserter =
+      llvm::make_scope_exit([this, &Equivalent, D1, D2]() {
+        if (!Equivalent)
+          NonEquivalentDecls.insert(
+              std::make_pair(D1->getCanonicalDecl(), D2->getCanonicalDecl()));
+      });
 
-  return !Finish();
+  if (!::IsStructurallyEquivalent(*this, D1, D2)) {
+    Equivalent = false;
+    return false;
+  }
+
+  Equivalent = !Finish();
+  return Equivalent;
 }
 
 bool StructuralEquivalenceContext::IsEquivalent(QualType T1, QualType T2) {
@@ -1884,15 +1896,8 @@ bool StructuralEquivalenceContext::Finish() {
 
     bool Equivalent =
         CheckCommonEquivalence(D1, D2) && CheckKindSpecificEquivalence(D1, D2);
-
-    if (!Equivalent) {
-      // Note that these two declarations are not equivalent (and we already
-      // know about it).
-      NonEquivalentDecls.insert(
-          std::make_pair(D1->getCanonicalDecl(), D2->getCanonicalDecl()));
+    if (!Equivalent)
       return true;
-    }
   }
-
   return false;
 }
